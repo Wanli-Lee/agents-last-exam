@@ -1,0 +1,15 @@
+{
+  "task_count": 5,
+  "selected_task_ids": [
+    "supply_chain/odoo",
+    "robotics/humanoid_velocity_tracking_policy",
+    "computational_chemistry/adapt_vqe_molecular_energy",
+    "media/chroma_key_from_reference",
+    "audio/music_transcription"
+  ],
+  "files_included": 4,
+  "tasks_with_actual_local_input_files": 1,
+  "tasks_manifest_only": 4,
+  "hidden_gold_outputs_included": false,
+  "output_dir": "examples/hf_trial_subset"
+}

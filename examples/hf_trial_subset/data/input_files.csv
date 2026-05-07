@@ -1,0 +1,5 @@
+task_id,variant_id,path,size_bytes,suffix
+supply_chain/odoo,odoo_compact,input_materials/supply_chain__odoo/00_odoo_compact/prompt.txt,4468,.txt
+supply_chain/odoo,odoo_hard,input_materials/supply_chain__odoo/01_odoo_hard/prompt.txt,4441,.txt
+supply_chain/odoo,odoo_shifted,input_materials/supply_chain__odoo/02_odoo_shifted/prompt.txt,4468,.txt
+supply_chain/odoo,odoo_stress,input_materials/supply_chain__odoo/03_odoo_stress/prompt.txt,4459,.txt
