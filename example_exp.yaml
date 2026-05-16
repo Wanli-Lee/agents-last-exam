@@ -113,6 +113,23 @@ agents:
       max_budget_usd: 10.0
       timeout_s: 1800
 
+  # Native (host-side, in-process) deployer — OpenClaw harness.
+  # The agent runs in this Python process; uses env.session.computer to
+  # drive the VM. work_dir lives in /tmp/ale/ale_claw/<task_id>-<run_id>/
+  # and is shutil.copytree'd to <run_dir>/origin_log/ale-claw/ after the run.
+  # - id: ale_claw_sonnet
+  #   class: ale_claw
+  #   config:
+  #     model: openrouter/anthropic/claude-sonnet-4-20250514
+  #     openrouter_api_key: ${env:OPENROUTER_API_KEY}
+  #     max_turns: 100             # mapped to OpenClaw max_steps
+  #     timeout_s: 3600            # wall budget
+  #     # disabled_tools: ["web_search"]  # default; set [] + brave_api_key to enable
+  #     # summary_model: openrouter/anthropic/claude-haiku-4-5
+  #     # lightweight_model: openrouter/anthropic/claude-haiku-4-5
+  #     # thinking_level: medium     # off | low | medium | high
+  #     # image_retention_mode: openclaw   # or "cua"
+
   # Fully-qualified class path (for agents not in the shortcut registry).
   # Config class is inferred from the deployer's __init__ signature.
   # - id: my_custom_agent

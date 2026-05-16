@@ -17,6 +17,7 @@ build/
 # On-disk run artifacts — never check in
 .logs/
 .final_logs/
+.temp_repos/
 
 # Per-developer experiment configs (workflow notes, model-swap probes).
 # Templates for users live at the top-level example_exp.yaml; anything

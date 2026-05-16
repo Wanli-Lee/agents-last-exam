@@ -59,9 +59,12 @@ AGENT_REGISTRY: dict[str, tuple[str, str]] = {
         "ale.agents.claude_code.deployer.ClaudeCodeDeployer",
         "ale.agents.claude_code.config.ClaudeCodeConfig",
     ),
+    "ale_claw": (
+        "ale.agents.ale_claw.deployer.AleClawDeployer",
+        "ale.agents.ale_claw.config.AleClawConfig",
+    ),
     # Add more here as deployers come online:
-    # "openclaw_cli": ("ale...OpenClawDeployer", "ale...OpenClawConfig"),
-    # "codex":        ("ale...CodexDeployer",   "ale...CodexConfig"),
+    # "codex": ("ale...CodexDeployer", "ale...CodexConfig"),
 }
 
 
