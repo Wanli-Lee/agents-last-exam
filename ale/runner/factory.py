@@ -3,16 +3,31 @@
 The registries below are the canonical way to add a new provider or agent
 to the experiment yaml surface. Shortcut → fqdn mapping keeps yamls short
 without sacrificing the explicit ``module.Class`` form for new agents.
+
+Agent construction in the new (post-Runtime-refactor) world is a two-step
+process:
+
+  1. :func:`resolve_agent_class` — turn spec.class_ into (DeployerCls, ConfigCls),
+     pick the runtime kind (validating against ``DeployerCls.supported_runtimes``),
+     and build the config dataclass from spec.config.
+  2. The lifecycle (in :mod:`ale.runner.lifecycle`) then constructs the
+     runtime (kind-specific) and finally ``deployer = DeployerCls(runtime)``.
+
+We split that into two calls so the lifecycle can extract VM endpoint info
+from the env *between* config-build and runtime-build.
 """
 from __future__ import annotations
 
 import importlib
-from typing import Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
-from ale.agents.base import BaseAgentDeployer
 from ale.core.provider import Provider
 
 from .spec import AgentSpec, ProviderSpec
+
+if TYPE_CHECKING:
+    from ale.agents.base import BaseAgentConfig, BaseAgentDeployer
 
 
 # =============================================================================
@@ -68,29 +83,96 @@ AGENT_REGISTRY: dict[str, tuple[str, str]] = {
 }
 
 
-def build_agent(spec: AgentSpec) -> BaseAgentDeployer:
-    """Return a configured deployer ready for ``deployer.run(env)``.
+@dataclass
+class ResolvedAgent:
+    """What :func:`resolve_agent` returns — everything the lifecycle needs
+    EXCEPT the runtime instance (which it constructs separately because
+    the runtime needs VM endpoint info from env, not yet available here).
+    """
 
-    ``spec.class_`` may be either:
-      - a shortcut key from :data:`AGENT_REGISTRY` (e.g. ``"claude_code"``)
-      - a fully-qualified deployer class path. In that case we infer the
-        config class from the deployer's constructor annotation.
+    deployer_cls: type["BaseAgentDeployer"]
+    config: "BaseAgentConfig"
+    runtime_kind: str         # validated ∈ deployer_cls.supported_runtimes
+
+
+def resolve_agent(spec: AgentSpec) -> ResolvedAgent:
+    """Resolve ``spec`` into (deployer class, config instance, runtime kind).
+
+    Pipeline:
+      1. Import deployer + config classes (via :data:`AGENT_REGISTRY` shortcut
+         or fqdn fallback).
+      2. Build the config dataclass from ``spec.config`` kwargs.
+      3. Pick a runtime: prefer ``spec.runtime`` if given (must be in
+         ``deployer_cls.supported_runtimes``); else auto-pick:
+            - if a single runtime is supported → use it
+            - elif "local" is supported → use "local" (ergonomic default)
+            - else → raise (ambiguous; user must specify)
     """
     if spec.class_ in AGENT_REGISTRY:
         dep_path, cfg_path = AGENT_REGISTRY[spec.class_]
         dep_cls = _import_name(dep_path)
         cfg_cls = _import_name(cfg_path)
     else:
-        # Treat class_ as fully-qualified deployer path; infer config.
         dep_cls = _import_name(spec.class_)
         cfg_cls = _infer_config_class(dep_cls)
+
     try:
         cfg = cfg_cls(**spec.config)
     except TypeError as exc:
         raise TypeError(
             f"agent id={spec.id!r} (class {spec.class_}) got bad config: {exc}"
         ) from exc
-    return dep_cls(cfg)
+
+    supported = frozenset(getattr(dep_cls, "supported_runtimes", frozenset()))
+    if not supported:
+        raise TypeError(
+            f"agent {dep_cls.__name__} declares no supported_runtimes; "
+            f"every BaseAgentDeployer subclass must set this ClassVar."
+        )
+
+    if spec.runtime is None:
+        runtime_kind = _auto_pick_runtime(supported, dep_cls.__name__, spec.id)
+    else:
+        if spec.runtime not in supported:
+            raise ValueError(
+                f"agent id={spec.id!r} (class {dep_cls.__name__}) configured "
+                f"runtime={spec.runtime!r}, but the deployer only supports "
+                f"{sorted(supported)}."
+            )
+        runtime_kind = spec.runtime
+
+    return ResolvedAgent(deployer_cls=dep_cls, config=cfg, runtime_kind=runtime_kind)
+
+
+def _auto_pick_runtime(supported: frozenset[str], dep_name: str, agent_id: str) -> str:
+    """Default-runtime policy when spec.runtime is omitted.
+
+    Rules:
+      - len(supported) == 1: that one.
+      - "local" supported: "local" (dev ergonomics — fast, no docker daemon).
+      - else: raise; user must pick explicitly.
+    """
+    if len(supported) == 1:
+        return next(iter(supported))
+    if "local" in supported:
+        return "local"
+    raise ValueError(
+        f"agent id={agent_id!r} (class {dep_name}) supports multiple runtimes "
+        f"{sorted(supported)} but none is the conventional default; "
+        f"set `runtime: <kind>` explicitly in the yaml."
+    )
+
+
+# ---- legacy shim so any callers still importing build_agent get a clear error ----
+
+def build_agent(spec: AgentSpec):
+    """Deprecated. Use :func:`resolve_agent` + construct runtime/deployer
+    in lifecycle. Kept as a guardrail so old callers fail loudly."""
+    raise RuntimeError(
+        "build_agent() removed in the Runtime refactor. Use "
+        "ale.runner.factory.resolve_agent(spec) and let lifecycle build the "
+        "runtime + deployer."
+    )
 
 
 # =============================================================================

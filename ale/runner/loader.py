@@ -102,10 +102,14 @@ def _build_provider(raw: dict[str, Any]) -> ProviderSpec:
 
 def _build_agent(raw: dict[str, Any]) -> AgentSpec:
     _require(raw, "id", "class")
+    runtime = raw.get("runtime")
+    if runtime is not None and not isinstance(runtime, str):
+        raise TypeError(f"agent.runtime must be a string, got {type(runtime).__name__}")
     return AgentSpec(
         id=str(raw["id"]),
         class_=str(raw["class"]),
         config=dict(raw.get("config") or {}),
+        runtime=runtime,
     )
 
 
