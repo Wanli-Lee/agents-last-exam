@@ -34,6 +34,7 @@ from ale.core.provider import Provider
 from ale.core.types import Submit
 from ale.io import RunWriter, slug_task
 from ale.runtime import EXECUTORS, AgentRuntime
+from ale.runtime.docker import DockerRuntime
 from ale.runtime.local import LocalRuntime
 from ale.runtime.vm import VmRuntime
 
@@ -113,8 +114,14 @@ def make_runtime(
             config=config,
         )
     if kind == "docker":
-        raise NotImplementedError(
-            "docker runtime: Phase 4 — DockerExecutor + DockerRuntime not yet wired."
+        # work_dir is the HOST bind-mount source; container sees it as /work.
+        # We use host_origin_dir so artifacts land directly in the run_dir.
+        host_origin_dir.mkdir(parents=True, exist_ok=True)
+        return DockerRuntime(
+            work_dir=host_origin_dir,
+            vm_endpoint=vm_endpoint,
+            vm_os=vm_os,
+            config=config,
         )
     raise ValueError(f"unknown runtime kind: {kind!r}")
 

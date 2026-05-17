@@ -38,16 +38,18 @@ from .local import LocalRuntime
 from .local_executor import LocalExecutor
 from .vm import VmRuntime
 from .vm_executor import VmExecutor
-
-# DockerRuntime + DockerExecutor land in Phase 4.
+from .docker import DockerRuntime
+from .docker_executor import DockerExecutor
 
 __all__ = [
     "AgentRuntime",
     "LocalRuntime",
     "VmRuntime",
+    "DockerRuntime",
     "Executor",
     "LocalExecutor",
     "VmExecutor",
+    "DockerExecutor",
     "EXECUTORS",
     "RuntimeKind",
 ]
