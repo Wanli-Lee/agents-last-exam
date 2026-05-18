@@ -88,6 +88,16 @@ def _classify_gcloud_error(stderr: str) -> str:
     return "fatal"
 
 
+# GCP label values: lowercase letters, numbers, _, -; max 63 chars.
+_LABEL_INVALID_RE = __import__("re").compile(r"[^a-z0-9_-]+")
+
+
+def _label_safe(value: str, max_len: int = 63) -> str:
+    """Sanitize a string into a GCE-label-safe value (lowercase a-z0-9_-, ≤63)."""
+    s = _LABEL_INVALID_RE.sub("-", str(value).lower())
+    return s[:max_len].strip("-") or "unknown"
+
+
 # =============================================================================
 # Provider config
 # =============================================================================
@@ -102,6 +112,13 @@ class GCSDirectConfig:
 
     project: str
     zone: str = "us-west1-b"
+    """Primary zone. acquire() tries this first; on capacity error it
+    falls through to ``fallback_zones`` in order. simprun does the same
+    via CapacityProfile.zones."""
+    fallback_zones: tuple[str, ...] = ()
+    """Zones to try when ``zone`` returns capacity/stockout. Empty (the
+    default) → no fallback, capacity error surfaces immediately. Typical:
+    ``("us-west1-a", "us-central1-a")`` for us-west1-b primary."""
     machine_type: str = "e2-standard-4"
     network: str = "agenthle-vpc"
     """Default to ``agenthle-vpc`` — its firewall has port 5000 (cua-server)
@@ -116,6 +133,13 @@ class GCSDirectConfig:
     boot_disk_gb: int = 50
     data_disk_gb: int = 200
     data_disk_type: str = "pd-balanced"
+    # Network firewall tag attached to every created VM. agenthle-vpc's
+    # port 5000 / 22 rules are filtered by `--target-tags=ale-runner`
+    # (see simprun's `--tags=agenthle-simprun`). If ops ever tightens
+    # firewall to tag-based access, VMs without this tag become
+    # unreachable and CUA probe fails silently. Single tag keeps it
+    # simple; add `,extra-tag` here if you need more.
+    network_tag: str = "ale-runner"
     # Map from snapshot tag → GCE image (or family). The task's task_card.json
     # picks a snapshot; this map translates it to a real image.
     images: dict[str, str] = dataclasses.field(default_factory=dict)
@@ -153,17 +177,20 @@ class GCSDirectProvider(Provider):
         instance_name = self._instance_name(spec)
         image = self._cfg.resolve_image(spec.snapshot)
 
-        # 1. gcloud create.
-        instance_meta = await self._gcloud_create(instance_name, spec, image)
+        # 1. gcloud create — tries primary zone, falls through to fallback_zones
+        #    on capacity error. Returns (instance_meta, used_zone).
+        instance_meta, used_zone = await self._gcloud_create_multi_zone(
+            instance_name, spec, image,
+        )
 
         # 2. Pull the external IP off the create response.
         external_ip = self._extract_external_ip(instance_meta)
         if not external_ip:
             # Best-effort describe fallback — sometimes create returns before
             # the access config is attached.
-            external_ip = await self._describe_external_ip(instance_name)
+            external_ip = await self._describe_external_ip(instance_name, used_zone)
         if not external_ip:
-            await self._best_effort_delete(instance_name)
+            await self._best_effort_delete(instance_name, used_zone)
             raise RuntimeError(
                 f"gcloud created {instance_name} but no external IP became available"
             )
@@ -172,7 +199,7 @@ class GCSDirectProvider(Provider):
         try:
             await self._wait_cua_ready(external_ip, spec.os)
         except Exception:
-            await self._best_effort_delete(instance_name)
+            await self._best_effort_delete(instance_name, used_zone)
             raise
 
         return VMHandle(
@@ -182,12 +209,16 @@ class GCSDirectProvider(Provider):
             metadata={
                 "backend": "gcs_direct",
                 "project": self._cfg.project,
-                "zone": self._cfg.zone,
+                "zone": used_zone,    # actual zone — may be a fallback, not cfg.zone
                 "image": image,
                 "external_ip": external_ip,
                 "snapshot": spec.snapshot,
             },
         )
+
+    def _zone_pool(self) -> list[str]:
+        """Primary zone first, then fallbacks. simprun: image_cfg.fallback_zones."""
+        return [self._cfg.zone, *self._cfg.fallback_zones]
 
     def _instance_name(self, spec: EnvSpec) -> str:
         # GCE names: max 63 chars, lowercase + digits + hyphen.
@@ -197,27 +228,78 @@ class GCSDirectProvider(Provider):
         name = f"{self._cfg.instance_prefix}-{snap}-{ts}-{short}"
         return name[:63].rstrip("-")
 
-    async def _gcloud_create(
+    async def _gcloud_create_multi_zone(
         self, name: str, spec: EnvSpec, image: str,
-    ) -> dict[str, Any]:
-        """Create one VM, retrying transient gcloud errors with exp backoff.
+    ) -> tuple[dict[str, Any], str]:
+        """Try primary zone first; on capacity error fall through to fallback_zones.
 
-        Capacity / quota errors are NOT retried — surface them so the
-        operator switches zone or profile.
+        Returns ``(instance_meta, used_zone)``. Raises on the last zone's
+        non-capacity error or when ALL zones exhausted with capacity.
+
+        Mirror of simprun's create_vm zone loop (vm.py:327-378), simplified:
+        no per-zone CapacityProfile (single machine_type for now).
+        """
+        zones = self._zone_pool()
+        last_err = ""
+        per_zone_errors: list[str] = []
+        for zone in zones:
+            try:
+                meta = await self._gcloud_create_in_zone(name, spec, image, zone)
+                return meta, zone
+            except RuntimeError as exc:
+                kind = _classify_gcloud_error(str(exc))
+                last_err = str(exc)
+                per_zone_errors.append(f"{zone}: {kind} — {str(exc)[:200].strip()}")
+                if kind == "capacity":
+                    logger.warning(
+                        "gcloud create: zone %s exhausted (capacity) — "
+                        "trying next of %s", zone, zones[zones.index(zone) + 1:] or "[none]",
+                    )
+                    continue
+                # transient (retries already exhausted inside) or fatal — try next zone
+                # only for capacity. For transient/fatal, surface immediately.
+                if kind == "transient":
+                    logger.warning(
+                        "gcloud create: zone %s gave transient error after "
+                        "retries — trying next zone", zone,
+                    )
+                    continue
+                raise
+        raise RuntimeError(
+            f"gcloud create exhausted all {len(zones)} zone(s): "
+            + " | ".join(per_zone_errors)
+        )
+
+    async def _gcloud_create_in_zone(
+        self, name: str, spec: EnvSpec, image: str, zone: str,
+    ) -> dict[str, Any]:
+        """Create one VM in one specific zone, retrying transient gcloud errors.
+
+        Capacity / quota errors raise immediately (caller decides whether to
+        try a different zone).
         """
         data_disk = f"{name}-data"
         args = [
             "gcloud", "compute", "instances", "create", name,
             f"--project={self._cfg.project}",
-            f"--zone={self._cfg.zone}",
+            f"--zone={zone}",
             f"--machine-type={self._cfg.machine_type}",
             f"--image={image}",
+            # Explicit image-project disambiguates from any public image
+            # that happens to share a name (simprun:vm.py:147). Defaults
+            # to provider.project; ALE has no separate image-project knob.
+            f"--image-project={self._cfg.project}",
             f"--boot-disk-size={self._cfg.boot_disk_gb}GB",
             f"--network={self._cfg.network}",
             (
                 f"--create-disk=name={data_disk},size={self._cfg.data_disk_gb}GB,"
                 f"type={self._cfg.data_disk_type},auto-delete=yes"
             ),
+            # Firewall tag (so agenthle-vpc's port-5000 rule applies).
+            f"--tags={self._cfg.network_tag}",
+            # Labels for ops inventory: `gcloud instances list
+            # --filter='labels.purpose=ale'` can find our residue.
+            f"--labels=purpose=ale,snapshot={_label_safe(spec.snapshot)}",
             "--format=json",
             "--quiet",
         ]
@@ -231,8 +313,8 @@ class GCSDirectProvider(Provider):
         last_err = ""
         for attempt in range(1, _GCP_MAX_RETRIES + 1):
             logger.info(
-                "gcloud create: %s (attempt %d/%d)",
-                name, attempt, _GCP_MAX_RETRIES,
+                "gcloud create: %s in %s (attempt %d/%d)",
+                name, zone, attempt, _GCP_MAX_RETRIES,
             )
             try:
                 stdout, _ = await self._run_gcloud(args)
@@ -241,7 +323,7 @@ class GCSDirectProvider(Provider):
                 last_err = stderr_text
                 kind = _classify_gcloud_error(stderr_text)
                 if kind == "capacity":
-                    # No point retrying same zone — operator must move zones.
+                    # No point retrying same zone — caller may try next.
                     raise
                 if kind == "transient" and attempt < _GCP_MAX_RETRIES:
                     delay = _GCP_RETRY_BASE_DELAY_S * (2 ** (attempt - 1))
@@ -265,7 +347,7 @@ class GCSDirectProvider(Provider):
             # `--format=json` returns a list with one element.
             return parsed[0] if isinstance(parsed, list) and parsed else {}
         raise RuntimeError(
-            f"gcloud create exhausted {_GCP_MAX_RETRIES} attempts: {last_err}"
+            f"gcloud create exhausted {_GCP_MAX_RETRIES} attempts in {zone}: {last_err}"
         )
 
     @staticmethod
@@ -277,11 +359,11 @@ class GCSDirectProvider(Provider):
                     return ip
         return None
 
-    async def _describe_external_ip(self, name: str) -> str | None:
+    async def _describe_external_ip(self, name: str, zone: str) -> str | None:
         args = [
             "gcloud", "compute", "instances", "describe", name,
             f"--project={self._cfg.project}",
-            f"--zone={self._cfg.zone}",
+            f"--zone={zone}",
             "--format=json",
         ]
         # Brief settle delay.
@@ -357,26 +439,28 @@ class GCSDirectProvider(Provider):
         if mode == "keep":
             logger.info("gcloud release[keep]: %s", vm.id)
             return
+        # vm.metadata["zone"] is the ACTUAL zone (may be a fallback, not cfg.zone).
+        zone = vm.metadata.get("zone") or self._cfg.zone
         verb = "delete" if mode == "delete" else "stop"
         args = [
             "gcloud", "compute", "instances", verb, vm.id,
             f"--project={self._cfg.project}",
-            f"--zone={self._cfg.zone}",
+            f"--zone={zone}",
             "--quiet",
         ]
-        logger.info("gcloud %s: %s", verb, vm.id)
+        logger.info("gcloud %s: %s (zone=%s)", verb, vm.id, zone)
         try:
             await self._run_gcloud(args)
         except Exception as exc:                   # noqa: BLE001
             # Best-effort: log and swallow. The Runner can re-poll inventory.
             logger.warning("gcloud %s failed for %s: %s", verb, vm.id, exc)
 
-    async def _best_effort_delete(self, name: str) -> None:
+    async def _best_effort_delete(self, name: str, zone: str) -> None:
         try:
             await self._run_gcloud([
                 "gcloud", "compute", "instances", "delete", name,
                 f"--project={self._cfg.project}",
-                f"--zone={self._cfg.zone}",
+                f"--zone={zone}",
                 "--quiet",
             ])
         except Exception as exc:                   # noqa: BLE001
