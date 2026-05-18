@@ -81,10 +81,15 @@ async def _run_on_vm(
     Returns combined stdout on success. Raises ``RuntimeError`` on final
     failure with truncated stderr/stdout. ``_NO_RETRY_PATTERNS`` short-
     circuit the retry loop.
+
+    The ``timeout`` arg is kept for caller intent / docs but cua-bench's
+    ``RemoteDesktopSession.run_command`` does not accept a per-call timeout —
+    the underlying SSE keeps the connection alive for long-running commands
+    (gsutil rsync, mkfs). ``check=False`` so we inspect rc ourselves.
     """
     last_err = ""
     for attempt in range(1, _MAX_RETRIES + 1):
-        cr = await session.run_command(command, timeout=timeout)
+        cr = await session.run_command(command, check=False)
         if cmd_ok(cr):
             return cmd_stdout(cr)
         last_err = (cmd_stderr(cr) or cmd_stdout(cr) or "").strip()
@@ -210,7 +215,7 @@ async def ensure_gcs_auth(session: "cb.DesktopSession", os_type: str) -> None:
         activate = (
             f'gcloud auth activate-service-account --key-file="{remote_key}" && echo ok'
         )
-    cr = await session.run_command(activate, timeout=30)
+    cr = await session.run_command(activate, check=False)
     if "ok" in (cmd_stdout(cr) or ""):
         logger.info("gcs auth activated on VM via SA key")
     else:
@@ -255,7 +260,7 @@ async def _ensure_linux_data_disk(session: "cb.DesktopSession") -> None:
         "sudo mkdir -p /media/user/data/agenthle && "
         "sudo chown -R user:user /media/user/data/agenthle && "
         "test -w /media/user/data/agenthle && echo ready",
-        timeout=30,
+        check=False,
     )
     if "ready" in (cmd_stdout(check) or ""):
         logger.info("ensure_data_disk: /media/user/data already mounted + writable")
@@ -283,7 +288,7 @@ done
     disk = ""
     for _ in range(5):
         cr = await session.run_command(
-            f"bash -lc {shlex.quote(find_script)}", timeout=15,
+            f"bash -lc {shlex.quote(find_script)}", check=False,
         )
         disk = (cmd_stdout(cr) or "").strip()
         if disk:
@@ -292,7 +297,7 @@ done
     if not disk:
         diag = await session.run_command(
             "lsblk -o NAME,TYPE,SIZE,MOUNTPOINT,FSTYPE 2>/dev/null || true",
-            timeout=15,
+            check=False,
         )
         raise RuntimeError(
             "no data disk device found on Linux VM (lsblk: "
@@ -317,7 +322,7 @@ sudo chown -R user:user /media/user/data/agenthle
 echo prepped
 """
     cr = await session.run_command(
-        f"bash -lc {shlex.quote(prep_script)}", timeout=180,
+        f"bash -lc {shlex.quote(prep_script)}", check=False,
     )
     if "prepped" not in (cmd_stdout(cr) or ""):
         raise RuntimeError(
@@ -331,7 +336,7 @@ async def _ensure_windows_data_disk(session: "cb.DesktopSession") -> None:
     """Bring up E: drive — online + initialize if needed."""
     cr = await session.run_command(
         "powershell -Command \"if (Test-Path 'E:\\') { echo ok } else { echo missing }\"",
-        timeout=30,
+        check=False,
     )
     if "ok" in (cmd_stdout(cr) or ""):
         return
@@ -345,10 +350,10 @@ async def _ensure_windows_data_disk(session: "cb.DesktopSession") -> None:
         "else { echo no_offline_disk }"
         '"'
     )
-    await session.run_command(online, timeout=60)
+    await session.run_command(online, check=False)
     cr = await session.run_command(
         "powershell -Command \"if (Test-Path 'E:\\') { echo ok } else { echo missing }\"",
-        timeout=30,
+        check=False,
     )
     if "ok" in (cmd_stdout(cr) or ""):
         logger.info("ensure_data_disk: E: brought online")
@@ -366,10 +371,10 @@ async def _ensure_windows_data_disk(session: "cb.DesktopSession") -> None:
         "} else { echo no_raw_disk }"
         '"'
     )
-    await session.run_command(init, timeout=120)
+    await session.run_command(init, check=False)
     cr = await session.run_command(
         "powershell -Command \"if (Test-Path 'E:\\') { echo ok } else { echo missing }\"",
-        timeout=30,
+        check=False,
     )
     if "ok" not in (cmd_stdout(cr) or ""):
         raise RuntimeError("E: drive still not available after initialization")
@@ -384,7 +389,7 @@ async def _gcs_prefix_exists(
     session: "cb.DesktopSession", src: str, os_type: str,
 ) -> bool:
     """gsutil ls $src → True if exists. Doesn't raise on absent path."""
-    cr = await session.run_command(_gcs_ls_cmd(src, os_type), timeout=60)
+    cr = await session.run_command(_gcs_ls_cmd(src, os_type), check=False)
     return cmd_ok(cr)
 
 

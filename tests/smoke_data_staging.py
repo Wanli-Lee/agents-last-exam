@@ -45,7 +45,7 @@ class _RecordingSession:
     # Pre-canned responses for specific command-prefixes (first-match wins).
     canned: dict[str, _CmdResult] = field(default_factory=dict)
 
-    async def run_command(self, command: str, *, timeout: float = 60.0) -> _CmdResult:
+    async def run_command(self, command: str, *, check: bool = True) -> _CmdResult:
         self.commands.append(command)
         for prefix, result in self.canned.items():
             if prefix in command:

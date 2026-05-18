@@ -171,7 +171,7 @@ class ArtifactMirror:
                 f"{shlex.quote(self._cfg.gcs_vm_key_file)} "
             )
         push = f"{vm_env}gsutil -m -q cp -r {shlex.quote(vm_path)} {shlex.quote(gs_url)}"
-        cr = await session.run_command(push, timeout=600)
+        cr = await session.run_command(push, check=False)
         if not cmd_ok(cr):
             raise RuntimeError(
                 f"vm gsutil push failed: {cmd_stderr(cr)[:500] or cmd_stdout(cr)[:300]}"
@@ -267,7 +267,7 @@ async def _is_dir(session: "cb.DesktopSession", remote: str) -> bool:
     try:
         cr = await session.run_command(
             f"if [ -d {shlex.quote(remote)} ]; then echo Y; else echo N; fi",
-            timeout=10,
+            check=False,
         )
     except Exception:                                   # noqa: BLE001
         return False
@@ -281,7 +281,7 @@ async def _stat_size_bytes(session: "cb.DesktopSession", remote: str) -> int:
     try:
         cr = await session.run_command(
             f"stat -c%s {shlex.quote(remote)} 2>/dev/null || echo -1",
-            timeout=10,
+            check=False,
         )
     except Exception:                                   # noqa: BLE001
         return -1
@@ -381,7 +381,7 @@ async def _dd_b64_segment(
             cr = await session.run_command(
                 f"dd if={shlex.quote(remote)} bs=1 skip={skip} count={count} "
                 f"2>/dev/null | base64 -w0",
-                timeout=120,
+                check=False,
             )
         except Exception as exc:                        # noqa: BLE001
             last_err = f"{type(exc).__name__}: {exc}"

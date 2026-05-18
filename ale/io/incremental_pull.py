@@ -45,7 +45,10 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_INTERVAL_S = 15.0          # how often to tick during agent run
 DEFAULT_MAX_CHUNK_BYTES = 16 * 1024 * 1024
-_RANGE_TIMEOUT_S = 60.0
+# Note: cua_bench's RemoteDesktopSession.run_command doesn't accept a
+# per-call timeout — the underlying SSE keeps the connection alive. We
+# wrap the *outer* tick in asyncio.wait_for at the loop driver level if
+# the operator wants a hard cap.
 _RANGE_RETRIES = 3
 _RANGE_BACKOFF_S = (1.0, 3.0, 9.0)
 
@@ -227,7 +230,7 @@ async def _pull_range(
     last_err = ""
     for attempt in range(_RANGE_RETRIES):
         try:
-            cr = await session.run_command(cmd, timeout=_RANGE_TIMEOUT_S)
+            cr = await session.run_command(cmd, check=False)
         except Exception as exc:                        # noqa: BLE001
             last_err = f"{type(exc).__name__}: {exc}"
         else:
