@@ -28,6 +28,12 @@ def main(argv: list[str] | None = None) -> int:
                        metavar="ID", help="Filter: only run agents with these ids.")
     p_run.add_argument("--task", action="append", dest="filter_tasks",
                        metavar="PATH", help="Filter: only run these task paths.")
+    p_run.add_argument(
+        "--force-rerun", action="store_true",
+        help="Skip the resume scan — re-attempt every unit even if a "
+             "completed/timeout run.json exists for it under the experiment's "
+             "output dir. Default is to skip already-completed units.",
+    )
     p_run.add_argument("--verbose", "-v", action="store_true")
 
     p_list = subparsers.add_parser("list", help="List discoverable tasks.")
@@ -59,13 +65,15 @@ async def _cmd_run(args: argparse.Namespace) -> int:
         print(f"experiment: {spec.name}")
         print(f"provider:   {spec.provider.kind}")
         print(f"output:     {runner.output_root}")
-        print(f"concurrency: {spec.concurrency}")
+        prov_n = spec.provision_concurrency or spec.run_concurrency
+        print(f"concurrency: run={spec.run_concurrency} provision={prov_n}")
+        print(f"eval_timeout_s: {spec.eval_timeout_s}")
         print(f"units ({len(units)}):")
         for u in units:
             print(f"  {u.agent_id:20s}  {u.task_path:40s}  v{u.variant_index}")
         return 0
 
-    results = await runner.run(units)
+    results = await runner.run(units, force_rerun=args.force_rerun)
     _print_results_table(results)
     bad = sum(1 for r in results if r.status not in ("completed",))
     return 0 if bad == 0 else 1

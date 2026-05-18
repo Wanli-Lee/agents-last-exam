@@ -33,6 +33,7 @@ from typing import Iterable
 
 from .factory import build_provider
 from .lifecycle import install_signal_handlers, run_one_unit
+from .resume import filter_completed, scan_completed_units
 from .spec import ExperimentSpec, RunUnit, UnitResult
 
 logger = logging.getLogger(__name__)
@@ -75,15 +76,43 @@ class Runner:
     async def run(
         self,
         units: Iterable[RunUnit] | None = None,
+        *,
+        force_rerun: bool = False,
     ) -> list[UnitResult]:
         """Run all units (or a filtered subset). Returns ``list[UnitResult]``.
 
-        No aggregation, no summary — caller does whatever rollup it wants.
+        Resume (default): scans the prior run dirs under
+        ``<output.root>/<spec.name>/`` and skips units whose previous
+        attempt reached a terminal state (completed / timeout). Failed /
+        cancelled units re-run. New runs always get a fresh timestamp
+        dir — we never merge or overwrite prior logs.
+
+        ``force_rerun=True`` disables the scan and runs every unit.
         """
         install_signal_handlers()
         unit_list = list(units) if units is not None else self.enumerate_units()
         if not unit_list:
             logger.warning("Runner.run: no units to execute")
+            return []
+
+        # Resume scan BEFORE creating the output root for this run.
+        skipped: list[RunUnit] = []
+        if not force_rerun and self._output_root.exists():
+            completed_keys = scan_completed_units(self._output_root)
+            if completed_keys:
+                unit_list, skipped = filter_completed(unit_list, completed_keys)
+                logger.info(
+                    "resume: skipping %d already-completed unit(s) in %s "
+                    "(force_rerun=False; pass --force-rerun to re-attempt all)",
+                    len(skipped), self._output_root,
+                )
+                for u in skipped:
+                    logger.info("resume: skip [%s]", u.slug)
+        if not unit_list:
+            logger.warning(
+                "Runner.run: no units left after resume filter "
+                "(all %d already completed)", len(skipped),
+            )
             return []
 
         self._output_root.mkdir(parents=True, exist_ok=True)
