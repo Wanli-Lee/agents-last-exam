@@ -727,7 +727,9 @@ async def run_one_unit(
             error=error,
             total_s=total_s,
             trajectory=trajectory,
-            phase=_resolve_phase(env, current_phase) if status != "completed" else None,
+            # Use the phase we captured in the except handler — env.current_phase
+            # is now "cleanup" because close_async() ran in the finally block.
+            phase=current_phase if status != "completed" else None,
             category=error_category if status != "completed" else None,
         ))
     except Exception as exc:                                    # noqa: BLE001
