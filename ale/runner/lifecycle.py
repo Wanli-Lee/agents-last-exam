@@ -324,6 +324,53 @@ def _resolve_phase(env, lifecycle_phase: Phase) -> Phase:
 
 
 # =============================================================================
+# Error categorization
+# =============================================================================
+
+# Substring patterns → short category tag. Checked against ``str(exc)``
+# lowercased. First match wins. Coarse on purpose — only the categories
+# that drive operator action (provisioning vs API vs auth vs network).
+_CATEGORY_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("rate_limited", ("rate limit", "ratelimit", "429", "too many requests")),
+    ("vm_quota_exhausted", ("quota", "stockout", "resource_exhausted",
+                            "does not have enough resources", "cpus_per_vm_family")),
+    ("auth_failed", ("401", "403", "authentication_failed", "permission denied",
+                     "unauthorized", "forbidden")),
+    ("gcs_missing", ("matched no objects", "no urls matched",
+                     "bucketnotfoundexception", "no such object")),
+    ("transport_error", ("connection reset", "connection refused", "503",
+                         "service unavailable", "deadline exceeded",
+                         "broken pipe", "remote end closed connection")),
+    ("rpc_timeout", ("timeout", "timed out")),
+)
+
+
+def _classify_error(exc: BaseException | None) -> str | None:
+    """Map an exception to a short category tag for ``termination.category``.
+
+    Returns ``None`` for cancels (no category — phase is enough) or
+    when no pattern matches (phase already says enough for triage).
+
+    Coarse on purpose: 6 buckets that drive operator action. Don't add
+    finer ones here — push finer detail into the original error message.
+    """
+    if exc is None:
+        return None
+    if isinstance(exc, (KeyboardInterrupt, asyncio.CancelledError)):
+        return None
+    # TimeoutError before string-match (more specific).
+    if isinstance(exc, (TimeoutError, asyncio.TimeoutError)):
+        return "rpc_timeout"
+    msg = str(exc).lower()
+    if not msg:
+        return None
+    for cat, patterns in _CATEGORY_PATTERNS:
+        if any(p in msg for p in patterns):
+            return cat
+    return None
+
+
+# =============================================================================
 # Per-unit run
 # =============================================================================
 
@@ -416,6 +463,7 @@ async def run_one_unit(
     # single awaitable; finer split would require splitting reset_async,
     # which we intentionally don't (clean OpenEnv contract).
     current_phase: Phase = "unknown"
+    error_category: str | None = None
 
     try:
         try:
@@ -619,12 +667,16 @@ async def run_one_unit(
             status = "failed"
             error = f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}"
             current_phase = _resolve_phase(env, current_phase)
+            error_category = _classify_error(exc)
             rw.emit_event(
                 "run_failed",
                 error_type=type(exc).__name__, message=str(exc),
-                phase=current_phase,
+                phase=current_phase, category=error_category,
             )
-            logger.exception("[%s] run threw in phase=%s", unit.slug, current_phase)
+            logger.exception(
+                "[%s] run threw in phase=%s category=%s",
+                unit.slug, current_phase, error_category,
+            )
             await _best_effort_full_gather(
                 runtime, runtime_kind, env, cfg, rw, artifacts, unit.slug,
             )
@@ -676,6 +728,7 @@ async def run_one_unit(
             total_s=total_s,
             trajectory=trajectory,
             phase=_resolve_phase(env, current_phase) if status != "completed" else None,
+            category=error_category if status != "completed" else None,
         ))
     except Exception as exc:                                    # noqa: BLE001
         logger.warning("[%s] write_run_json failed: %s", unit.slug, exc)
@@ -713,6 +766,7 @@ def _build_run_json(
     total_s: float,
     trajectory: Any,
     phase: Phase | None = None,
+    category: str | None = None,
 ) -> dict[str, Any]:
     return {
         "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -739,6 +793,12 @@ def _build_run_json(
             # task_setup | agent_run | stage_reference | evaluation | cleanup
             # | unknown. Use this first for triage in big batches.
             "phase": phase,
+            # Coarse error category: rate_limited | vm_quota_exhausted |
+            # auth_failed | gcs_missing | transport_error | rpc_timeout |
+            # None. Drives operator action (rotate keys, switch zones,
+            # check creds, wait + retry). None on success or when no
+            # known pattern matched (phase alone is enough).
+            "category": category,
             "error": (
                 {"type": "Exception", "message": str(error), "traceback": error}
                 if error else None
