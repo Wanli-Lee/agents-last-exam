@@ -368,9 +368,48 @@ class IncrementalPuller:
         return outcomes
 
     async def reconcile_final(self) -> dict[str, StepOutcome]:
-        """One final tick — does NOT loop. Caller can call this on cancel
-        or after agent finishes to top up the tail bytes."""
-        return await self.tick()
+        """Top up any tail bytes after agent stops.
+
+        Strategy (simprun parity, claude_code.py:_verify_final_sizes):
+          1. tick() to grab whatever's appended since last periodic tick
+          2. for each target: re-stat remote, compare to local file size
+          3. if remote > local, tick again until match or max 3 retries
+             (covers the case where the writer flushed bytes AFTER step 1)
+          4. if mismatch persists, log warning (not raise — best-effort)
+
+        Returns outcomes from the FIRST tick (step 1). Step 2-4 are
+        verification-only; their results are logged.
+        """
+        outcomes = await self.tick()
+        # Verify + top-up
+        for t in self._targets:
+            local_size = t.local_path.stat().st_size if t.local_path.exists() else 0
+            for retry in range(3):
+                session = await self._session_factory()
+                rr = await _pull_range(
+                    session, t.remote_path, self._os_type,
+                    start=local_size, max_chunk_bytes=DEFAULT_MAX_CHUNK_BYTES,
+                )
+                if not rr.success or rr.remote_size < 0:
+                    break    # transport or missing — no verify possible
+                if rr.remote_size == local_size:
+                    break    # already in sync
+                # Remote has more bytes than local — apply them.
+                logger.warning(
+                    "reconcile_final: size mismatch for %s (remote=%d local=%d), "
+                    "topping up (retry %d/3)",
+                    t.remote_path, rr.remote_size, local_size, retry + 1,
+                )
+                st = self._states[t.remote_path]
+                top_up = apply_range_step(st, t.local_path, rr, boundary="newline")
+                outcomes[t.remote_path] = top_up
+                local_size = t.local_path.stat().st_size if t.local_path.exists() else 0
+            else:
+                logger.error(
+                    "reconcile_final: size mismatch persists for %s after 3 retries",
+                    t.remote_path,
+                )
+        return outcomes
 
 
 # =============================================================================
