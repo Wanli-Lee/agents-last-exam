@@ -304,19 +304,91 @@ done
             f"{(cmd_stdout(diag) or cmd_stderr(diag) or '').strip()[:600]})"
         )
 
-    # Wipe + format + mount.
+    # Wipe + format + mount. Robust version mirroring simprun
+    # data._linux_data_disk_prep_cmd (357-411):
+    #   1. defang /etc/fstab — comment out any existing /media/user/data
+    #      entry so systemd doesn't try to auto-remount the disk under
+    #      us between wipefs and mkfs (snapshot residue can have stale
+    #      UUIDs that point at this disk).
+    #   2. systemctl daemon-reload — make systemd re-read the new fstab.
+    #   3. 3-pass swapoff + umount -fl on the disk + all its partitions,
+    #      waiting for udev to settle between passes.
+    #   4. wipefs each partition + the disk itself (kills stale FS sigs).
+    #   5. blockdev --rereadpt + udevadm settle to flush kernel state.
+    #   6. mkfs.ext4 -F.
+    #   7. mount + chown + chown the agenthle subdir.
     prep_script = f"""set -u
 disk={shlex.quote(disk)}
+
+if [ ! -b "$disk" ]; then
+  echo "data disk device missing: $disk" >&2
+  exit 1
+fi
+
+# 1+2. Defang fstab so systemd doesn't fight us mid-format.
 sudo umount /media/user/data 2>/dev/null || true
-for dev in $(lsblk -nrpo NAME "$disk" 2>/dev/null | sort -r); do
-  sudo umount -fl "$dev" 2>/dev/null || true
+if [ -f /etc/fstab ]; then
+  sudo cp -n /etc/fstab /etc/fstab.ale.bak 2>/dev/null || true
+  sudo sed -i -E '\\|[[:space:]]/media/user/data[[:space:]]| s|^[[:space:]]*([^#])|# ale disabled data disk automount: \\1|' /etc/fstab
+  sudo systemctl daemon-reload 2>/dev/null || true
+fi
+
+# 3. 3-pass swapoff + umount -fl until disk has zero mountpoints.
+for pass in 1 2 3; do
+  lsblk -nrpo NAME "$disk" 2>/dev/null | sort -r | while IFS= read -r dev; do
+    [ -n "$dev" ] || continue
+    sudo swapoff "$dev" 2>/dev/null || true
+  done
+
+  lsblk -nrpo MOUNTPOINT "$disk" 2>/dev/null | awk 'NF' | sort -r | while IFS= read -r mountpoint; do
+    sudo umount -fl "$mountpoint" 2>/dev/null || true
+  done
+
+  lsblk -nrpo NAME "$disk" 2>/dev/null | sort -r | while IFS= read -r dev; do
+    [ -n "$dev" ] || continue
+    sudo umount -fl "$dev" 2>/dev/null || true
+  done
+
+  sudo udevadm settle --timeout=5 2>/dev/null || true
+  if ! lsblk -nrpo MOUNTPOINT "$disk" 2>/dev/null | awk 'NF {{ found=1 }} END {{ exit found ? 0 : 1 }}'; then
+    break
+  fi
+  sleep 1
+done
+
+# Safety check: bail loudly if anything is still mounted.
+if lsblk -nrpo MOUNTPOINT "$disk" 2>/dev/null | awk 'NF {{ found=1 }} END {{ exit found ? 0 : 1 }}'; then
+  echo "data disk still mounted before format:" >&2
+  lsblk -nrpo NAME,MOUNTPOINT "$disk" >&2 || true
+  exit 1
+fi
+
+# 4+5. Wipe stale FS signatures + flush kernel partition table cache.
+lsblk -nrpo NAME "$disk" 2>/dev/null | sort -r | while IFS= read -r dev; do
+  [ -n "$dev" ] || continue
   sudo wipefs -a "$dev" 2>/dev/null || true
 done
+sudo blockdev --rereadpt "$disk" 2>/dev/null || true
 sudo udevadm settle --timeout=5 2>/dev/null || true
-sudo mkfs.ext4 -F -q "$disk"
+
+# 6. Format ext4 — 3 retries (mkfs can race with udev briefly).
+last_err=""
+for try in 1 2 3; do
+  if sudo mkfs.ext4 -F -q "$disk"; then
+    formatted=1; break
+  fi
+  last_err="mkfs.ext4 failed on try $try"
+  sleep 5
+done
+if [ -z "${{formatted:-}}" ]; then
+  echo "$last_err" >&2; exit 1
+fi
+
+# 7. Mount + chown.
+sudo umount /media/user/data 2>/dev/null || true
 sudo mkdir -p /media/user/data
 sudo mount "$disk" /media/user/data
-sudo chown -R user:user /media/user/data
+sudo chown user:user /media/user/data
 sudo mkdir -p /media/user/data/agenthle
 sudo chown -R user:user /media/user/data/agenthle
 echo prepped
@@ -332,8 +404,38 @@ echo prepped
     logger.info("ensure_data_disk: linux data disk %s mounted at /media/user/data", disk)
 
 
+async def _dismiss_format_dialog(session: "cb.DesktopSession") -> None:
+    """Send ESC to any 'Format' dialog Windows pops up after attaching a
+    raw data disk. Explorer auto-detects the new disk and asks the user
+    to format it — that dialog steals focus and pollutes the agent's
+    first screenshots. simprun parity: data._dismiss_format_dialog.
+
+    Best-effort: errors are swallowed (the dialog may not exist; finding
+    it requires explorer.exe to be live; etc).
+    """
+    try:
+        await session.run_command(
+            'powershell -Command "Get-Process -Name explorer -ErrorAction SilentlyContinue '
+            '| ForEach-Object { '
+            '$wshell = New-Object -ComObject WScript.Shell; '
+            "$null = $wshell.AppActivate('Format'); "
+            'Start-Sleep -Milliseconds 200; '
+            "$wshell.SendKeys('{ESC}') }\"",
+            check=False,
+        )
+    except Exception:                                       # noqa: BLE001
+        pass
+
+
 async def _ensure_windows_data_disk(session: "cb.DesktopSession") -> None:
-    """Bring up E: drive — online + initialize if needed."""
+    """Bring up E: drive — online + initialize if needed.
+
+    Wraps in `_dismiss_format_dialog` calls (before AND after any disk
+    operations) so Explorer's 'You need to format the disk' popup
+    doesn't sit on top of the agent's later screenshots.
+    """
+    await _dismiss_format_dialog(session)
+
     cr = await session.run_command(
         "powershell -Command \"if (Test-Path 'E:\\') { echo ok } else { echo missing }\"",
         check=False,
@@ -379,6 +481,9 @@ async def _ensure_windows_data_disk(session: "cb.DesktopSession") -> None:
     if "ok" not in (cmd_stdout(cr) or ""):
         raise RuntimeError("E: drive still not available after initialization")
     logger.info("ensure_data_disk: E: initialized")
+    # Format-Volume above can trigger ANOTHER explorer popup; dismiss
+    # again so the agent's subsequent screenshots are clean.
+    await _dismiss_format_dialog(session)
 
 
 # =============================================================================
