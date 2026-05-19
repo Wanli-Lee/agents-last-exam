@@ -98,6 +98,19 @@ def _label_safe(value: str, max_len: int = 63) -> str:
     return s[:max_len].strip("-") or "unknown"
 
 
+def _derive_boot_disk_type(machine_type: str) -> str:
+    """Auto-pick boot disk type by machine family.
+
+    Mirror of simprun.vm._boot_disk_type: c4/m4/x4 require
+    hyperdisk-balanced (GCP rejects pd-* on those families); everything
+    else (e2, n2, n1, etc) uses pd-ssd as a sane default.
+    """
+    family = machine_type.split("-")[0].lower()
+    if family in ("c4", "m4", "x4"):
+        return "hyperdisk-balanced"
+    return "pd-ssd"
+
+
 # =============================================================================
 # Provider config
 # =============================================================================
@@ -131,6 +144,12 @@ class GCSDirectConfig:
     )
     instance_prefix: str = "ale"
     boot_disk_gb: int = 50
+    boot_disk_type: str | None = None
+    """Boot disk type. ``None`` (default) → auto-derived from machine_type's
+    family: c4-/m4-/x4- get ``hyperdisk-balanced`` (those CPU families
+    REJECT pd-* types); everything else gets ``pd-ssd``. Override only if
+    you have specific perf/cost requirements. Mirrors simprun's
+    vm.py:_boot_disk_type."""
     data_disk_gb: int = 200
     data_disk_type: str = "pd-balanced"
     # Network firewall tag attached to every created VM. agenthle-vpc's
@@ -290,6 +309,7 @@ class GCSDirectProvider(Provider):
             # to provider.project; ALE has no separate image-project knob.
             f"--image-project={self._cfg.project}",
             f"--boot-disk-size={self._cfg.boot_disk_gb}GB",
+            f"--boot-disk-type={self._cfg.boot_disk_type or _derive_boot_disk_type(self._cfg.machine_type)}",
             f"--network={self._cfg.network}",
             (
                 f"--create-disk=name={data_disk},size={self._cfg.data_disk_gb}GB,"
