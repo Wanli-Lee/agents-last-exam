@@ -29,7 +29,7 @@ trajectory + run.json. Task files stay in agenthle's format unchanged.
 ```
                                 ┌────────────────────────────────────────────┐
                                 │             experiment yaml                │
-                                │   (provider, agents[], tasks[], runtime)   │
+                                │  (environment, agents[], tasks[], runtime) │
                                 └─────────────────┬──────────────────────────┘
                                                   │ loader.load_experiment
                                                   ▼

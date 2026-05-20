@@ -57,7 +57,7 @@ async def _cmd_run(args: argparse.Namespace) -> int:
 
     if args.dry_run:
         print(f"experiment: {spec.name}")
-        print(f"provider:   {spec.provider.kind}")
+        print(f"environment: {spec.provider.kind}")
         print(f"output:     {runner.output_root}")
         print(f"concurrency: {spec.concurrency}")
         print(f"units ({len(units)}):")

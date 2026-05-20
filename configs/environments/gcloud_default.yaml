@@ -1,12 +1,12 @@
 # Profile: gcloud-backed ephemeral VMs.
 # Referenced from a main experiment yaml as:
-#     provider:
-#       kind: gcloud
-#       profile: configs/providers/gcloud_default.yaml
+#     environment:
+#       provider: gcloud
+#       profile: configs/environments/gcloud_default.yaml
 #
 # `project` and `service_account_key` come from .env via ${env:...} — that
 # way the same profile is reusable across users. Override either by setting
-# them directly in the main yaml's provider block (main wins over profile).
+# them directly in the main yaml's environment block (main wins over profile).
 #
 # Schema (mirrors simprun/images.json + simprun/capacity_pools.json):
 #

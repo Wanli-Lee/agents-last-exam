@@ -4,28 +4,28 @@
 #     uv run python -m ale_run run example_exp.yaml
 #     uv run python -m ale_run run example_exp.yaml --dry-run
 #
-# Only the four blocks below are required (name / agent / provider / tasks).
+# Only the four blocks below are required (name / agent / environment / tasks).
 # Long-tail knobs live in `configs/` and are pulled in via `profile:` paths.
 # Any field set directly here overrides the profile.
 #
 # Secrets & env vars: copy `secret/.env.example` → `secret/.env` and fill in.
-# The loader reads `env_file` (relative to this yaml) before parsing, so any
+# The loader reads `secret_file` (relative to this yaml) before parsing, so any
 # $-env reference (UPPER_SNAKE form) below resolves without manual `export`.
 # Shell env still wins, so `export FOO=bar` overrides the file for one-off runs.
 # =============================================================================
 
 name: my_experiment
 
-env_file: secret/.env                             # KEY=value pairs;
+secret_file: secret/.env                          # KEY=value pairs;
 
 agent:
   harness: claude_code                            # claude_code | ale_claw
   model: anthropic/claude-sonnet-4-6              # OpenRouter slug
   profile: configs/agents/cc_sonnet.yaml          # max_turns / timeout / ... (optional)
 
-provider:
-  kind: gcloud                                    # gcloud | static
-  profile: configs/providers/gcloud_default.yaml  # project / SA key / zone / images / ...
+environment:
+  provider: gcloud                                   # gcloud | static
+  profile: configs/environments/gcloud_default.yaml  # project / SA key / zone / images / ...
 
 tasks: selected_tasks/helloworld.txt
 

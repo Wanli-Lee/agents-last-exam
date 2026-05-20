@@ -2,7 +2,7 @@
 
 This is the SOP for implementing a new agent deployer. Companion docs:
 
-- `docs/DESIGN.md` — overall architecture (Env, Provider, Runtime, Deployer)
+- `docs/DESIGN.md` — overall architecture (Environment, Provider, Runtime, Deployer)
 - `docs/SESSION_API.md` — `cb.DesktopSession` / `computer.interface.*` surface
 - `ale/agents/claude_code/deployer.py` — in-VM (Phase 3 reference impl)
 - `ale/agents/ale_claw/deployer.py` — host / docker native (Phase 2/4 reference impl)

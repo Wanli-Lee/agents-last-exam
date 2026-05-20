@@ -1,6 +1,6 @@
 """YAML loader for ExperimentSpec.
 
-The public-facing yaml is minimal — name / agent / provider / tasks — with
+The public-facing yaml is minimal — name / agent / environment / tasks — with
 long-tail knobs pulled in via ``profile:`` paths under ``configs/``. This
 loader normalizes that shape into the internal ``ExperimentSpec`` dataclass,
 which the Runner consumes.
@@ -13,7 +13,7 @@ Three shape conveniences relative to the dataclass:
 * ``tasks: <path>`` string form. ``.txt`` → one task path per line
   (variant 0); ``.yaml`` → list of ``{path, variants}`` entries. The
   legacy inline list form still works.
-* ``profile: <relative-path>`` on agent / provider, plus top-level
+* ``profile: <relative-path>`` on agent / environment, plus top-level
   ``run_profile: <relative-path>``. Profiles are partial dicts; the main
   yaml's keys win on conflict (deep-merged one level for ``config:``).
 
@@ -51,7 +51,7 @@ _ENV_RE = re.compile(r"\$\{env:([A-Z_][A-Z0-9_]*)\}")
 
 # Top-level keys consumed by the loader (anything else → TypeError).
 _TOP_LEVEL_KEYS = frozenset({
-    "name", "env_file", "agent", "agents", "provider", "tasks",
+    "name", "secret_file", "agent", "agents", "environment", "tasks",
     "run_profile",
     # run-level fields (also accepted inline at the top, override run_profile):
     "output", "artifacts",
@@ -67,10 +67,10 @@ _TOP_LEVEL_KEYS = frozenset({
 def load_experiment(path: str | Path) -> ExperimentSpec:
     """Read a yaml file, substitute env vars, build :class:`ExperimentSpec`.
 
-    Two-pass parse: first pass extracts ``env_file:`` (if present) without
+    Two-pass parse: first pass extracts ``secret_file:`` (if present) without
     ``${env:VAR}`` substitution; that file is loaded into ``os.environ``
     (shell env wins on conflict); second pass parses for real, with
-    substitution. If ``env_file:`` is unset, falls back to auto-loading
+    substitution. If ``secret_file:`` is unset, falls back to auto-loading
     ``<main yaml's directory>/secret/.env`` (then ``.../.env``) when they
     exist. Profile yamls referenced from the main file inherit the same
     ``os.environ``, so their ``${env:...}`` refs resolve the same way.
@@ -79,16 +79,16 @@ def load_experiment(path: str | Path) -> ExperimentSpec:
     base_dir = main_path.parent
 
     text = main_path.read_text()
-    # First pass: parse raw text (no substitution) just to find env_file.
+    # First pass: parse raw text (no substitution) just to find secret_file.
     try:
         pre = yaml.safe_load(text) or {}
     except yaml.YAMLError as exc:
         raise ValueError(f"experiment yaml {main_path} is not valid yaml: {exc}") from exc
     if not isinstance(pre, dict):
         raise TypeError(f"experiment yaml root must be a mapping, got {type(pre).__name__}")
-    env_file = pre.get("env_file")
-    if env_file is not None:
-        _load_dotenv(_resolve_path(env_file, base_dir))
+    secret_file = pre.get("secret_file")
+    if secret_file is not None:
+        _load_dotenv(_resolve_path(secret_file, base_dir))
     else:
         # Convenience auto-detect. `secret/.env` is the canonical location
         # (alongside the checked-in `secret/.env.example` template); legacy
@@ -215,7 +215,7 @@ def _build_experiment(raw: dict[str, Any], *, base_dir: Path) -> ExperimentSpec:
     else:
         raise KeyError("missing required field: `agent` (or `agents`)")
 
-    provider = _build_provider(raw.get("provider") or {}, base_dir=base_dir)
+    provider = _build_environment(raw.get("environment") or {}, base_dir=base_dir)
 
     if "tasks" not in raw:
         raise KeyError("missing required field: `tasks`")
@@ -332,58 +332,58 @@ def _build_agent_single(raw: dict[str, Any], *, base_dir: Path) -> AgentSpec:
     return AgentSpec(id=str(agent_id), class_=cls, config=config, runtime=runtime)
 
 
-# ---- provider ------------------------------------------------------------
+# ---- environment ---------------------------------------------------------
 
-# Provider block accepts any flat key besides `kind` / `profile` — those
+# Environment block accepts any flat key besides `provider` / `profile` — those
 # extras become ProviderSpec.config kwargs (passed straight to the
-# kind-specific Config dataclass).
-_PROVIDER_RESERVED = frozenset({"kind", "profile"})
+# provider-specific Config dataclass).
+_ENVIRONMENT_RESERVED = frozenset({"provider", "profile"})
 
 
-def _build_provider(raw: dict[str, Any], *, base_dir: Path) -> ProviderSpec:
+def _build_environment(raw: dict[str, Any], *, base_dir: Path) -> ProviderSpec:
     if not isinstance(raw, dict):
-        raise TypeError(f"provider must be a mapping, got {type(raw).__name__}")
+        raise TypeError(f"environment must be a mapping, got {type(raw).__name__}")
 
     merged: dict[str, Any] = dict(raw)
     if (prof_path := merged.pop("profile", None)) is not None:
         prof = _read_yaml(_resolve_path(prof_path, base_dir))
         if not isinstance(prof, dict):
-            raise TypeError(f"provider profile {prof_path!r} must be a mapping")
-        if "kind" in prof:
+            raise TypeError(f"environment profile {prof_path!r} must be a mapping")
+        if "provider" in prof:
             raise ValueError(
-                f"provider profile {prof_path!r} must not set `kind:` — "
-                f"`kind` lives in the main yaml so swapping profiles can't "
+                f"environment profile {prof_path!r} must not set `provider:` — "
+                f"`provider` lives in the main yaml so swapping profiles can't "
                 f"silently change the backend."
             )
         merged = _merge_dict(prof, merged)
 
-    if "kind" not in merged:
-        raise KeyError("provider missing required field: `kind`")
-    kind = str(merged["kind"])
-    cfg = {k: v for k, v in merged.items() if k not in _PROVIDER_RESERVED}
+    if "provider" not in merged:
+        raise KeyError("environment missing required field: `provider`")
+    provider = str(merged["provider"])
+    cfg = {k: v for k, v in merged.items() if k not in _ENVIRONMENT_RESERVED}
 
     # `service_account_key` is a user-friendly path field — expand `~`
     # before handing to the Config dataclass.
     if (sa := cfg.get("service_account_key")) is not None:
         cfg["service_account_key"] = str(Path(str(sa)).expanduser())
 
-    _validate_provider_required(kind, cfg)
-    return ProviderSpec(kind=kind, config=cfg)
+    _validate_provider_required(provider, cfg)
+    return ProviderSpec(kind=provider, config=cfg)
 
 
-def _validate_provider_required(kind: str, cfg: dict[str, Any]) -> None:
+def _validate_provider_required(provider: str, cfg: dict[str, Any]) -> None:
     """Surface friendly errors for the most common missing-field mistakes
     BEFORE the deployer Config dataclass raises a less-readable TypeError."""
-    if kind == "gcloud":
+    if provider == "gcloud":
         for k in ("project", "service_account_key"):
             if not cfg.get(k):
                 raise KeyError(
-                    f"provider.kind=gcloud missing required field `{k}` "
+                    f"environment.provider=gcloud missing required field `{k}` "
                     f"(set it in the main yaml; profile shouldn't carry it)"
                 )
-    elif kind == "static":
+    elif provider == "static":
         if not cfg.get("endpoint"):
-            raise KeyError("provider.kind=static missing required field `endpoint`")
+            raise KeyError("environment.provider=static missing required field `endpoint`")
 
 
 # ---- tasks ---------------------------------------------------------------
