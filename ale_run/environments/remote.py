@@ -280,10 +280,11 @@ def download_file(vm_config: RemoteVMConfig, remote_path: str, local_path: str, 
             ) as resp:
                 data = _read_first_sse_event(resp, read_timeout=timeout)
             if data and data.get("success"):
-                content = data.get("content", "")
-                if content:
-                    Path(local_path).write_text(content, encoding="utf-8")
-                    return True
+                # Empty content maps to a 0-byte file (e.g. empty stderr.log
+                # when the agent prints nothing). Materialize it rather than
+                # failing the whole gather.
+                Path(local_path).write_text(data.get("content", "") or "", encoding="utf-8")
+                return True
         except Exception as e:
             logger.debug("read_text failed for %s: %s", remote_path, e)
         return False
@@ -311,10 +312,12 @@ def download_file(vm_config: RemoteVMConfig, remote_path: str, local_path: str, 
             data = _read_first_sse_event(resp, read_timeout=timeout)
         if data and data.get("return_code", data.get("returncode", 1)) == 0:
             b64_text = (data.get("stdout", "") or "").strip()
-            if b64_text:
-                raw = base64.b64decode(b64_text)
-                Path(local_path).write_bytes(raw)
-                return True
+            # Empty stdout legitimately maps to a 0-byte file (e.g. an
+            # empty stderr.log when claude prints nothing). Materialize
+            # the empty file rather than failing the whole gather.
+            raw = base64.b64decode(b64_text) if b64_text else b""
+            Path(local_path).write_bytes(raw)
+            return True
     except Exception as e:
         logger.debug("base64 download failed for %s: %s", remote_path, e)
 
@@ -478,14 +481,17 @@ def list_remote_dir(vm_config: RemoteVMConfig, remote_dir: str, timeout: float =
         )
     else:
         safe = remote_dir.replace("'", "''")
+        # Emit the FullName; let the host strip the prefix. Sidesteps the
+        # earlier ``.Substring(...).TrimStart('\\','/')`` pattern that
+        # returned empty relpaths under some PowerShell quoting / coercion
+        # paths and silently broke the host-side gather.
         cmd = (
             'powershell -NoProfile -Command "'
             f"if (-not (Test-Path -LiteralPath '{safe}' -PathType Container)) {{ '[]'; exit 0 }}; "
             f"Get-ChildItem -LiteralPath '{safe}' -Recurse | ForEach-Object {{ "
-            f"  $rel = $_.FullName.Substring(('{safe}').Length).TrimStart('\\\\','/'); "
             f"  $type = if ($_.PSIsContainer) {{ 'd' }} else {{ 'f' }}; "
             f"  $size = if ($_.PSIsContainer) {{ 0 }} else {{ $_.Length }}; "
-            f"  Write-Output ($rel + [char]9 + $type + [char]9 + $size) "
+            f"  Write-Output ($_.FullName + [char]9 + $type + [char]9 + $size) "
             f"}}"
             '"'
         )
@@ -498,16 +504,30 @@ def list_remote_dir(vm_config: RemoteVMConfig, remote_dir: str, timeout: float =
         return []
 
     entries: list[dict[str, Any]] = []
+    # Windows now emits FullName (e.g. C:\Users\...\foo\bar.txt) and we strip
+    # the remote_dir prefix here. Linux uses ``find -printf '%P'`` which is
+    # already a relpath, so it slips through the prefix-strip cleanly.
+    prefix_variants = []
+    if not vm_config.is_linux:
+        norm = remote_dir.rstrip("/\\")
+        prefix_variants = [norm + "\\", norm + "/"]
     for line in out.splitlines():
         parts = line.split("\t")
         if len(parts) < 3:
             continue
         rel, kind, size = parts[0], parts[1], parts[2]
+        for p in prefix_variants:
+            if rel.startswith(p):
+                rel = rel[len(p):]
+                break
         is_dir = kind == "d"
         try:
             size_i = int(size)
         except ValueError:
             size_i = 0
         rel_posix = rel.replace("\\", "/")
+        if not rel_posix:
+            # Skip the remote_dir itself if it slipped in for any reason.
+            continue
         entries.append({"relpath": rel_posix, "is_dir": is_dir, "size": size_i})
     return entries
