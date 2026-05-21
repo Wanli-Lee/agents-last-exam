@@ -240,21 +240,33 @@ class PrebakedRemoteCliDeployer(RemoteCliDeployer):
 
 
 class DownloadedRemoteCliDeployer(RemoteCliDeployer):
-    """Specialization for CLIs installed into the substrate at install
-    time (no pre-baking in the image).
+    """Specialization for CLIs fetched into the substrate at install time
+    (no pre-baking in the image).
 
-    **Shell.** The DSL parsing and per-scheme dispatch are deliberately
-    not implemented — they'll be designed alongside the first concrete
-    caller (likely an agent that ``npm i -g`` its CLI fresh into the
-    VM, or pulls a binary tarball).
+    Subclass declares :attr:`install_spec` — a small DSL that dispatches
+    to a package manager or URL fetch:
 
-    Sketch of the intended shape::
+    * ``"npm:<pkg>@<ver>"`` → ``npm install -g <pkg>@<ver>`` (substrate
+      must have npm on PATH).
+    * ``"pip:<pkg>"`` → ``pip install <pkg>`` (same caveat for pip).
+    * ``"url:<url>"`` → ``runtime.fetch_url_to(url, runtime.cli_path(cli_name))``
+      then ``chmod +x`` on Linux.
+
+    After dispatch, install probes the binary at ``runtime.cli_path(cli_name)``
+    to confirm it landed where expected. Subclasses override
+    :meth:`_post_install` for agent-specific config files (mirrors the
+    :class:`PrebakedRemoteCliDeployer` hook).
+
+    Example::
 
         class CodexDeployer(DownloadedRemoteCliDeployer):
             install_spec = "npm:@openai/codex@1.2.3"
             cli_name = "codex"
 
             async def _post_install(self): ...
+
+    For more elaborate install shapes (multi-step builds, conditional
+    fetches, registry auth), override :meth:`install` directly.
     """
 
     install_spec: ClassVar[str] = ""
@@ -264,16 +276,72 @@ class DownloadedRemoteCliDeployer(RemoteCliDeployer):
     cli_name: ClassVar[str] = ""
     """Tool name passed to ``runtime.cli_path`` after install completes."""
 
+    version_probe_args: ClassVar[tuple[str, ...]] = ("--version",)
+
+    fetch_timeout_s: ClassVar[float] = 600.0
+    """Per-scheme install command timeout. Bump for large binaries."""
+
     async def install(self) -> None:
         if not self.install_spec:
             raise RuntimeError(
                 f"{type(self).__name__}: install_spec class attribute must be set"
             )
-        raise NotImplementedError(
-            "DownloadedRemoteCliDeployer.install: per-scheme dispatch "
-            "(npm / pip / url) will be wired alongside the first concrete "
-            "subclass. Override install() directly in the meantime."
+        if not self.cli_name:
+            raise RuntimeError(
+                f"{type(self).__name__}: cli_name class attribute must be set"
+            )
+
+        scheme, _, payload = self.install_spec.partition(":")
+        if not payload:
+            raise ValueError(
+                f"install_spec missing payload after scheme: {self.install_spec!r}"
+            )
+
+        if scheme == "npm":
+            await self._run_install_cmd(
+                f"npm install -g {shlex.quote(payload)}", scheme=scheme,
+            )
+        elif scheme == "pip":
+            await self._run_install_cmd(
+                f"pip install {shlex.quote(payload)}", scheme=scheme,
+            )
+        elif scheme == "url":
+            target = self.runtime.cli_path(self.cli_name)
+            await self.runtime.fetch_url_to(payload, target)
+            if self.runtime.vm_os == "linux":
+                await self.runtime.run_command(
+                    f"chmod +x {shlex.quote(target)}", timeout=30,
+                )
+        else:
+            raise NotImplementedError(
+                f"{type(self).__name__}: install_spec scheme {scheme!r} "
+                f"not supported — known schemes: npm, pip, url. Override "
+                f"install() directly for custom dispatch."
+            )
+
+        # Confirm the binary landed at the expected substrate path.
+        cli_path = self.runtime.cli_path(self.cli_name)
+        version_text = await self._probe_cli(cli_path, self.version_probe_args)
+        logger.info(
+            "%s: %s installed via %s — %s",
+            type(self).__name__, self.cli_name, scheme, version_text,
         )
 
+        await self.runtime.mkdir(self.runtime.work_dir)
+        await self._post_install()
+
+    async def _run_install_cmd(self, cmd: str, *, scheme: str) -> None:
+        result = await self.runtime.run_command(cmd, timeout=self.fetch_timeout_s)
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"{type(self).__name__}: {scheme} install failed rc={result.returncode}: "
+                f"{(result.stderr or result.stdout or '')[:400]}"
+            )
+
     async def _post_install(self) -> None:
+        """Hook — agent-specific config writes after the CLI is on disk.
+
+        Default: no-op. Override to e.g. write MCP config files into
+        ``runtime.work_dir`` (mirrors :class:`PrebakedRemoteCliDeployer`).
+        """
         return None

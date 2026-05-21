@@ -1,21 +1,23 @@
-"""Shared deployer base classes — one per (substrate × install-strategy)
-combination we actually see. Concrete agents under
-``ale_run.agents.<name>`` subclass the matching base to inherit the
-install / spawn / poll boilerplate.
+"""Shared deployer base classes — one per agent distribution model.
 
-Four bases:
+Four bases, organised by **how the agent's executable reaches the
+substrate**:
 
-* :class:`PrebakedRemoteCliDeployer` — CLI baked into the VM image
-  (e.g. ClaudeCode). Implemented.
-* :class:`DownloadedRemoteCliDeployer` — CLI fetched into the VM at
-  install time. **Shell.**
-* :class:`InProcessHostDeployer` — Python harness running in the
-  framework process (e.g. AleClaw on ``local`` or ``docker`` runtime).
-  Implemented.
-* :class:`DockerContainerDeployer` — agent owns its own image. **Shell.**
+* :class:`PrebakedRemoteCliDeployer` — agent CLI is already baked into
+  the VM image. ``install`` just probes it. (ClaudeCode.)
+* :class:`DownloadedRemoteCliDeployer` — agent CLI is fetched into the
+  substrate at install time via a small DSL (``npm:`` / ``pip:`` /
+  ``url:``). ``install`` dispatches, then probes.
+* :class:`InProcessHostDeployer` — agent is a Python module imported by
+  the framework. ``install`` does import + env sanity checks.
+  (AleClaw on ``local`` or ``docker`` runtime.)
+* :class:`DockerContainerDeployer` — agent is shipped AS a docker image
+  (NOT the same as the framework-in-docker case, which is
+  ``InProcessHostDeployer`` + ``DockerRuntime``). **Shell.**
 
-Plus :class:`RemoteCliDeployer` (the common parent of the two remote-CLI
-bases) for tests that want to assert shared behaviour.
+Plus :class:`RemoteCliDeployer` — the shared parent of the two remote-CLI
+bases. Holds the spawn / poll / kill / probe helpers; intentionally has
+no ``install`` because the two subclasses install differently.
 """
 from __future__ import annotations
 
