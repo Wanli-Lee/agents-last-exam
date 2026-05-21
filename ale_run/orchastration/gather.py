@@ -17,7 +17,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from ..base_interface import RemoteVMConfig
+from ..base_interface import EnvHandle
 from ..environments.remote import download_file, list_remote_dir
 
 logger = logging.getLogger(__name__)
@@ -39,9 +39,10 @@ async def pull_dir(session: Any, *, src: str, dst: Path, os_type: str) -> dict:
     if not api_host or not api_port:
         return {"transport": "cua", "files": 0, "error": "session has no api_host/api_port"}
 
-    vm_cfg = RemoteVMConfig(
-        server_url=f"http://{api_host}:{api_port}",
-        os_type=os_type,
+    vm_cfg = EnvHandle(
+        id="",
+        endpoint=f"http://{api_host}:{api_port}",
+        os=os_type,
     )
 
     dst.mkdir(parents=True, exist_ok=True)
@@ -79,7 +80,7 @@ async def pull_dir(session: Any, *, src: str, dst: Path, os_type: str) -> dict:
     return {"transport": "cua", "files": file_count, "error": last_error}
 
 
-async def _download_with_retry(vm_cfg: RemoteVMConfig, remote_path: str, local: Path) -> bool:
+async def _download_with_retry(vm_cfg: EnvHandle, remote_path: str, local: Path) -> bool:
     for attempt in range(_PER_FILE_RETRIES):
         try:
             ok = await asyncio.to_thread(download_file, vm_cfg, remote_path, str(local), 120)

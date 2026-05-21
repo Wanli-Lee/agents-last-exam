@@ -1,6 +1,12 @@
-"""Force-timeout marker: writes a sentinel file the VM can poll to self-cancel.
+"""Force-timeout marker: writes a sentinel file the env can poll to self-cancel.
 
-Ported from simprun/force_timeout.py.
+Ported from simprun/force_timeout.py. Not wired into the current
+lifecycle — kept around for future use by an external operator tool.
+
+Signatures take ``env: EnvHandle`` + an explicit ``run_id`` (was a
+piggy-back field on the old ``RemoteVMConfig``; the merge into
+``EnvHandle`` dropped it since the rest of the framework passes run_id
+through separate args anyway).
 """
 
 from __future__ import annotations
@@ -10,7 +16,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .remote import LINUX_USER_HOME, RemoteVMConfig, run_remote, upload_file
+from ..base_interface import EnvHandle
+from .remote import LINUX_USER_HOME, run_remote, upload_file
 
 
 FORCE_TIMEOUT_FILENAME = "ale_force_timeout.json"
@@ -27,12 +34,6 @@ def local_force_timeout_path(run_id: str) -> Path:
     return LOCAL_FORCE_TIMEOUT_DIR / f"{run_id}.json"
 
 
-def _local_path_for_config(vm_config: RemoteVMConfig) -> Path | None:
-    if not vm_config.run_id:
-        return None
-    return local_force_timeout_path(vm_config.run_id)
-
-
 def _write_local_force_timeout_request(run_id: str, payload: dict[str, Any]) -> Path:
     LOCAL_FORCE_TIMEOUT_DIR.mkdir(parents=True, exist_ok=True)
     path = local_force_timeout_path(run_id)
@@ -40,17 +41,16 @@ def _write_local_force_timeout_request(run_id: str, payload: dict[str, Any]) -> 
     return path
 
 
-def clear_force_timeout_request(vm_config: RemoteVMConfig) -> None:
-    local_path = _local_path_for_config(vm_config)
-    if local_path is not None:
-        local_path.unlink(missing_ok=True)
+def clear_force_timeout_request(env: EnvHandle, *, run_id: str | None = None) -> None:
+    if run_id:
+        local_force_timeout_path(run_id).unlink(missing_ok=True)
 
-    path = force_timeout_path(vm_config.os_type)
-    if vm_config.is_linux:
-        run_remote(vm_config, f"rm -f '{path}'", timeout=5)
+    path = force_timeout_path(env.os)
+    if env.is_linux:
+        run_remote(env, f"rm -f '{path}'", timeout=5)
     else:
         run_remote(
-            vm_config,
+            env,
             f"powershell -NoProfile -Command \""
             f"Remove-Item -Path '{path}' -Force -ErrorAction SilentlyContinue\"",
             timeout=5,
@@ -58,7 +58,7 @@ def clear_force_timeout_request(vm_config: RemoteVMConfig) -> None:
 
 
 def write_force_timeout_request(
-    vm_config: RemoteVMConfig,
+    env: EnvHandle,
     *,
     task_id: str,
     run_id: str | None = None,
@@ -66,7 +66,7 @@ def write_force_timeout_request(
     requested_by: str = "manager",
     extra: dict[str, Any] | None = None,
 ) -> str:
-    path = force_timeout_path(vm_config.os_type)
+    path = force_timeout_path(env.os)
     payload = {
         "task_id": task_id,
         "reason": reason,
@@ -77,12 +77,12 @@ def write_force_timeout_request(
         payload["extra"] = extra
 
     local_path: Path | None = None
-    effective_run_id = run_id or vm_config.run_id or (extra or {}).get("run_id")
+    effective_run_id = run_id or (extra or {}).get("run_id")
     if effective_run_id:
         local_path = _write_local_force_timeout_request(str(effective_run_id), payload)
 
     try:
-        upload_file(vm_config, path, json.dumps(payload, ensure_ascii=False, indent=2))
+        upload_file(env, path, json.dumps(payload, ensure_ascii=False, indent=2))
     except Exception:
         if local_path is None:
             raise
@@ -90,17 +90,16 @@ def write_force_timeout_request(
     return path
 
 
-def force_timeout_requested(vm_config: RemoteVMConfig) -> bool:
-    local_path = _local_path_for_config(vm_config)
-    if local_path is not None and local_path.exists():
+def force_timeout_requested(env: EnvHandle, *, run_id: str | None = None) -> bool:
+    if run_id and local_force_timeout_path(run_id).exists():
         return True
 
-    path = force_timeout_path(vm_config.os_type)
-    if vm_config.is_linux:
-        result = run_remote(vm_config, f"test -f '{path}' && echo yes || true", timeout=5)
+    path = force_timeout_path(env.os)
+    if env.is_linux:
+        result = run_remote(env, f"test -f '{path}' && echo yes || true", timeout=5)
     else:
         result = run_remote(
-            vm_config,
+            env,
             f"powershell -NoProfile -Command \""
             f"if (Test-Path '{path}') {{ 'yes' }}\"",
             timeout=5,

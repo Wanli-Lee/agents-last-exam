@@ -10,15 +10,14 @@ Contents:
 * :class:`BaseAgentDeployer`, :class:`BaseAgentConfig`,
   :class:`AgentRunResult`, :class:`EpisodeResult` — agent contract.
 * :class:`BaseRuntime` — substrate adapter contract.
-* :class:`Provider`, :class:`EnvSpec`, :class:`VMHandle`,
-  :data:`ReleaseMode` — VM provisioning contract.
+* :class:`Provider`, :class:`EnvSpec`, :class:`EnvHandle`,
+  :data:`ReleaseMode` — compute-env provisioning contract (VMs,
+  containers, anything that speaks cua-server HTTP).
 * :class:`TaskDataSpec` — task data-staging contract.
 * :class:`Trajectory`, :class:`TrajectoryBuilder`, :class:`Step`,
   :class:`ToolCall`, :class:`ToolResult`, :class:`Observation`,
   :class:`StepMetrics`, :class:`FinalMetrics`, :class:`AgentInfo`,
   :class:`ContentPart`, :class:`ImageSource` — ATIF trajectory format.
-* :class:`RemoteVMConfig`, :class:`RangeResult` — cua-server addressing
-  + range-download result shape.
 
 The only intra-package coupling is the ``BaseAgentDeployer`` ↔
 ``BaseRuntime`` reference, which both files manage via TYPE_CHECKING.
@@ -32,15 +31,14 @@ from .agent_deployer import (
     BaseAgentDeployer,
     EpisodeResult,
 )
-from .vm_provider import (
+from .agent_runtime import BaseRuntime
+from .compute_env import (
+    EnvHandle,
     EnvSpec,
     OS,
     Provider,
     ReleaseMode,
-    VMHandle,
 )
-from .remote_vm import RangeResult, RemoteVMConfig
-from .agent_runtime import BaseRuntime
 from .task_data import TaskDataSpec
 from .trajectory import (
     AgentInfo,
@@ -59,23 +57,20 @@ from .trajectory import (
 )
 
 __all__ = [
-    # deployer.py
+    # agent_deployer.py
     "AgentRunResult",
     "BaseAgentConfig",
     "BaseAgentDeployer",
     "EpisodeResult",
-    # provider.py
+    # agent_runtime.py
+    "BaseRuntime",
+    # compute_env.py
+    "EnvHandle",
     "EnvSpec",
     "OS",
     "Provider",
     "ReleaseMode",
-    "VMHandle",
-    # remote_vm.py
-    "RangeResult",
-    "RemoteVMConfig",
-    # runtime.py
-    "BaseRuntime",
-    # task.py
+    # task_data.py
     "TaskDataSpec",
     # trajectory.py
     "AgentInfo",

@@ -1,4 +1,4 @@
-"""ALEEnv — OpenEnv-shaped wrapper around a Provider + VMHandle + DesktopSession.
+"""ALEEnv — OpenEnv-shaped wrapper around a Provider + EnvHandle + DesktopSession.
 
 The benchmark drives the tested agent natively inside the VM, not via
 (action, observation) pairs from the orchestrator. ``step()`` / ``step_async()``
@@ -24,7 +24,7 @@ from typing import Any
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import Action, Observation, State
 
-from ..base_interface import EnvSpec, Provider, ReleaseMode, VMHandle
+from ..base_interface import EnvSpec, Provider, ReleaseMode, EnvHandle
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class ALEEnv(Environment[Action, Observation, State]):
         super().__init__()
         self._provider = provider
         self._spec = spec
-        self._vm: VMHandle | None = None
+        self._vm: EnvHandle | None = None
         self._session: Any | None = None
         self._current_phase: str | None = None
 
@@ -60,7 +60,7 @@ class ALEEnv(Environment[Action, Observation, State]):
         return self._spec
 
     @property
-    def vm(self) -> VMHandle:
+    def vm(self) -> EnvHandle:
         if self._vm is None:
             raise RuntimeError("env.vm accessed before reset_async()")
         return self._vm

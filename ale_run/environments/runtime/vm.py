@@ -23,7 +23,6 @@ from dataclasses import dataclass
 from typing import ClassVar, Iterable
 
 from ..remote import (
-    RemoteVMConfig,
     download_file,
     run_remote,
     upload_binary_file,
@@ -45,21 +44,17 @@ class VmRuntime(BaseRuntime):
 
     kind: ClassVar[str] = "vm"
 
-    # --- internal cache ---
-
-    def _vm_config(self) -> RemoteVMConfig:
-        return RemoteVMConfig(server_url=self.vm_endpoint, os_type=self.vm_os)
-
     # ======================================================================
     # I/O primitives — wrap the HTTP helpers from environments.remote so
-    # deployers don't import that module directly.
+    # deployers don't import that module directly. All helpers take the
+    # runtime's ``env_handle`` (post-provision provider reference).
     # ======================================================================
 
     async def run_command(
         self, command: str, *, timeout: float = 60,
     ) -> subprocess.CompletedProcess:
         return await asyncio.to_thread(
-            run_remote, self._vm_config(), command, timeout,
+            run_remote, self.env_handle, command, timeout,
         )
 
     async def write_file(self, path: str, content: str | bytes) -> None:
@@ -70,15 +65,14 @@ class VmRuntime(BaseRuntime):
             await asyncio.to_thread(self._write_binary_sync, path, content)
             return
         await asyncio.to_thread(
-            upload_file, self._vm_config(), path, content,
+            upload_file, self.env_handle, path, content,
         )
 
     def _write_binary_sync(self, path: str, content: bytes) -> None:
-        vm_config = self._vm_config()
         encoded = base64.b64encode(content).decode("ascii")
         b64_path = f"{path}.b64"
-        upload_file(vm_config, b64_path, encoded)
-        if vm_config.is_linux:
+        upload_file(self.env_handle, b64_path, encoded)
+        if self.env_handle.is_linux:
             decode = (
                 f"base64 -d {shlex.quote(b64_path)} > {shlex.quote(path)} && "
                 f"rm -f {shlex.quote(b64_path)}"
@@ -91,7 +85,7 @@ class VmRuntime(BaseRuntime):
                 f"Remove-Item -Path '{b64_path}' -Force"
                 '"'
             )
-        result = run_remote(vm_config, decode, timeout=120)
+        result = run_remote(self.env_handle, decode, timeout=120)
         if result.returncode != 0:
             raise RuntimeError(
                 f"write_file binary decode failed for {path}: "
@@ -106,7 +100,7 @@ class VmRuntime(BaseRuntime):
             fd, tmp = tempfile.mkstemp(prefix="ale_dl_")
             os.close(fd)
             try:
-                ok = download_file(self._vm_config(), path, tmp)
+                ok = download_file(self.env_handle, path, tmp)
                 if not ok:
                     return b""
                 with open(tmp, "rb") as f:
@@ -127,7 +121,7 @@ class VmRuntime(BaseRuntime):
         def _check() -> bool:
             try:
                 with requests.post(
-                    f"{_cua_url(self._vm_config())}/cmd",
+                    f"{_cua_url(self.env_handle)}/cmd",
                     json={"command": "file_exists", "params": {"path": path}},
                     headers={"Content-Type": "application/json"},
                     timeout=15,
@@ -176,7 +170,7 @@ class VmRuntime(BaseRuntime):
         ``FetchingRemoteCliDeployer`` and any agent that stages binaries
         from the framework host."""
         await asyncio.to_thread(
-            upload_binary_file, self._vm_config(), local_path, remote_path,
+            upload_binary_file, self.env_handle, local_path, remote_path,
         )
 
     # ======================================================================

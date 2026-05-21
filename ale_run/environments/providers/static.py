@@ -18,7 +18,7 @@ import dataclasses
 import logging
 from typing import Any
 
-from ...base_interface import EnvSpec, Provider, ReleaseMode, VMHandle
+from ...base_interface import EnvSpec, Provider, ReleaseMode, EnvHandle
 
 logger = logging.getLogger(__name__)
 
@@ -78,29 +78,28 @@ class StaticProvider(Provider):
         spec: EnvSpec,
         *,
         exclude_profiles: set[str] | None = None,
-    ) -> VMHandle:
+    ) -> EnvHandle:
         # StaticProvider has no capacity-profile concept; the exclude
         # argument is accepted for ABC parity but ignored.
         _ = exclude_profiles
-        return VMHandle(
+        return EnvHandle(
             id=self._cfg.vm_id,
             endpoint=self._cfg.endpoint,
             os=self._cfg.os,
             metadata={"static": True, "snapshot": spec.snapshot},
         )
 
-    async def release(self, vm: VMHandle, *, mode: ReleaseMode = "keep") -> None:
+    async def release(self, vm: EnvHandle, *, mode: ReleaseMode = "keep") -> None:
         if not self._cfg.cleanup_on_release or not self._cfg.cleanup_script:
             return
-        from ..remote import RemoteVMConfig, run_remote
+        from ..remote import run_remote
 
-        cfg = RemoteVMConfig(server_url=vm.endpoint, os_type=vm.os)
         try:
-            run_remote(cfg, self._cfg.cleanup_script, timeout=120)
+            run_remote(vm, self._cfg.cleanup_script, timeout=120)
         except Exception as e:
             logger.warning("StaticProvider cleanup failed: %s", e)
 
-    def open_session(self, vm: VMHandle) -> Any:
+    def open_session(self, vm: EnvHandle) -> Any:
         from cua_bench.computers.remote import RemoteDesktopSession
         from .gcloud import _init_computer_skip_wait
 

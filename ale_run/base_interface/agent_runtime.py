@@ -30,6 +30,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Iterable
 
+from .compute_env import EnvHandle
+
 if TYPE_CHECKING:
     # Mutual reference: see deployer.py for the symmetric TYPE_CHECKING block.
     from .agent_deployer import AgentRunResult, BaseAgentConfig, BaseAgentDeployer
@@ -60,14 +62,11 @@ class BaseRuntime(abc.ABC):
     reads from. For Local/Docker this is the same as ``work_dir``; for Vm
     it's a separate directory the lifecycle gathers into."""
 
-    vm_endpoint: str
-    """cua-server URL of the eval VM, e.g. ``http://...:5000``. Always
-    set — every benchmark target is a VM. Local/Docker deployers reach
-    it via :meth:`make_vm_session`; Vm deployers reach it via the I/O
-    methods on this runtime."""
-
-    vm_os: str
-    """``"linux"`` or ``"windows"`` — the eval VM's OS."""
+    env_handle: EnvHandle
+    """Provider's post-provision reference to the compute env this unit
+    runs against. Always set — every benchmark target is a live env.
+    Local/Docker deployers reach it via :meth:`make_vm_session`; Vm
+    deployers reach it via the I/O methods on this runtime."""
 
     env: dict[str, str] = field(default_factory=dict)
     """Env vars the framework wants injected into the agent process
@@ -75,6 +74,20 @@ class BaseRuntime(abc.ABC):
 
     kind: ClassVar[str] = ""
     """Subclass-supplied. Matches yaml ``runtime: <kind>`` values."""
+
+    # ======================================================================
+    # Convenience properties — let deployer code stay close to natural names.
+    # ======================================================================
+
+    @property
+    def vm_endpoint(self) -> str:
+        """cua-server URL — alias of ``self.env_handle.endpoint``."""
+        return self.env_handle.endpoint
+
+    @property
+    def vm_os(self) -> str:
+        """OS of the compute env — alias of ``self.env_handle.os``."""
+        return self.env_handle.os
 
     # ======================================================================
     # Dispatcher

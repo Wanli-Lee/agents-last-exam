@@ -40,7 +40,7 @@ import requests
 from ..images import CapacityProfile, ImageConfig, PoolEntry, capacity_profiles_for
 from ..machine_types import is_accelerator_machine_type
 from ..remote import _read_first_sse_event
-from ...base_interface import EnvSpec, Provider, ReleaseMode, VMHandle
+from ...base_interface import EnvSpec, Provider, ReleaseMode, EnvHandle
 
 logger = logging.getLogger(__name__)
 
@@ -563,7 +563,7 @@ class GcloudProvider(Provider):
         spec: EnvSpec,
         *,
         exclude_profiles: set[str] | None = None,
-    ) -> VMHandle:
+    ) -> EnvHandle:
         snap_cfg = self._cfg.images.get(spec.snapshot)
         if snap_cfg is None:
             raise KeyError(
@@ -648,7 +648,7 @@ class GcloudProvider(Provider):
         if not ready:
             raise RuntimeError(f"CUA server at {cua_url} did not become ready")
 
-        return VMHandle(
+        return EnvHandle(
             id=name,
             endpoint=cua_url,
             os=image_cfg.os_type,
@@ -663,7 +663,7 @@ class GcloudProvider(Provider):
 
     # ------------------------------------------------------------------ release
 
-    async def release(self, vm: VMHandle, *, mode: ReleaseMode = "delete") -> None:
+    async def release(self, vm: EnvHandle, *, mode: ReleaseMode = "delete") -> None:
         zone = vm.metadata.get("zone")
         if not zone:
             logger.warning("VM %s has no zone in metadata; skipping %s", vm.id, mode)
@@ -679,7 +679,7 @@ class GcloudProvider(Provider):
 
     # ------------------------------------------------------------------ session
 
-    def open_session(self, vm: VMHandle) -> Any:
+    def open_session(self, vm: EnvHandle) -> Any:
         from cua_bench.computers.remote import RemoteDesktopSession
 
         session = RemoteDesktopSession(

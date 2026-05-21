@@ -1,10 +1,12 @@
-"""CUA HTTP API primitives for remote VM command execution and file transfer.
+"""CUA HTTP API primitives for talking to a remote compute env.
 
-Ported from simprun/remote.py. Trimmed to the host-side primitives used by
-data_staging, the gcloud provider, and orchastration/gather. Drop the
+Ported from simprun/remote.py. Trimmed to the host-side primitives used
+by data_staging, the gcloud provider, and orchastration/gather. Drop the
 Node/MCP install helpers — image-baking is now the deployer's responsibility.
 
-All remote operations go through the CUA server on port 5000 — no SSH.
+All helpers take an :class:`EnvHandle` (provider's post-provision
+reference to the env) and dispatch over HTTP to the cua-server running
+inside it.
 """
 
 from __future__ import annotations
@@ -13,20 +15,19 @@ import base64
 import json
 import logging
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import requests
 
-from ..base_interface import RangeResult, RemoteVMConfig
+from ..base_interface import EnvHandle
 
 __all__ = [
-    # Re-exported from base_interface so existing
-    # ``from ale_run.environments.remote import RemoteVMConfig`` keeps
-    # working — but new code should import these from base_interface
-    # directly.
+    # Internal data shape — returned by download_file_range, consumed by
+    # the incremental puller. Kept here (not in base_interface) because
+    # it's a return type of one helper, not a cross-layer contract.
     "RangeResult",
-    "RemoteVMConfig",
     # The actual HTTP helpers defined in this file:
     "VMUnreachableError",
     "download_file",
@@ -40,6 +41,21 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class RangeResult:
+    """Outcome of an incremental file fetch (see :func:`download_file_range`).
+
+    ``remote_size = -1`` means the remote file was missing at probe time
+    (the helper still returns ``success=True`` with an empty delta so
+    the puller can record the absence and try again next tick).
+    """
+
+    success: bool
+    remote_size: int = 0
+    delta: bytes = b""
+    error: str | None = None
 
 # Linux conventions used by force_timeout and a few other helpers.
 LINUX_USER_HOME = "/home/user"
@@ -66,8 +82,8 @@ def strip_bom(raw: bytes) -> bytes:
 # ======================================================================
 
 
-def _cua_url(vm_config: RemoteVMConfig) -> str:
-    return vm_config.server_url.rstrip("/")
+def _cua_url(env: EnvHandle) -> str:
+    return env.endpoint.rstrip("/")
 
 
 def _read_first_sse_event(resp: requests.Response, read_timeout: float = 30) -> dict[str, Any] | None:
@@ -99,22 +115,22 @@ class VMUnreachableError(RuntimeError):
     pass
 
 
-def require_vm_reachable(vm_config: RemoteVMConfig, *, agent_label: str = "VM") -> None:
-    probe_cmd = "true" if vm_config.is_linux else "cmd /c echo ok"
-    result = run_remote(vm_config, probe_cmd, timeout=60)
+def require_vm_reachable(env: EnvHandle, *, agent_label: str = "VM") -> None:
+    probe_cmd = "true" if env.is_linux else "cmd /c echo ok"
+    result = run_remote(env, probe_cmd, timeout=60)
     if result.returncode == -1:
         raise VMUnreachableError(
-            f"{agent_label} VM unreachable at {vm_config.server_url}: "
+            f"{agent_label} VM unreachable at {env.endpoint}: "
             f"{result.stderr or 'no response'}"
         )
 
 
-def run_remote(vm_config: RemoteVMConfig, command: str, timeout: float = 60) -> subprocess.CompletedProcess:
+def run_remote(env: EnvHandle, command: str, timeout: float = 60) -> subprocess.CompletedProcess:
     payload = {"command": "run_command", "params": {"command": command}}
 
     try:
         with requests.post(
-            f"{_cua_url(vm_config)}/cmd",
+            f"{_cua_url(env)}/cmd",
             json=payload,
             headers={"Content-Type": "application/json"},
             timeout=timeout,
@@ -141,10 +157,10 @@ def run_remote(vm_config: RemoteVMConfig, command: str, timeout: float = 60) -> 
 # ======================================================================
 
 
-def upload_file(vm_config: RemoteVMConfig, remote_path: str, content: str, timeout: float = 60) -> None:
-    url = f"{_cua_url(vm_config)}/cmd"
+def upload_file(env: EnvHandle, remote_path: str, content: str, timeout: float = 60) -> None:
+    url = f"{_cua_url(env)}/cmd"
 
-    if vm_config.is_linux:
+    if env.is_linux:
         try:
             with requests.post(
                 url,
@@ -209,7 +225,7 @@ def upload_file(vm_config: RemoteVMConfig, remote_path: str, content: str, timeo
 
 
 def upload_binary_file(
-    vm_config: RemoteVMConfig,
+    env: EnvHandle,
     local_path: str | Path,
     remote_path: str,
     *,
@@ -223,13 +239,13 @@ def upload_binary_file(
     chunk_size -= chunk_size % 3
     chunk_size = max(chunk_size, 3)
 
-    sep = "/" if vm_config.is_linux else "\\"
+    sep = "/" if env.is_linux else "\\"
     part_dir = f"{remote_path}.parts"
-    if vm_config.is_linux:
-        run_remote(vm_config, f"rm -rf '{part_dir}' && mkdir -p '{part_dir}'", timeout=30)
+    if env.is_linux:
+        run_remote(env, f"rm -rf '{part_dir}' && mkdir -p '{part_dir}'", timeout=30)
     else:
         run_remote(
-            vm_config,
+            env,
             f'powershell -NoProfile -Command "'
             f"Remove-Item -Recurse -Force '{part_dir}' -ErrorAction SilentlyContinue; "
             f"New-Item -ItemType Directory -Force -Path '{part_dir}' | Out-Null\"",
@@ -244,15 +260,15 @@ def upload_binary_file(
             if not chunk:
                 break
             part_path = f"{part_dir}{sep}{idx:06d}.chunk"
-            upload_file(vm_config, part_path, base64.b64encode(chunk).decode("ascii"), timeout=timeout)
+            upload_file(env, part_path, base64.b64encode(chunk).decode("ascii"), timeout=timeout)
             part_paths.append(part_path)
             idx += 1
 
     if not part_paths:
-        upload_file(vm_config, f"{part_dir}{sep}000000.chunk", "", timeout=timeout)
+        upload_file(env, f"{part_dir}{sep}000000.chunk", "", timeout=timeout)
         part_paths.append(f"{part_dir}{sep}000000.chunk")
 
-    if vm_config.is_linux:
+    if env.is_linux:
         decode_cmd = (
             f"cat '{part_dir}'/*.chunk | base64 -d > '{remote_path}' && "
             f"rm -rf '{part_dir}' && test -s '{remote_path}'"
@@ -266,7 +282,7 @@ def upload_binary_file(
             f"Remove-Item -Recurse -Force '{part_dir}'; "
             f"if ((Get-Item '{remote_path}').Length -le 0) {{ exit 1 }}\""
         )
-    result = run_remote(vm_config, decode_cmd, timeout=max(timeout, 300))
+    result = run_remote(env, decode_cmd, timeout=max(timeout, 300))
     if result.returncode != 0:
         raise RuntimeError(
             f"binary upload decode failed for {remote_path}: rc={result.returncode} "
@@ -274,10 +290,10 @@ def upload_binary_file(
         )
 
 
-def download_file(vm_config: RemoteVMConfig, remote_path: str, local_path: str, timeout: float = 60) -> bool:
-    url = f"{_cua_url(vm_config)}/cmd"
+def download_file(env: EnvHandle, remote_path: str, local_path: str, timeout: float = 60) -> bool:
+    url = f"{_cua_url(env)}/cmd"
 
-    if vm_config.is_linux:
+    if env.is_linux:
         try:
             with requests.post(
                 url,
@@ -424,15 +440,15 @@ def _parse_range_stdout(stdout: str, *, expected_start: int) -> RangeResult:
 
 
 def download_file_range(
-    vm_config: RemoteVMConfig,
+    env: EnvHandle,
     remote_path: str,
     *,
     start: int,
     timeout: float = 60,
     max_chunk_bytes: int = _DEFAULT_MAX_CHUNK_BYTES,
 ) -> RangeResult:
-    url = f"{_cua_url(vm_config)}/cmd"
-    if vm_config.is_linux:
+    url = f"{_cua_url(env)}/cmd"
+    if env.is_linux:
         cmd = _build_range_cmd_linux(remote_path, start, max_chunk_bytes)
     else:
         cmd = _build_range_cmd_windows(remote_path, start, max_chunk_bytes)
@@ -468,13 +484,13 @@ def download_file_range(
 # ======================================================================
 
 
-def list_remote_dir(vm_config: RemoteVMConfig, remote_dir: str, timeout: float = 30) -> list[dict[str, Any]]:
+def list_remote_dir(env: EnvHandle, remote_dir: str, timeout: float = 30) -> list[dict[str, Any]]:
     """Return a flat list of entries under ``remote_dir`` (recursive).
 
     Each entry: ``{"relpath": "<posix-style>", "is_dir": <bool>, "size": <int>}``.
     Empty list if the directory is missing.
     """
-    if vm_config.is_linux:
+    if env.is_linux:
         safe = remote_dir.replace("'", "'\\''")
         cmd = (
             f"if [ ! -d '{safe}' ]; then echo '[]'; exit 0; fi; "
@@ -497,7 +513,7 @@ def list_remote_dir(vm_config: RemoteVMConfig, remote_dir: str, timeout: float =
             '"'
         )
 
-    result = run_remote(vm_config, cmd, timeout=timeout)
+    result = run_remote(env, cmd, timeout=timeout)
     if result.returncode != 0:
         return []
     out = (result.stdout or "").strip()
@@ -509,7 +525,7 @@ def list_remote_dir(vm_config: RemoteVMConfig, remote_dir: str, timeout: float =
     # the remote_dir prefix here. Linux uses ``find -printf '%P'`` which is
     # already a relpath, so it slips through the prefix-strip cleanly.
     prefix_variants = []
-    if not vm_config.is_linux:
+    if not env.is_linux:
         norm = remote_dir.rstrip("/\\")
         prefix_variants = [norm + "\\", norm + "/"]
     for line in out.splitlines():

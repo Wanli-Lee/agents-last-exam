@@ -6,11 +6,11 @@ LOG_SPEC-shaped on-disk artifacts under ``output_root/<slugs>/v<i>/<ts>/``.
 Phase mapping (preserved from simprun, surface renamed to LOG_SPEC events):
 
   - Phase 0  provision      env.reset_async() → VM + open session
-  - Phase 1  start          data_staging + TaskEnv(session).setup()
+  - Phase 1  start          data_staging + TaskDriver(session).setup()
   - Phase 2  agent          runtime.install_deployer() + .launch_deployer()
   - Phase 2b fanout         pull origin_log/ (vm-only), emit output_gather_skipped
-  - Phase 3  evaluate       TaskEnv.evaluate(), then deployer.parse_artifacts
-  - Phase 4  cleanup        TaskEnv.close + env.close_async(mode=delete)
+  - Phase 3  evaluate       TaskDriver.evaluate(), then deployer.parse_artifacts
+  - Phase 4  cleanup        TaskDriver.close + env.close_async(mode=delete)
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from ..base_interface import (
 from ..environments.env import ALEEnv
 from ..environments.runtime import DockerRuntime, LocalRuntime, VmRuntime
 from ..tasks.loader import TaskLoader
-from ..tasks.task_env import TaskEnv
+from ..tasks.driver import TaskDriver
 from . import gather
 from .factory import build_config, resolve_agent
 from .monitor import RateLimitDetector
@@ -158,7 +158,7 @@ async def run_one_unit(
     )
 
     env: ALEEnv | None = None
-    task_env_obj: TaskEnv | None = None
+    task_driver: TaskDriver | None = None
     builder: TrajectoryBuilder | None = None
     trajectory: Trajectory | None = None
     run_result: AgentRunResult | None = None
@@ -218,7 +218,7 @@ async def run_one_unit(
                     # ── Matches simprun's _phase1_start: data staging + task setup
                     # are wrapped together, so a transient mount failure during
                     # ensure_data_disk triggers the profile swap, but any error
-                    # raised by task_env.setup() that happens to contain the
+                    # raised by task_driver.setup() that happens to contain the
                     # "Failed to mount" substring would also be retried (matching
                     # simprun's behaviour even though that doesn't occur today).
                     env.set_phase("stage_inputs")
@@ -230,17 +230,17 @@ async def run_one_unit(
                         task_id=unit.task_path,
                     )
                     env.set_phase("task_setup")
-                    task_env_obj = TaskEnv(
+                    task_driver = TaskDriver(
                         task_path=str(task_path),
                         session=env.session,
                         variant=unit.variant_index,
                         os_type=env.vm.os,
                         # Closure capture is OK — `env` is the loop's
                         # current iteration; on the next mount-fallback
-                        # retry we build a new TaskEnv with a new closure.
+                        # retry we build a new TaskDriver with a new closure.
                         session_rebuilder=env.reset_session,
                     )
-                    await task_env_obj.setup()
+                    await task_driver.setup()
                     break  # phase 1 succeeded
                 except RuntimeError as e:
                     if not _is_mount_failure(e):
@@ -263,12 +263,12 @@ async def run_one_unit(
                     except Exception as cleanup_e:
                         logger.debug("close after mount fail: %s", cleanup_e)
                     env = None
-                    task_env_obj = None
+                    task_driver = None
                     if attempt == _MOUNT_FALLBACK_MAX_ATTEMPTS - 1:
                         raise
 
-            assert env is not None  # loop exits with env+task_env set, or raises
-            assert task_env_obj is not None
+            assert env is not None  # loop exits with env+task_driver set, or raises
+            assert task_driver is not None
 
             # ============================================================
             # Phase 2 — agent
@@ -469,7 +469,7 @@ async def run_one_unit(
             env.set_phase("evaluation")
             eval_start = time.monotonic()
             try:
-                eval_out = await task_env_obj.evaluate()
+                eval_out = await task_driver.evaluate()
                 eval_duration_s = round(time.monotonic() - eval_start, 4)
                 if eval_out is None or eval_out.get("error"):
                     eval_status = "failed"
@@ -712,8 +712,7 @@ def _build_runtime(
             config=config,
             work_dir=work_dir_vm,
             host_artifacts_dir=host_artifacts_dir,
-            vm_endpoint=env.vm.endpoint,
-            vm_os=env.vm.os,
+            env_handle=env.vm,
             env=env_passthrough,
         )
     if runtime_kind == "local":
@@ -721,8 +720,7 @@ def _build_runtime(
             config=config,
             work_dir=str(host_artifacts_dir),
             host_artifacts_dir=host_artifacts_dir,
-            vm_endpoint=env.vm.endpoint,
-            vm_os=env.vm.os,
+            env_handle=env.vm,
             env=env_passthrough,
         )
     if runtime_kind == "docker":
@@ -732,8 +730,7 @@ def _build_runtime(
             config=config,
             work_dir="/work",
             host_artifacts_dir=host_artifacts_dir,
-            vm_endpoint=env.vm.endpoint,
-            vm_os=env.vm.os,
+            env_handle=env.vm,
             env=env_passthrough,
         )
     raise NotImplementedError(f"runtime kind {runtime_kind!r} not wired in lifecycle")
@@ -804,17 +801,12 @@ async def _upload_output_best_effort(
     if task_data is None or not task_data.requires_task_data:
         return
     from ..environments import data_staging
-    from ..base_interface import RemoteVMConfig
 
-    vm_cfg = RemoteVMConfig(
-        server_url=env.vm.endpoint, os_type=env.vm.os,
-        run_id=run_id, task_id=task_id,
-    )
     bucket = _results_bucket_for(provider)
     try:
         report = await asyncio.to_thread(
             data_staging.upload_output,
-            vm_cfg, task_data, env.vm.os, run_id,
+            env.vm, task_data, env.vm.os, run_id,
             gcs_results_bucket=bucket,
         )
         if report.get("uploaded"):
@@ -847,17 +839,12 @@ async def _stage_reference_best_effort(
     if task_data is None or not task_data.requires_task_data:
         return
     from ..environments import data_staging
-    from ..base_interface import RemoteVMConfig
 
-    vm_cfg = RemoteVMConfig(
-        server_url=env.vm.endpoint, os_type=env.vm.os,
-        run_id=run_id, task_id=task_id,
-    )
     bucket = _stage_bucket_for(provider)
     try:
         report = await asyncio.to_thread(
             data_staging.stage_reference,
-            vm_cfg, task_data, env.vm.os,
+            env.vm, task_data, env.vm.os,
             gcs_bucket=bucket,
         )
         if report.get("skipped"):
@@ -887,7 +874,6 @@ def _build_incremental_puller(
     When non-empty, builds a puller targeting ``<work_dir>/<file>`` →
     ``<host_artifacts_dir>/<file>`` for each entry.
     """
-    from ..base_interface import RemoteVMConfig
     from .incremental_puller import IncrementalPuller, PullTarget
 
     if not isinstance(runtime, VmRuntime):
@@ -904,13 +890,7 @@ def _build_incremental_puller(
         )
         for name in hot
     ]
-    vm_cfg = RemoteVMConfig(
-        server_url=runtime.vm_endpoint,
-        os_type=runtime.vm_os,
-        run_id=run_id,
-        task_id=task_id,
-    )
-    puller = IncrementalPuller(vm_config=vm_cfg, targets=targets)
+    puller = IncrementalPuller(vm_config=runtime.env_handle, targets=targets)
     return puller, targets
 
 
@@ -933,27 +913,19 @@ async def _stage_data(
         GcloudProvider,
         gcloud_sa_key_path,
     )
-    from ..base_interface import RemoteVMConfig
-
-    vm_cfg = RemoteVMConfig(
-        server_url=env.vm.endpoint,
-        os_type=env.vm.os,
-        run_id=run_id,
-        task_id=task_id,
-    )
 
     # ensure_data_disk runs for every Linux VM (formats + mounts the data
     # volume) and for every Windows VM (brings E: online); this is what
     # raises "Failed to mount" on certain c4-/hyperdisk capacity profiles
     # where the disk doesn't surface in time.
-    await asyncio.to_thread(data_staging.ensure_data_disk, vm_cfg, env.vm.os)
+    await asyncio.to_thread(data_staging.ensure_data_disk, env.vm, env.vm.os)
 
     # Windows-only: force the framebuffer to the expected size before any
     # task-specific GUI setup. has_gpu is inferred from the env spec's gpu
     # field (None → CPU profile → 1024x768; non-None → GPU → 1920x1080).
     if env.vm.os == "windows":
         has_gpu = env.spec.gpu is not None
-        await asyncio.to_thread(data_staging.set_windows_resolution, vm_cfg, has_gpu)
+        await asyncio.to_thread(data_staging.set_windows_resolution, env.vm, has_gpu)
 
     task_data = task_meta.get("task_data")
     if task_data is None or not task_data.requires_task_data:
@@ -967,12 +939,12 @@ async def _stage_data(
     bucket = _stage_bucket_for(provider)
     await asyncio.to_thread(
         data_staging.stage_input,
-        vm_cfg, task_data, env.vm.os,
+        env.vm, task_data, env.vm.os,
         gcs_bucket=bucket,
         gcs_local_key_path=sa_key,
     )
     await asyncio.to_thread(
-        data_staging.stage_eval, vm_cfg, task_data, env.vm.os,
+        data_staging.stage_eval, env.vm, task_data, env.vm.os,
     )
 
 

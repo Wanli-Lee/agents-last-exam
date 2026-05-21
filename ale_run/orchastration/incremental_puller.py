@@ -26,7 +26,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..base_interface import RemoteVMConfig
+from ..base_interface import EnvHandle
 from ..environments.remote import download_file_range
 from .sync_helpers import RangeStates, apply_range_step
 
@@ -57,7 +57,7 @@ class IncrementalPuller:
     def __init__(
         self,
         *,
-        vm_config: RemoteVMConfig,
+        vm_config: EnvHandle,
         targets: list[PullTarget],
         interval_s: float = _TICK_INTERVAL_S,
     ):

@@ -14,8 +14,8 @@ import shlex
 from pathlib import Path
 
 from .images import gcs_task_prefix, vm_subdir
-from .remote import RemoteVMConfig, run_remote, upload_file
-from ..base_interface import TaskDataSpec
+from .remote import run_remote, upload_file
+from ..base_interface import EnvHandle, TaskDataSpec
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +103,7 @@ def _is_unrecoverable(error_text: str) -> bool:
     return any(p in error_text for p in _NO_RETRY_PATTERNS)
 
 
-def _run_on_vm(vm_config: RemoteVMConfig, command: str, timeout: float = 300):
+def _run_on_vm(vm_config: EnvHandle, command: str, timeout: float = 300):
     import time
 
     last_err = None
@@ -126,7 +126,7 @@ def _run_on_vm(vm_config: RemoteVMConfig, command: str, timeout: float = 300):
     raise RuntimeError(f"VM command failed after {_MAX_RETRIES} attempts: {last_err}")
 
 
-def ensure_gcs_auth(vm_config: RemoteVMConfig, os_type: str, local_key_path: Path | None) -> None:
+def ensure_gcs_auth(vm_config: EnvHandle, os_type: str, local_key_path: Path | None) -> None:
     """Activate gcloud's service account on the VM using ``local_key_path``.
 
     No-op when ``local_key_path`` is None or missing — the VM is assumed to
@@ -156,13 +156,13 @@ def ensure_gcs_auth(vm_config: RemoteVMConfig, os_type: str, local_key_path: Pat
         logger.warning("GCS auth activation returned: %s", result.stdout or result.stderr)
 
 
-def _gcs_prefix_exists(vm_config: RemoteVMConfig, src: str, os_type: str) -> bool:
+def _gcs_prefix_exists(vm_config: EnvHandle, src: str, os_type: str) -> bool:
     result = run_remote(vm_config, _gcs_ls_cmd(src, os_type), timeout=60)
     return result.returncode == 0
 
 
 def _rsync_staged_dir(
-    vm_config: RemoteVMConfig,
+    vm_config: EnvHandle,
     *,
     src: str,
     dst: str,
@@ -176,7 +176,7 @@ def _rsync_staged_dir(
 
 
 def stage_input(
-    vm_config: RemoteVMConfig,
+    vm_config: EnvHandle,
     task_data: TaskDataSpec,
     os_type: str,
     *,
@@ -250,7 +250,7 @@ def stage_input(
 
 
 def stage_reference(
-    vm_config: RemoteVMConfig,
+    vm_config: EnvHandle,
     task_data: TaskDataSpec,
     os_type: str,
     *,
@@ -279,7 +279,7 @@ def stage_reference(
 
 
 def stage_eval(
-    vm_config: RemoteVMConfig,
+    vm_config: EnvHandle,
     task_data: TaskDataSpec,
     os_type: str,
 ) -> dict:
@@ -304,7 +304,7 @@ def stage_eval(
 
 
 def upload_output(
-    vm_config: RemoteVMConfig,
+    vm_config: EnvHandle,
     task_data: TaskDataSpec,
     os_type: str,
     run_id: str,
@@ -331,7 +331,7 @@ def upload_output(
         return {"uploaded": False, "error": str(e)}
 
 
-def ensure_data_disk(vm_config: RemoteVMConfig, os_type: str) -> None:
+def ensure_data_disk(vm_config: EnvHandle, os_type: str) -> None:
     if os_type == "windows":
         _ensure_windows_data_disk(vm_config)
     else:
@@ -377,7 +377,7 @@ print("set_ok" if r == 0 else f"failed:{r}")
 """
 
 
-def set_windows_resolution(vm_config: RemoteVMConfig, has_gpu: bool) -> None:
+def set_windows_resolution(vm_config: EnvHandle, has_gpu: bool) -> None:
     """Force the Windows VM's framebuffer to (1920,1080)/(1024,768).
 
     No-op on Linux VMs (the caller guards on os_type). Best-effort: a
@@ -496,7 +496,7 @@ echo prepped
     return f"bash -lc {shlex.quote(script)}"
 
 
-def _ensure_linux_data_disk(vm_config: RemoteVMConfig) -> None:
+def _ensure_linux_data_disk(vm_config: EnvHandle) -> None:
     """Format the attached empty data disk and mount it at /media/user/data."""
     import time as _time
 
@@ -580,7 +580,7 @@ def _ensure_linux_data_disk(vm_config: RemoteVMConfig) -> None:
     )
 
 
-def _dismiss_format_dialog(vm_config: RemoteVMConfig) -> None:
+def _dismiss_format_dialog(vm_config: EnvHandle) -> None:
     try:
         run_remote(
             vm_config,
@@ -596,7 +596,7 @@ def _dismiss_format_dialog(vm_config: RemoteVMConfig) -> None:
         pass
 
 
-def _ensure_windows_data_disk(vm_config: RemoteVMConfig) -> None:
+def _ensure_windows_data_disk(vm_config: EnvHandle) -> None:
     _dismiss_format_dialog(vm_config)
 
     check = run_remote(
