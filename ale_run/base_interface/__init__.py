@@ -26,13 +26,13 @@ Outside ``base_interface/`` the cycle is invisible.
 """
 from __future__ import annotations
 
-from .deployer import (
+from .agent_deployer import (
     AgentRunResult,
     BaseAgentConfig,
     BaseAgentDeployer,
     EpisodeResult,
 )
-from .provider import (
+from .vm_provider import (
     EnvSpec,
     OS,
     Provider,
@@ -40,8 +40,8 @@ from .provider import (
     VMHandle,
 )
 from .remote_vm import RangeResult, RemoteVMConfig
-from .runtime import BaseRuntime
-from .task import TaskDataSpec
+from .agent_runtime import BaseRuntime
+from .task_data import TaskDataSpec
 from .trajectory import (
     AgentInfo,
     ContentPart,

@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Iterable
 
 if TYPE_CHECKING:
     # Mutual reference: see deployer.py for the symmetric TYPE_CHECKING block.
-    from .deployer import AgentRunResult, BaseAgentConfig, BaseAgentDeployer
+    from .agent_deployer import AgentRunResult, BaseAgentConfig, BaseAgentDeployer
 
 
 @dataclass

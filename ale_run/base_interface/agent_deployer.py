@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     # BaseRuntime and BaseAgentDeployer reference each other in their
     # public signatures. Same-package TYPE_CHECKING keeps the cycle from
     # surfacing at runtime; type-checkers see both directions.
-    from .runtime import BaseRuntime
+    from .agent_runtime import BaseRuntime
 
 
 # =============================================================================
