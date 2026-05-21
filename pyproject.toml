@@ -36,7 +36,10 @@ dev = [
 # and skips every agent's deps. There's no "default install all members"
 # uv setting; it's an explicit flag.
 members = ["ale_run/agents/*"]
-exclude = ["ale_run/agents/_assets"]  # vendored MCP server JS, not a Python package
+exclude = [
+    "ale_run/agents/_assets",   # vendored MCP server JS, not a Python package
+    "ale_run/agents/deployers", # shared deployer base classes, not an agent
+]
 
 [tool.hatch.build.targets.wheel]
 # Two top-level packages: framework (`ale_run/`) and task library (`tasks/`).

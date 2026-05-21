@@ -24,7 +24,7 @@ import time
 from pathlib import Path
 from typing import ClassVar
 
-from ale_run.agents._bases import PrebakedRemoteCliDeployer
+from ale_run.agents.deployers import PrebakedRemoteCliDeployer
 from ale_run.agents.base import (
     AgentRunResult,
     BaseAgentConfig,

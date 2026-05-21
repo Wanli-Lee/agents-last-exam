@@ -26,7 +26,7 @@ import uuid
 from pathlib import Path
 from typing import Any, ClassVar
 
-from ale_run.agents._bases import InProcessHostDeployer
+from ale_run.agents.deployers import InProcessHostDeployer
 from ale_run.agents.base import (
     AgentRunResult,
     BaseAgentConfig,
