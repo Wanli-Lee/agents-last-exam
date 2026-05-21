@@ -3,7 +3,7 @@
 Lives on the host (``runtime: local``) or in a docker container
 (``runtime: docker``) — same code, framework picks where to run.
 
-The deployer's surface (per :class:`InProcessHostDeployer`):
+The deployer's surface (per :class:`InHostDeployer`):
 
   __init__(runtime): stores the runtime context
   install():         sanity-check imports + at least one API key (from base)
@@ -26,7 +26,7 @@ import uuid
 from pathlib import Path
 from typing import Any, ClassVar
 
-from ale_run.agents.deployers import InProcessHostDeployer
+from ale_run.agents.deployers import InHostDeployer
 from ale_run.agents.base import (
     AgentRunResult,
     BaseAgentConfig,
@@ -68,7 +68,7 @@ logger = logging.getLogger(__name__)
 _HARNESS_AGENTS_MD = Path(__file__).resolve().parent / "harness" / "AGENTS.md"
 
 
-class AleClawDeployer(InProcessHostDeployer):
+class AleClawDeployer(InHostDeployer):
     """OpenClaw harness deployer. Runs on host or in docker container.
 
     Both ``local`` and ``docker`` runtimes are supported — same code path.
@@ -76,7 +76,7 @@ class AleClawDeployer(InProcessHostDeployer):
     runtime is faster for dev. yaml picks one explicitly when both apply
     (with default ``local`` if omitted).
 
-    ``install`` from :class:`InProcessHostDeployer` checks the declared
+    ``install`` from :class:`InHostDeployer` checks the declared
     imports + API-key env, plus :meth:`_extra_install` here logs the
     resolved config.
     """

@@ -1,14 +1,14 @@
-"""DockerContainerDeployer — base for agents distributed AS a docker image.
+"""InDockerDeployer — base for agents distributed AS a docker image.
 
-**Distinct from** :class:`InProcessHostDeployer` running on
+**Distinct from** :class:`InHostDeployer` running on
 :class:`DockerRuntime`:
 
-  - ``InProcessHostDeployer + DockerRuntime``: the **framework** runs in
+  - ``InHostDeployer + DockerRuntime``: the **framework** runs in
     a container. Agent code is still our Python imports (e.g. AleClaw's
     OpenClaw harness). Same code as the local runtime; docker only
     provides isolation for the deployer process.
 
-  - ``DockerContainerDeployer``: the **agent itself** is shipped as a
+  - ``InDockerDeployer``: the **agent itself** is shipped as a
     docker image (e.g. a research agent with pinned PyTorch + CUDA that
     can't easily be installed as a Python package). The deployer's job
     is ``docker run <image>`` against the agent's prompt and capture the
@@ -16,10 +16,10 @@
 
 The axis here is "what is the agent's unit of distribution":
 
-  - in-process Python module  → :class:`InProcessHostDeployer`
+  - in-process Python module  → :class:`InHostDeployer`
   - VM-baked CLI               → :class:`PrebakedRemoteCliDeployer`
   - Fetched-into-VM CLI        → :class:`FetchingRemoteCliDeployer`
-  - Pre-built docker image     → :class:`DockerContainerDeployer`  ← this
+  - Pre-built docker image     → :class:`InDockerDeployer`  ← this
 
 The image is provisioned **outside** the deployer (CI build / registry
 pull on the operator's machine). ``install()`` confirms the image is
@@ -43,7 +43,7 @@ from ..base import AgentRunResult, BaseAgentDeployer
 logger = logging.getLogger(__name__)
 
 
-class DockerContainerDeployer(BaseAgentDeployer):
+class InDockerDeployer(BaseAgentDeployer):
     """Base for agents whose distribution medium is a docker image."""
 
     supported_runtimes: ClassVar[frozenset[str]] = frozenset({"local"})
@@ -64,14 +64,14 @@ class DockerContainerDeployer(BaseAgentDeployer):
                 f"{type(self).__name__}: image class attribute must be set"
             )
         raise NotImplementedError(
-            "DockerContainerDeployer.install: verify image present "
+            "InDockerDeployer.install: verify image present "
             "(``docker image inspect <image>``) will be wired alongside "
             "the first concrete caller."
         )
 
     async def launch(self, prompt: str) -> AgentRunResult:
         raise NotImplementedError(
-            "DockerContainerDeployer.launch: ``docker run`` + log "
+            "InDockerDeployer.launch: ``docker run`` + log "
             "streaming + exit-code mapping will be wired alongside the "
             "first concrete caller."
         )

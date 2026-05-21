@@ -1,20 +1,9 @@
 """Base class for deployers whose agent code is an in-process Python
 harness, not a remote CLI.
 
-Used by AleClaw (OpenClaw harness) and any future agent of the same
+Used by ALE-Claw (Demo) and any future agent of the same
 shape. The deployer code runs in the framework's Python process
-(``runtime: local``) OR in a host docker container (``runtime: docker``);
-the eval VM is driven via ``runtime.make_vm_session()``.
-
-The base provides a minimal :meth:`install` that sanity-checks:
-
-* required Python modules import cleanly (catch packaging breaks before
-  burning a VM acquire)
-* at least one of a declared set of env-var API keys is present (catch
-  missing-creds early)
-
-``launch`` and ``parse_artifacts`` are agent-specific — the harness call
-shapes vary too much across in-process agents to lift to a base.
+(``runtime: local``).
 """
 from __future__ import annotations
 
@@ -28,7 +17,7 @@ from ..base import BaseAgentDeployer
 logger = logging.getLogger(__name__)
 
 
-class InProcessHostDeployer(BaseAgentDeployer):
+class InHostDeployer(BaseAgentDeployer):
     """Common contract for in-process Python harness deployers.
 
     Subclass declares :attr:`required_modules` and

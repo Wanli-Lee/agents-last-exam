@@ -8,12 +8,12 @@ substrate**:
 * :class:`FetchingRemoteCliDeployer` — agent CLI is fetched into the
   substrate at install time via a small DSL (``npm:`` / ``pip:`` /
   ``url:``). ``install`` dispatches, then probes.
-* :class:`InProcessHostDeployer` — agent is a Python module imported by
+* :class:`InHostDeployer` — agent is a Python module imported by
   the framework. ``install`` does import + env sanity checks.
   (AleClaw on ``local`` or ``docker`` runtime.)
-* :class:`DockerContainerDeployer` — agent is shipped AS a docker image
+* :class:`InDockerDeployer` — agent is shipped AS a docker image
   (NOT the same as the framework-in-docker case, which is
-  ``InProcessHostDeployer`` + ``DockerRuntime``). **Shell.**
+  ``InHostDeployer`` + ``DockerRuntime``). **Shell.**
 
 Plus :class:`RemoteCliDeployer` — the shared parent of the two remote-CLI
 bases. Holds the spawn / poll / kill / probe helpers; intentionally has
@@ -21,8 +21,8 @@ no ``install`` because the two subclasses install differently.
 """
 from __future__ import annotations
 
-from .docker_container import DockerContainerDeployer
-from .in_process import InProcessHostDeployer
+from .in_docker import InDockerDeployer
+from .in_host import InHostDeployer
 from .remote_cli import (
     FetchingRemoteCliDeployer,
     PrebakedRemoteCliDeployer,
@@ -30,9 +30,9 @@ from .remote_cli import (
 )
 
 __all__ = [
-    "DockerContainerDeployer",
+    "InDockerDeployer",
     "FetchingRemoteCliDeployer",
-    "InProcessHostDeployer",
+    "InHostDeployer",
     "PrebakedRemoteCliDeployer",
     "RemoteCliDeployer",
 ]
