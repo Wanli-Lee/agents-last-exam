@@ -482,8 +482,31 @@ echo prepped
 
 
 def _ensure_linux_data_disk(env_handle: EnvHandle) -> None:
-    """Format the attached empty data disk and mount it at /media/user/data."""
+    """Format the attached empty data disk and mount it at /media/user/data.
+
+    Fast path: if /media/user/data is already a writable mountpoint (e.g. a
+    static dev VM whose data disk was prepped on a prior run), just repair the
+    agenthle subdir + perms and return. This avoids reformatting a
+    healthy disk every run, which would (a) destroy any cross-run scratch
+    state on dev VMs and (b) fail on this very VM because something else is
+    holding /dev/sdb open. Ported from weichen-main / simprun parity.
+    """
     import time as _time
+
+    fast = run_remote(
+        env_handle,
+        "mountpoint -q /media/user/data && "
+        "sudo mkdir -p /media/user/data/agenthle && "
+        "sudo chown -R user:user /media/user/data/agenthle && "
+        "test -w /media/user/data/agenthle && echo ready",
+        timeout=30,
+    )
+    if "ready" in (fast.stdout or ""):
+        logger.info(
+            "ensure_data_disk: /media/user/data already mounted + writable, "
+            "skipping format"
+        )
+        return
 
     run_remote(
         env_handle,
