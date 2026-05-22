@@ -25,7 +25,7 @@ import cua_bench as cb
 
 from tasks.common_config import GeneralTaskConfig
 from tasks.common_setup import BaseTaskSetup
-from utils.finance_evaluation import (verify_dataset_samples_remote,
+from tasks.business_finance._shared.finance.finance_evaluation import (verify_dataset_samples_remote,
                                       verify_files_remote, win_join)
 
 _setup = BaseTaskSetup()

@@ -76,7 +76,7 @@ async def query_milestone(
     floor_number: str
 ) -> dict:
 
-    from utils.evaluation import compare_screenshots_game
+    from tasks.utils.evaluation import compare_screenshots_game
 
     comparison_criteria = "- Is the player on the same floor number?"
 
@@ -90,7 +90,7 @@ async def query_milestone(
 
 @cb.evaluate_task(split="train")
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
-    from utils.evaluation import evaluate_milestone_mode
+    from tasks.utils.evaluation import evaluate_milestone_mode
 
     remote_output_path = task_cfg.metadata["remote_output_dir"]
     reference_path = task_cfg.metadata["reference_dir"]

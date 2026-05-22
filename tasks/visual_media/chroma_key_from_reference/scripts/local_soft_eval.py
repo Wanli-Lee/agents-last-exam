@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from utils.evaluation import EvaluationContext, llm_vision_binary_checklist_judge
+from tasks.utils.evaluation import EvaluationContext, llm_vision_binary_checklist_judge
 
 logger = logging.getLogger(__name__)
 

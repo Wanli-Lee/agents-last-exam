@@ -20,7 +20,7 @@ if __name__ not in sys.modules:
 import cua_bench as cb
 from tasks.common_config import GeneralTaskConfig
 from tasks.common_setup import BaseTaskSetup
-from utils.evaluation import EvaluationContext, llm_vision_judge
+from tasks.utils.evaluation import EvaluationContext, llm_vision_judge
 
 logger = logging.getLogger(__name__)
 

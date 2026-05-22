@@ -14,7 +14,7 @@ import cua_bench as cb
 
 from tasks.common_config import GeneralTaskConfig
 from tasks.common_setup import BaseTaskSetup
-from utils.evaluation import gemini_video_json_judge
+from tasks.utils.evaluation import gemini_video_json_judge
 
 _setup = BaseTaskSetup()
 

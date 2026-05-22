@@ -9,7 +9,7 @@ from pathlib import Path, PureWindowsPath
 import cua_bench as cb
 
 from tasks.common_config import GeneralTaskConfig
-from utils.evaluation import EvaluationContext, collect_matching_files, llm_vision_judge
+from tasks.utils.evaluation import EvaluationContext, collect_matching_files, llm_vision_judge
 
 logger = logging.getLogger(__name__)
 

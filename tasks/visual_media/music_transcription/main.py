@@ -27,7 +27,7 @@ import pretty_midi
 
 from tasks.common_config import GeneralTaskConfig
 from tasks.common_setup import BaseTaskSetup
-from utils.evaluation import EvaluationContext, llm_vision_judge
+from tasks.utils.evaluation import EvaluationContext, llm_vision_judge
 
 _setup = BaseTaskSetup()
 

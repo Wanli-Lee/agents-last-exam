@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 from PIL import Image, ImageOps, ImageDraw
-from utils.evaluation import llm_vision_binary_questions_sync, resolve_llm_judge_model
+from tasks.utils.evaluation import llm_vision_binary_questions_sync, resolve_llm_judge_model
 
 MODEL = resolve_llm_judge_model(
     env_var='BLENDER_TASK_SOFT_EVAL_MODEL',
