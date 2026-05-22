@@ -266,11 +266,10 @@ def _build_cleanup_mode(eff: dict[str, Any]) -> str:
 
 
 def _build_artifacts(raw: dict[str, Any]) -> ArtifactsSpec:
+    defaults = ArtifactsSpec()
     return ArtifactsSpec(
-        gcs_bucket=raw.get("gcs_bucket") or None,
-        gcs_local_key_file=raw.get("gcs_local_key_file") or None,
-        gcs_vm_key_file=raw.get("gcs_vm_key_file") or None,
-        fallback_to_cua=bool(raw.get("fallback_to_cua", True)),
+        task_data_bucket=raw.get("task_data_bucket") or defaults.task_data_bucket,
+        results_bucket=raw.get("results_bucket") or None,
     )
 
 

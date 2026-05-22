@@ -239,7 +239,9 @@ async def run_one_unit(
             # re-provisioning wouldn't help, so we let them propagate.
             # ============================================================
             env.set_phase("stage_inputs")
-            await _stage_task_data(env=env, provider=provider, task_meta=task_meta)
+            await _stage_task_data(
+                env=env, provider=provider, artifacts=artifacts, task_meta=task_meta,
+            )
             env.set_phase("task_setup")
             task_driver = TaskDriver(
                 task_path=str(task_path),
@@ -428,7 +430,7 @@ async def run_one_unit(
             #     env teardown. Best-effort: failure logs a warning but
             #     doesn't fail the run (eval still runs on the live env).
             await _upload_output_best_effort(
-                env=env, provider=provider, task_meta=task_meta,
+                env=env, provider=provider, artifacts=artifacts, task_meta=task_meta,
                 run_id=writer.run_id, task_id=unit.task_path, writer=writer,
             )
 
@@ -438,7 +440,7 @@ async def run_one_unit(
             #     reference/ prefix and we just log + continue.
             env.set_phase("stage_reference")
             await _stage_reference_best_effort(
-                env=env, provider=provider, task_meta=task_meta,
+                env=env, provider=provider, artifacts=artifacts, task_meta=task_meta,
                 run_id=writer.run_id, task_id=unit.task_path, writer=writer,
             )
 
@@ -766,6 +768,7 @@ async def _upload_output_best_effort(
     *,
     env: ALEEnv,
     provider: Provider,
+    artifacts: ArtifactsSpec | None,
     task_meta: dict[str, Any],
     run_id: str,
     task_id: str,
@@ -782,7 +785,10 @@ async def _upload_output_best_effort(
         return
     from ..environments import data_staging
 
-    bucket = _results_bucket_for(provider)
+    bucket = _results_bucket_for(artifacts)
+    if not bucket:
+        writer.emit_event("output_upload_skipped", reason="results_bucket_unconfigured")
+        return
     try:
         report = await asyncio.to_thread(
             data_staging.upload_output,
@@ -805,6 +811,7 @@ async def _stage_reference_best_effort(
     *,
     env: ALEEnv,
     provider: Provider,
+    artifacts: ArtifactsSpec | None,
     task_meta: dict[str, Any],
     run_id: str,
     task_id: str,
@@ -820,7 +827,7 @@ async def _stage_reference_best_effort(
         return
     from ..environments import data_staging
 
-    bucket = _stage_bucket_for(provider)
+    bucket = _stage_bucket_for(artifacts)
     try:
         report = await asyncio.to_thread(
             data_staging.stage_reference,
@@ -898,6 +905,7 @@ async def _stage_task_data(
     *,
     env: ALEEnv,
     provider: Provider,
+    artifacts: ArtifactsSpec | None,
     task_meta: dict[str, Any],
 ) -> None:
     """Push task-specific input data onto the env (Phase 1).
@@ -922,7 +930,7 @@ async def _stage_task_data(
         if isinstance(provider, GcloudProvider)
         else None
     )
-    bucket = _stage_bucket_for(provider)
+    bucket = _stage_bucket_for(artifacts)
     await asyncio.to_thread(
         data_staging.stage_input,
         env.handle, task_data, env.handle.os,
@@ -931,18 +939,27 @@ async def _stage_task_data(
     )
 
 
-def _stage_bucket_for(provider: Provider) -> str:
-    """Best-effort GCS bucket lookup for task-data staging.
+def _stage_bucket_for(artifacts: ArtifactsSpec | None) -> str:
+    """GCS bucket for task-data staging (input + reference).
 
-    Until ArtifactsSpec carries a dedicated ``task_data_bucket``, fall back
-    to the agenthle convention.
+    Driven by :attr:`ArtifactsSpec.task_data_bucket`; defaults to the
+    public ``gs://ale-data-public`` mirror when no ArtifactsSpec is
+    provided (e.g. tests that build a unit ad-hoc).
     """
-    return "gs://agenthle"
+    if artifacts is None:
+        return ArtifactsSpec().task_data_bucket
+    return artifacts.task_data_bucket
 
 
-def _results_bucket_for(provider: Provider) -> str:
-    """GCS bucket for env output upload (simprun's ``GCS_RESULTS_BUCKET``)."""
-    return "gs://agenthle-run-results"
+def _results_bucket_for(artifacts: ArtifactsSpec | None) -> str | None:
+    """GCS bucket for env output upload (simprun's ``GCS_RESULTS_BUCKET``).
+
+    Driven by :attr:`ArtifactsSpec.results_bucket`. Returns ``None`` when
+    unconfigured — the caller skips the upload in that case.
+    """
+    if artifacts is None:
+        return None
+    return artifacts.results_bucket
 
 
 def _build_run_meta(

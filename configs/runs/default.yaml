@@ -14,11 +14,12 @@ output:
 # 1 = sequential (safe debug default).
 concurrency: 1
 
-# Artifact mirroring: VM `gsutil` pushes to a GCS bucket, local `gsutil`
-# pulls down. Fallback (`fallback_to_cua: true`): if GCS is unreachable,
-# mirror via the cua-computer-server file API. Slow but always available.
+# GCS bucket selection for task-data staging and env-output upload.
 artifacts:
-  gcs_bucket: null                      # null → always CUA direct
-  gcs_local_key_file: null              # path to SA JSON on this machine
-  gcs_vm_key_file: null                 # path to SA JSON inside the VM
-  fallback_to_cua: true
+  # Task-data staging bucket (input/, software/, reference/). Default points
+  # at the public mirror; override if you host your own task-data bucket.
+  task_data_bucket: gs://ale-data-public
+  # Per-run env output upload (legacy GCS_RESULTS_BUCKET). No default — set
+  # this to a bucket you own (e.g. gs://my-team-ale-results) or leave null
+  # to skip the upload entirely.
+  results_bucket: null

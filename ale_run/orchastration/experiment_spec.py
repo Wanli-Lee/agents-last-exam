@@ -57,12 +57,20 @@ class ProviderSpec:
 
 @dataclass
 class ArtifactsSpec:
-    """ArtifactMirror knobs. Maps directly onto :class:`ArtifactMirrorConfig`."""
+    """GCS bucket selection for the lifecycle's task-data staging.
 
-    gcs_bucket: str | None = None
-    gcs_local_key_file: str | None = None
-    gcs_vm_key_file: str | None = None
-    fallback_to_cua: bool = True
+    ``task_data_bucket`` is the GCS prefix the lifecycle's task-data staging
+    helpers (``stage_input`` / ``stage_reference``) read from. Defaults to
+    the public ``gs://ale-data-public`` mirror — override in yaml if you
+    host task data in your own bucket.
+
+    ``results_bucket`` is the GCS prefix the env-output upload pushes to
+    after a run. There is no default; leave it ``None`` to skip the
+    upload, or set it in yaml to a bucket you own.
+    """
+
+    task_data_bucket: str = "gs://ale-data-public"
+    results_bucket: str | None = None
 
 
 @dataclass
