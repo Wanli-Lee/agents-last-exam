@@ -1,19 +1,20 @@
-"""ClaudeCodeDeployer — drives @anthropic-ai/claude-code CLI on a remote VM.
+"""ClaudeCodeDeployer — drives the @anthropic-ai/claude-code CLI.
 
-The deployer runs on the **framework host**; all VM I/O is dispatched
-through :class:`ale_run.environments.runtime.VmRuntime`'s HTTP-based
-methods (``run_command`` / ``write_file`` / ``read_file`` / ``exists`` /
-``mkdir`` / ``rm``). Spawn + poll + kill come from
-:class:`PrebakedRemoteCliDeployer`.
+Inherits :class:`BaseAgentDeployer` directly. All substrate I/O goes
+through ``self.executor`` (vm / local / docker — see
+:mod:`ale_run.executors`); this file holds **only** what's claude-code
+specific:
 
-Image assumptions:
+* Verify the binary is present at the image-baked path.
+* Write the MCP server config the CLI reads via ``--mcp-config``.
+* Compose the OpenRouter env-var remap + the CLI argv per OS.
+* Wrap stdin / stdout / stderr / done-marker around the CLI run.
+* Parse the stream-json transcript into ATIF Steps.
 
-* Linux (e.g. ``agenthle-ubuntu-0505``): bash + setsid + ``/usr/local/bin/claude``
-* Windows: PowerShell + ``C:\\Users\\User\\.local\\bin\\claude.exe``
-
-If the binary is missing, ``install()`` raises — rebuild the image or
-override :meth:`VmRuntime.cli_path` for the image, don't install at
-runtime here (use :class:`FetchingRemoteCliDeployer` for that pattern).
+The spawn-detached + done-marker poll + TERM+KILL mechanics live on
+:class:`BaseExecutor`; the deployer just calls
+``executor.spawn_detached`` / ``executor.wait_marker`` /
+``executor.kill_process``.
 """
 from __future__ import annotations
 
@@ -24,12 +25,10 @@ import time
 from pathlib import Path
 from typing import ClassVar
 
-from ale_run.agents.deployers import PrebakedRemoteCliDeployer
 from ale_run.base_interface import (
     AgentRunResult,
     BaseAgentConfig,
-)
-from ale_run.base_interface import (
+    BaseAgentDeployer,
     ContentPart,
     Observation,
     StepMetrics,
@@ -43,12 +42,12 @@ from .config import ClaudeCodeConfig
 logger = logging.getLogger(__name__)
 
 
-class ClaudeCodeDeployer(PrebakedRemoteCliDeployer):
+class ClaudeCodeDeployer(BaseAgentDeployer):
     """Host-side deployer for the @anthropic-ai/claude-code CLI."""
 
-    supported_runtimes: ClassVar[frozenset[str]] = frozenset({"vm"})
+    default_executor: ClassVar[str] = "sandbox"
+    supported_executors: ClassVar[frozenset[str]] = frozenset({"sandbox"})
     hot_artifacts: ClassVar[tuple[str, ...]] = ("transcript.jsonl", "stderr.log")
-    cli_name: ClassVar[str] = "claude"
 
     @property
     def version(self) -> str | None:
@@ -56,32 +55,87 @@ class ClaudeCodeDeployer(PrebakedRemoteCliDeployer):
         return cfg.cli_version
 
     # =========================================================================
-    # install — base probes the binary; we write the MCP config.
+    # install — probe the binary, write MCP config, make work_dir
     # =========================================================================
 
-    async def _post_install(self) -> None:
-        runtime = self.runtime
-        mcp_path = self._join(runtime.work_dir, "mcp_config.json")
+    async def install(self) -> None:
+        executor = self.executor
+        sandbox = executor.sandbox
+
+        # 1. Discover the claude binary on the sandbox. We don't bake the
+        # path into the framework — different images can keep claude
+        # wherever, as long as it's on PATH.
+        claude_cmd = await self._discover_claude(sandbox)
+        self._claude_cmd_cache = claude_cmd
+
+        # 2. Verify it runs.
+        if sandbox.is_linux:
+            probe_cmd = f"{shlex.quote(claude_cmd)} --version"
+        else:
+            probe_cmd = (
+                'powershell -NoProfile -Command "'
+                f"& '{claude_cmd}' --version"
+                '"'
+            )
+        result = await executor.run_command(probe_cmd, timeout=30)
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"ClaudeCodeDeployer: claude CLI at {claude_cmd!r} failed "
+                f"version probe: stderr={(result.stderr or '').strip()[:300]}"
+            )
+        logger.info(
+            "claude_code: claude CLI ok — %s", (result.stdout or "").strip(),
+        )
+
+        # 3. Make work_dir.
+        await executor.mkdir(executor.work_dir)
+
+        # 4. Write MCP config using the sandbox's baked node + mcp paths.
         mcp_config = {
             "mcpServers": {
                 "cua": {
-                    "command": runtime.node_exe,
-                    "args": [f"{runtime.mcp_server_dir}/src/index.js"],
+                    "command": sandbox.node,
+                    "args": [f"{sandbox.mcp_server_dir}/src/index.js"],
                 },
             },
         }
-        await runtime.write_file(mcp_path, json.dumps(mcp_config, indent=2))
+        mcp_path = self._join(executor.work_dir, "mcp_config.json")
+        await executor.write_file(mcp_path, json.dumps(mcp_config, indent=2))
         logger.info("claude_code: mcp_config staged at %s", mcp_path)
 
+    async def _discover_claude(self, sandbox) -> str:
+        """Resolve the claude binary's absolute path on the sandbox.
+
+        Linux:   ``command -v claude``.
+        Windows: ``(Get-Command claude).Source``.
+        """
+        if sandbox.is_linux:
+            cmd = "command -v claude"
+        else:
+            cmd = (
+                'powershell -NoProfile -Command "'
+                "(Get-Command claude -ErrorAction Stop).Source"
+                '"'
+            )
+        result = await self.executor.run_command(cmd, timeout=15)
+        path = (result.stdout or "").strip()
+        if result.returncode != 0 or not path:
+            raise RuntimeError(
+                f"ClaudeCodeDeployer: 'claude' not found on sandbox PATH. "
+                f"Bake it into the image or install at provisioning time. "
+                f"stderr={(result.stderr or '').strip()[:200]}"
+            )
+        return path
+
     # =========================================================================
-    # launch — stage prompt, spawn detached runner, poll done.marker
+    # launch — stage prompt, spawn detached, poll done.marker
     # =========================================================================
 
     async def launch(self, prompt: str) -> AgentRunResult:
-        runtime = self.runtime
+        executor = self.executor
         cfg: ClaudeCodeConfig = self.config  # type: ignore[assignment]
-        wd = runtime.work_dir
-        claude_cmd = runtime.cli_path(self.cli_name)
+        wd = executor.work_dir
+        claude_cmd = getattr(self, "_claude_cmd_cache", None) or "claude"
 
         prompt_file = self._join(wd, "prompt.txt")
         transcript_file = self._join(wd, "transcript.jsonl")
@@ -90,43 +144,39 @@ class ClaudeCodeDeployer(PrebakedRemoteCliDeployer):
         done_marker = self._join(wd, "done.marker")
         mcp_config = self._join(wd, "mcp_config.json")
 
-        # Stage prompt; runner_body redirects stdout/stderr and writes
-        # the exit code to done_marker at the end.
-        await runtime.write_file(prompt_file, prompt)
+        await executor.write_file(prompt_file, prompt)
 
-        if runtime.env_os == "linux":
-            runner_body = self._linux_runner(
-                cfg=cfg, wd=wd, claude_cmd=claude_cmd, prompt_file=prompt_file,
-                transcript_file=transcript_file, stderr_log=stderr_log,
-                done_marker=done_marker, mcp_config=mcp_config,
+        if executor.sandbox.is_linux:
+            script_body = self._linux_runner(
+                cfg=cfg, wd=wd, claude_cmd=claude_cmd,
+                prompt_file=prompt_file, transcript_file=transcript_file,
+                stderr_log=stderr_log, done_marker=done_marker,
+                mcp_config=mcp_config,
             )
-            runner_script_path = self._join(wd, "run_claude.sh")
+            script_path = self._join(wd, "run_claude.sh")
         else:
-            runner_body = self._windows_runner(
-                cfg=cfg, wd=wd, claude_cmd=claude_cmd, prompt_file=prompt_file,
-                transcript_file=transcript_file, stderr_log=stderr_log,
-                done_marker=done_marker, mcp_config=mcp_config,
+            script_body = self._windows_runner(
+                cfg=cfg, wd=wd, claude_cmd=claude_cmd,
+                prompt_file=prompt_file, transcript_file=transcript_file,
+                stderr_log=stderr_log, done_marker=done_marker,
+                mcp_config=mcp_config,
             )
-            runner_script_path = self._join(wd, "run_claude.ps1")
+            script_path = self._join(wd, "run_claude.ps1")
 
         t0 = time.monotonic()
-        await self._spawn_detached(
-            runner_body=runner_body,
-            runner_script_path=runner_script_path,
+        pid = await executor.spawn_detached(
+            script_body=script_body,
+            script_path=script_path,
             pid_file=pid_file,
-            done_marker=done_marker,
             reset_files=[done_marker, pid_file, stderr_log, transcript_file],
         )
-        pid = await self._read_pid(pid_file)
-
-        exit_code, status, _ = await self._poll_until_done(
-            done_marker=done_marker, timeout_s=cfg.timeout_s,
+        status, exit_code = await executor.wait_marker(
+            done_marker, pid=pid, timeout=cfg.timeout_s,
         )
         duration_s = time.monotonic() - t0
 
         if status == "timeout":
-            if pid is not None:
-                await self._kill_pid(pid)
+            await executor.kill_process(pid)
             return AgentRunResult(
                 status="timeout",
                 pid=pid,
@@ -134,6 +184,16 @@ class ClaudeCodeDeployer(PrebakedRemoteCliDeployer):
                 stderr_path=stderr_log,
                 duration_s=duration_s,
                 error=f"wall budget {cfg.timeout_s}s exceeded",
+            )
+
+        if status == "crashed":
+            return AgentRunResult(
+                status="failed",
+                pid=pid,
+                transcript_path=transcript_file,
+                stderr_path=stderr_log,
+                duration_s=duration_s,
+                error="process disappeared before writing done.marker; see stderr",
             )
 
         error: str | None = None
@@ -152,6 +212,16 @@ class ClaudeCodeDeployer(PrebakedRemoteCliDeployer):
             duration_s=duration_s,
             error=error,
         )
+
+    # =========================================================================
+    # OS-aware path join (substrate convention, not host's os.path)
+    # =========================================================================
+
+    def _join(self, *parts: str) -> str:
+        sep = "/" if self.executor.sandbox.is_linux else "\\"
+        head = parts[0].rstrip("/\\")
+        tail = sep.join(p.strip("/\\") for p in parts[1:])
+        return f"{head}{sep}{tail}" if tail else head
 
     # =========================================================================
     # per-OS runner bodies
@@ -181,7 +251,7 @@ class ClaudeCodeDeployer(PrebakedRemoteCliDeployer):
         self, *, cfg, wd, claude_cmd, prompt_file, transcript_file,
         stderr_log, done_marker, mcp_config,
     ) -> str:
-        env = dict(self.runtime.env)
+        env = dict(self.executor.env)
         base_url_default = cfg.base_url or "https://openrouter.ai/api"
         env_lines: list[str] = []
         if not env.get("ANTHROPIC_API_KEY") and env.get("OPENROUTER_API_KEY"):
@@ -234,7 +304,7 @@ class ClaudeCodeDeployer(PrebakedRemoteCliDeployer):
         self, *, cfg, wd, claude_cmd, prompt_file, transcript_file,
         stderr_log, done_marker, mcp_config,
     ) -> str:
-        env = dict(self.runtime.env)
+        env = dict(self.executor.env)
         base_url_default = cfg.base_url or "https://openrouter.ai/api"
         env_lines: list[str] = []
         if not env.get("ANTHROPIC_API_KEY") and env.get("OPENROUTER_API_KEY"):
@@ -274,8 +344,8 @@ class ClaudeCodeDeployer(PrebakedRemoteCliDeployer):
         self, *, stderr_log: str, transcript: str, exit_code: int | None,
     ) -> str:
         parts = [f"agent failed (rc={exit_code})"]
-        stderr_text = await self.runtime.read_text(stderr_log)
-        tx_text = await self.runtime.read_text(transcript)
+        stderr_text = await self.executor.read_text(stderr_log)
+        tx_text = await self.executor.read_text(transcript)
         parts.append(f"stderr={len(stderr_text)}B transcript={len(tx_text)}B")
         if stderr_text.strip():
             parts.append(f"stderr tail: ...{stderr_text[-800:]}")
@@ -304,7 +374,6 @@ class ClaudeCodeDeployer(PrebakedRemoteCliDeployer):
         run_result: AgentRunResult,
         builder: TrajectoryBuilder,
     ) -> None:
-        """Parse stream-json transcript → ATIF Steps."""
         transcript_file = work_dir / "transcript.jsonl"
         if not transcript_file.exists():
             builder.add_step(

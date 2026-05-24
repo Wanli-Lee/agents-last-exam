@@ -26,8 +26,9 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..base_interface import EnvHandle
-from ..environments.remote import download_file_range
+from ..base_interface import SandboxHandle
+# SandboxHandle.download_range provides the byte-offset / chunked
+# read primitive this puller is built on.
 from .sync_helpers import RangeStates, apply_range_step
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,7 @@ _TICK_INTERVAL_S = 300.0
 _RECONCILE_TIMEOUT_S = 60.0
 _RECONCILE_SETTLE_RETRIES = 3
 _RECONCILE_SETTLE_DELAY_S = 1.0
+_MAX_CHUNK_BYTES = 16 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -57,11 +59,11 @@ class IncrementalPuller:
     def __init__(
         self,
         *,
-        env_handle: EnvHandle,
+        sandbox: SandboxHandle,
         targets: list[PullTarget],
         interval_s: float = _TICK_INTERVAL_S,
     ):
-        self._env_handle = env_handle
+        self._sandbox = sandbox
         self._targets = list(targets)
         self._interval_s = interval_s
         self._states = RangeStates()
@@ -129,11 +131,10 @@ class IncrementalPuller:
 
     async def _tick_one(self, tgt: PullTarget) -> None:
         state = self._states.get(tgt.remote_path)
-        range_result = await asyncio.to_thread(
-            download_file_range,
-            self._env_handle,
+        range_result = await self._sandbox.download_range(
             tgt.remote_path,
             start=state.offset,
+            max_chunk_bytes=_MAX_CHUNK_BYTES,
         )
         outcome = apply_range_step(state, tgt.host_path, range_result)
         if outcome.advanced:
@@ -162,11 +163,10 @@ class IncrementalPuller:
                     break
                 try:
                     range_result = await asyncio.wait_for(
-                        asyncio.to_thread(
-                            download_file_range,
-                            self._env_handle,
+                        self._sandbox.download_range(
                             tgt.remote_path,
                             start=state.offset,
+                            max_chunk_bytes=_MAX_CHUNK_BYTES,
                         ),
                         timeout=max(1.0, deadline - time.monotonic()),
                     )

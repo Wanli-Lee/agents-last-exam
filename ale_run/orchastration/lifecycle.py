@@ -5,12 +5,13 @@ LOG_SPEC-shaped on-disk artifacts under ``output_root/<slugs>/v<i>/<ts>/``.
 
 Phase mapping (refined from simprun, surface renamed to LOG_SPEC events):
 
-  - Phase 0  provision      env.reset_async() + _ensure_env_ready (data disk
-                            online). Mount-fallback retry lives here.
+  - Phase 0  provision      env.reset_async() — single-shot. Task data
+                            now ships baked into the image, so there's no
+                            mount-fallback to retry.
   - Phase 1  start          _stage_task_data + TaskDriver(session).setup().
                             Single-shot — failures here are task-level, not
                             env-level, so re-provisioning wouldn't help.
-  - Phase 2  agent          runtime.install_deployer() + .launch_deployer()
+  - Phase 2  agent          deployer = deployer_cls(executor); install + launch
   - Phase 2b fanout         pull origin_log/ (remote-only), emit output_gather_skipped
   - Phase 3  evaluate       TaskDriver.evaluate(), then deployer.parse_artifacts
   - Phase 4  cleanup        TaskDriver.close + env.close_async(mode=delete)
@@ -27,15 +28,14 @@ from typing import Any
 
 from ..base_interface import (
     AgentRunResult,
-    BaseRuntime,
-    EnvSpec,
+    BaseExecutor,
+    SandboxSpec,
     Provider,
     Trajectory,
     TrajectoryBuilder,
 )
-from ..environments.data_staging import MountFailureError
 from ..environments.env import ALEEnv
-from ..environments.runtime import DockerRuntime, LocalRuntime, VmRuntime
+from ..executors import DockerExecutor, LocalExecutor, SandboxExecutor
 from ..tasks.loader import TaskLoader
 from ..tasks.driver import TaskDriver
 from . import gather
@@ -52,7 +52,6 @@ _DEFAULT_TIMEOUT_S = 7200
 
 # Mount-fallback: how many provision attempts before we give up. Matches
 # simprun's single retry — the original env + one alternate profile.
-_MOUNT_FALLBACK_MAX_ATTEMPTS = 2
 
 
 # ======================================================================
@@ -130,7 +129,12 @@ async def run_one_unit(
         )
 
     config = build_config(config_cls, unit.agent_spec.config)
-    runtime_kind = unit.agent_spec.runtime or "vm"
+    # Executor kind: yaml override > deployer's default_executor. resolve_agent
+    # has already validated this against the deployer's supported_executors.
+    executor_kind = (
+        unit.agent_spec.executor
+        or getattr(deployer_cls, "default_executor", "")
+        or "sandbox"    )
 
     # ---- 2. Open RunWriter (creates the run dir + events.jsonl) ----
     writer = RunWriter(
@@ -147,7 +151,7 @@ async def run_one_unit(
         model=config.model,
         task=unit.task_path,
         variant_index=unit.variant_index,
-        runtime=runtime_kind,
+        executor=executor_kind,
     )
 
     env: ALEEnv | None = None
@@ -155,7 +159,7 @@ async def run_one_unit(
     builder: TrajectoryBuilder | None = None
     trajectory: Trajectory | None = None
     run_result: AgentRunResult | None = None
-    runtime: BaseRuntime | None = None
+    executor: BaseExecutor | None = None
 
     status = "completed"
     score: float | None = None
@@ -179,49 +183,19 @@ async def run_one_unit(
             timeout_s = int(task_meta.get("timeout_s") or _DEFAULT_TIMEOUT_S)
 
             # ============================================================
-            # Phase 0 — provision env + bring its data disk online.
-            # Mount-fallback retry: if the data disk on the chosen capacity
-            # profile won't surface, delete the env, exclude that profile,
-            # and retry once with the next one. Scope is intentionally
-            # narrow — only env-infrastructure failures retry here.
+            # Phase 0 — provision the sandbox. Single-shot: with task data
+            # baked into the image (no separate data disk to mount), there's
+            # no mount-fallback to retry against. Provisioning failures
+            # propagate to the per-unit error handler.
             # ============================================================
-            excluded_profiles: set[str] = set()
-            for attempt in range(_MOUNT_FALLBACK_MAX_ATTEMPTS):
-                writer.emit_event("provision_started")
-                env = ALEEnv(provider=provider, spec=env_spec)
-                try:
-                    await env.reset_async(exclude_profiles=excluded_profiles or None)
-                    writer.emit_event(
-                        "provision_done",
-                        env_id=env.handle.id,
-                        capacity_profile=env.handle.metadata.get("capacity_profile"),
-                    )
-                    env.set_phase("ensure_env_ready")
-                    await _ensure_env_ready(env)
-                    break  # phase 0 succeeded
-                except MountFailureError as mount_err:
-                    failed_profile = env.handle.metadata.get("capacity_profile")
-                    logger.warning(
-                        "Disk mount failed on profile %s for %s — deleting env and "
-                        "retrying with a different profile (%s)",
-                        failed_profile, unit.slug, mount_err,
-                    )
-                    writer.emit_event(
-                        "mount_fallback",
-                        failed_profile=failed_profile,
-                        excluded_so_far=sorted(excluded_profiles),
-                    )
-                    if failed_profile:
-                        excluded_profiles.add(failed_profile)
-                    try:
-                        await env.close_async(mode="delete")
-                    except Exception as cleanup_e:
-                        logger.debug("close after mount fail: %s", cleanup_e)
-                    env = None
-                    if attempt == _MOUNT_FALLBACK_MAX_ATTEMPTS - 1:
-                        raise
-
-            assert env is not None  # loop exits with env set, or raises
+            writer.emit_event("provision_started")
+            env = ALEEnv(provider=provider, spec=env_spec)
+            await env.reset_async()
+            writer.emit_event(
+                "provision_done",
+                env_id=env.sandbox.id,
+                capacity_profile=env.sandbox.metadata.get("capacity_profile"),
+            )
 
             builder = TrajectoryBuilder(
                 agent_name=getattr(config, "name", unit.agent_spec.class_),
@@ -247,7 +221,7 @@ async def run_one_unit(
                 task_path=str(task_path),
                 session=env.session,
                 variant=unit.variant_index,
-                os_type=env.handle.os,
+                os_type=env.sandbox.os,
                 session_rebuilder=env.reset_session,
             )
             await task_driver.setup()
@@ -259,8 +233,8 @@ async def run_one_unit(
             agent_name = getattr(config, "name", "agent")
             host_artifacts_dir = writer.run_dir / "origin_log" / agent_name
             host_artifacts_dir.mkdir(parents=True, exist_ok=True)
-            runtime = _build_runtime(
-                runtime_kind=runtime_kind,
+            executor = _build_executor(
+                executor_kind=executor_kind,
                 env=env,
                 config=config,
                 agent_name=agent_name,
@@ -269,10 +243,14 @@ async def run_one_unit(
             )
             writer.emit_event(
                 "agent_run_started",
-                runtime=runtime_kind,
-                work_dir=runtime.work_dir,
+                executor=executor_kind,
+                work_dir=executor.work_dir,
             )
-            deployer = await runtime.install_deployer(deployer_cls)
+            # Construct + install the deployer. (Used to go through
+            # ``executor.install_deployer`` trampoline; that two-liner is
+            # gone — lifecycle's view of "construct + install" is direct.)
+            deployer = deployer_cls(executor)
+            await deployer.install()
 
             # ─── Incremental sync (simprun parity) ─────────────────────
             # Tail each ``hot_artifacts`` file on the remote env into its host
@@ -284,7 +262,7 @@ async def run_one_unit(
             # _sync_incremental invariant.
             puller, puller_targets = _build_incremental_puller(
                 deployer_cls=deployer_cls,
-                runtime=runtime,
+                executor=executor,
                 run_id=writer.run_id,
                 task_id=unit.task_path,
             )
@@ -305,7 +283,7 @@ async def run_one_unit(
             rate_detector = RateLimitDetector()
             stderr_host = host_artifacts_dir / "stderr.log"
             launch_task = asyncio.create_task(
-                runtime.launch_deployer(deployer, task_meta["description"]),
+                deployer.launch(task_meta["description"]),
                 name="agent_launch",
             )
             monitor_task = asyncio.create_task(
@@ -389,18 +367,17 @@ async def run_one_unit(
             # ============================================================
             # Phase 2b — post-launch fanout (origin_log gather + output stub)
             #
-            # Gather is only meaningful for VmRuntime, where work_dir lives
+            # Gather is only meaningful for SandboxExecutor, where work_dir lives
             # on the remote env. Local / docker runtimes write directly into
             # host_artifacts_dir, so the gather step is a no-op.
             # ============================================================
             writer.emit_event("post_launch_fanout_started", gcs_bucket="(cua direct)")
-            if isinstance(runtime, VmRuntime):
+            if isinstance(executor, SandboxExecutor):
                 try:
                     report = await gather.pull_dir(
-                        env.session,
-                        src=runtime.work_dir,
-                        dst=runtime.host_artifacts_dir,
-                        os_type=env.handle.os,
+                        env.sandbox,
+                        src=executor.work_dir,
+                        dst=executor.host_artifacts_dir,
                     )
                     if report.get("error"):
                         writer.emit_event("origin_log_gather_failed", report=report)
@@ -414,7 +391,7 @@ async def run_one_unit(
             else:
                 writer.emit_event(
                     "origin_log_gather_skipped",
-                    reason=f"runtime={runtime.kind} writes to host directly",
+                    reason=f"runtime={executor.kind} writes to host directly",
                 )
             # ============================================================
             # Phase 3 — gather env output, stage reference, evaluate
@@ -472,7 +449,7 @@ async def run_one_unit(
             if builder is not None and run_result is not None:
                 try:
                     deployer_cls.parse_artifacts(
-                        work_dir=runtime.host_artifacts_dir,
+                        work_dir=executor.host_artifacts_dir,
                         config=config,
                         run_result=run_result,
                         builder=builder,
@@ -575,7 +552,7 @@ async def run_one_unit(
         run_id=writer.run_id,
         unit=unit,
         config=config,
-        runtime_kind=runtime_kind,
+        executor_kind=executor_kind,
         status=status,
         score=score,
         phase=phase,
@@ -633,7 +610,7 @@ def _extract_score(eval_output: Any) -> float | None:
     return None
 
 
-def _build_env_spec(task_meta: dict[str, Any], *, unit: RunUnit | None = None) -> EnvSpec:
+def _build_env_spec(task_meta: dict[str, Any], *, unit: RunUnit | None = None) -> SandboxSpec:
     snapshot = task_meta.get("image_category") or task_meta.get("snapshot_name")
     if not snapshot:
         raise RuntimeError(
@@ -647,7 +624,7 @@ def _build_env_spec(task_meta: dict[str, Any], *, unit: RunUnit | None = None) -
         if unit is not None
         else ""
     )
-    return EnvSpec(
+    return SandboxSpec(
         snapshot=snapshot,
         os=os_type,
         vcpus=int(task_meta.get("vcpus") or 4),
@@ -661,21 +638,21 @@ def _build_env_spec(task_meta: dict[str, Any], *, unit: RunUnit | None = None) -
 
 
 def _work_dir_remote(os_type: str, agent_name: str, run_id: str) -> str:
-    """Remote-side scratch dir for VmRuntime deployers."""
+    """Remote-side scratch dir for SandboxExecutor deployers."""
     if os_type == "linux":
         return f"/home/user/.ale/{agent_name}/{run_id}"
     return rf"C:\Users\User\.ale\{agent_name}\{run_id}"
 
 
-def _build_runtime(
+def _build_executor(
     *,
-    runtime_kind: str,
+    executor_kind: str,
     env: ALEEnv,
     config: Any,
     agent_name: str,
     run_id: str,
     host_artifacts_dir: Path,
-) -> BaseRuntime:
+) -> BaseExecutor:
     """Dispatch yaml ``runtime: <kind>`` to the concrete substrate adapter.
 
     ``host_artifacts_dir`` is always a host path the lifecycle owns; for
@@ -684,34 +661,34 @@ def _build_runtime(
     ``host_artifacts_dir`` after launch.
     """
     env_passthrough = _collect_env_passthrough()
-    if runtime_kind == "vm":
-        remote_work_dir = _work_dir_remote(env.handle.os, agent_name, run_id)
-        return VmRuntime(
+    if executor_kind == "sandbox":
+        remote_work_dir = _work_dir_remote(env.sandbox.os, agent_name, run_id)
+        return SandboxExecutor(
             config=config,
             work_dir=remote_work_dir,
             host_artifacts_dir=host_artifacts_dir,
-            env_handle=env.handle,
+            sandbox=env.sandbox,
             env=env_passthrough,
         )
-    if runtime_kind == "local":
-        return LocalRuntime(
+    if executor_kind == "local":
+        return LocalExecutor(
             config=config,
             work_dir=str(host_artifacts_dir),
             host_artifacts_dir=host_artifacts_dir,
-            env_handle=env.handle,
+            sandbox=env.sandbox,
             env=env_passthrough,
         )
-    if runtime_kind == "docker":
+    if executor_kind == "docker":
         # The container's image is left empty here — the first concrete
         # docker deployer will plumb that through yaml.
-        return DockerRuntime(
+        return DockerExecutor(
             config=config,
             work_dir="/work",
             host_artifacts_dir=host_artifacts_dir,
-            env_handle=env.handle,
+            sandbox=env.sandbox,
             env=env_passthrough,
         )
-    raise NotImplementedError(f"runtime kind {runtime_kind!r} not wired in lifecycle")
+    raise NotImplementedError(f"runtime kind {executor_kind!r} not wired in lifecycle")
 
 
 def _collect_env_passthrough() -> dict[str, str]:
@@ -787,7 +764,7 @@ async def _handle_output_best_effort(
     if task_data is None or not task_data.requires_task_data:
         writer.emit_event("output_gather_skipped", reason="task_requires_no_data")
         return
-    from ..environments import data_staging
+    from ..environments import output_pull
 
     output_path = artifacts.output_path if artifacts is not None else None
 
@@ -798,10 +775,8 @@ async def _handle_output_best_effort(
     if output_path == "local":
         dest_dir = run_dir / "output"
         try:
-            report = await asyncio.to_thread(
-                data_staging.download_output,
-                env.handle, task_data, env.handle.os,
-                dest_dir=dest_dir,
+            report = await output_pull.pull_to_host(
+                env.sandbox, task_data, dest_dir=dest_dir,
             )
             if report.get("skipped"):
                 writer.emit_event(
@@ -818,40 +793,29 @@ async def _handle_output_best_effort(
                     errors=len(report.get("errors") or []),
                 )
         except Exception as e:
-            logger.warning("download_output failed (best-effort): %s", e)
+            logger.warning("pull_to_host failed (best-effort): %s", e)
             writer.emit_event("output_gather_failed", transport="cua", error=str(e))
         return
 
     # gs:// case
-    bucket = _results_bucket_for(artifacts)
-    if not bucket:
-        # output_path was a non-gs:// string we didn't recognise — loader
-        # validates this, so reaching here would mean a fresh state.
+    if not output_path.startswith("gs://"):
+        # loader validates this, so reaching here would mean a bypassed path.
         writer.emit_event(
             "output_gather_skipped",
             reason=f"output_path_unrecognised:{output_path!r}",
         )
         return
     try:
-        report = await asyncio.to_thread(
-            data_staging.upload_output,
-            env.handle, task_data, env.handle.os, run_id,
-            gcs_results_bucket=bucket,
+        report = await output_pull.push_to_gcs(
+            env.sandbox, task_data, run_id=run_id, bucket=output_path,
         )
-        if report.get("uploaded"):
-            writer.emit_event(
-                "output_gather_done",
-                transport="gcs",
-                gcs_path=report.get("gcs_path"),
-            )
-        else:
-            writer.emit_event(
-                "output_gather_skipped",
-                reason=report.get("error", "unknown"),
-                transport="gcs",
-            )
+        writer.emit_event(
+            "output_gather_done",
+            transport="gcs",
+            gcs_path=report.get("gcs_path"),
+        )
     except Exception as e:
-        logger.warning("upload_output failed (best-effort): %s", e)
+        logger.warning("push_to_gcs failed (best-effort): %s", e)
         writer.emit_event("output_gather_failed", transport="gcs", error=str(e))
 
 
@@ -873,21 +837,22 @@ async def _stage_reference_best_effort(
     task_data = task_meta.get("task_data")
     if task_data is None or not task_data.requires_task_data:
         return
-    from ..environments import data_staging
+    from ..environments import task_data as task_data_pkg
 
-    bucket = _stage_bucket_for(artifacts)
+    source = _task_data_source(artifacts)
     try:
-        report = await asyncio.to_thread(
-            data_staging.stage_reference,
-            env.handle, task_data, env.handle.os,
-            gcs_bucket=bucket,
-        )
+        backend = task_data_pkg.select(source)
+        report = await backend.stage_reference(env.sandbox, task_data, source=source)
         if report.get("skipped"):
-            writer.emit_event("reference_stage_skipped", reason="no_task_data")
+            writer.emit_event(
+                "reference_stage_skipped",
+                reason=report.get("reason", "unknown"),
+            )
         else:
             writer.emit_event(
                 "reference_stage_completed",
-                staged_dirs=report.get("staged_dirs"),
+                staged=report.get("staged"),
+                source=report.get("source"),
             )
     except RuntimeError as e:
         # Reference data is optional — many tasks don't have it.
@@ -898,7 +863,7 @@ async def _stage_reference_best_effort(
 def _build_incremental_puller(
     *,
     deployer_cls: type,
-    runtime: BaseRuntime,
+    executor: BaseExecutor,
     run_id: str,
     task_id: str,
 ):
@@ -911,42 +876,22 @@ def _build_incremental_puller(
     """
     from .incremental_puller import IncrementalPuller, PullTarget
 
-    if not isinstance(runtime, VmRuntime):
+    if not isinstance(executor, SandboxExecutor):
         return None, []
     hot = tuple(getattr(deployer_cls, "hot_artifacts", ()) or ())
     if not hot:
         return None, []
 
-    sep = "/" if runtime.env_os == "linux" else "\\"
+    sep = "/" if executor.env_os == "linux" else "\\"
     targets = [
         PullTarget(
-            remote_path=f"{runtime.work_dir.rstrip(sep)}{sep}{name}",
-            host_path=runtime.host_artifacts_dir / name,
+            remote_path=f"{executor.work_dir.rstrip(sep)}{sep}{name}",
+            host_path=executor.host_artifacts_dir / name,
         )
         for name in hot
     ]
-    puller = IncrementalPuller(env_handle=runtime.env_handle, targets=targets)
+    puller = IncrementalPuller(sandbox=executor.sandbox, targets=targets)
     return puller, targets
-
-
-async def _ensure_env_ready(env: ALEEnv) -> None:
-    """Bring the env's infrastructure online (Phase 0 tail).
-
-    - Linux: format + mount the attached data disk.
-    - Windows: bring E: online (and force the framebuffer resolution).
-
-    Raises ``data_staging.MountFailureError`` if the disk on this env's
-    capacity profile won't surface — caller catches it for mount-fallback.
-    Failure here is an *env* failure (the task hasn't been touched yet),
-    so it's safe to delete the env and retry with a different profile.
-    """
-    from ..environments import data_staging
-
-    await asyncio.to_thread(data_staging.ensure_data_disk, env.handle, env.handle.os)
-
-    if env.handle.os == "windows":
-        has_gpu = env.spec.gpu is not None
-        await asyncio.to_thread(data_staging.set_windows_resolution, env.handle, has_gpu)
 
 
 async def _stage_task_data(
@@ -956,63 +901,37 @@ async def _stage_task_data(
     artifacts: ArtifactsSpec | None,
     task_meta: dict[str, Any],
 ) -> None:
-    """Push task-specific input data onto the env (Phase 1).
+    """Stage input/software onto the sandbox (Phase 1).
+
+    Dispatches on ``artifacts_path.task_data_path``:
+      ``"baked_in_sandbox"``  — image already has data; sanity-check only
+      ``"gs://..."``          — gsutil rsync from a GCS bucket
+      ``"hf://..."``          — HuggingFace (stub)
 
     Returns silently when the task declares no data-staging requirements.
-    Any failure here is a task-data problem (network, missing GCS prefix,
-    auth) — re-provisioning the env wouldn't help, so this is not wrapped
-    by the mount-fallback retry.
+    Any failure here is task-level — not wrapped by the mount-fallback
+    retry.
     """
-    from ..environments import data_staging
-    from ..environments.providers.gcloud import (
-        GcloudProvider,
-        gcloud_sa_key_path,
-    )
+    from ..environments import task_data as task_data_pkg
 
     task_data = task_meta.get("task_data")
     if task_data is None or not task_data.requires_task_data:
         return
 
-    sa_key = (
-        gcloud_sa_key_path(provider.config)
-        if isinstance(provider, GcloudProvider)
-        else None
-    )
-    bucket = _stage_bucket_for(artifacts)
-    await asyncio.to_thread(
-        data_staging.stage_input,
-        env.handle, task_data, env.handle.os,
-        gcs_bucket=bucket,
-        gcs_local_key_path=sa_key,
-    )
+    source = _task_data_source(artifacts)
+    backend = task_data_pkg.select(source)
+    await backend.stage_input(env.sandbox, task_data, source=source)
 
 
-def _stage_bucket_for(artifacts: ArtifactsSpec | None) -> str:
-    """GCS bucket for task-data staging (input + reference).
+def _task_data_source(artifacts: ArtifactsSpec | None) -> str:
+    """Where to source task data from (yaml ``artifacts_path.task_data_path``).
 
-    Driven by :attr:`ArtifactsSpec.task_data_path`; defaults to the
-    public ``gs://ale-data-public`` mirror when no ArtifactsSpec is
-    provided (e.g. tests that build a unit ad-hoc).
+    One of ``"baked_in_sandbox"`` / ``"gs://<bucket>"`` / ``"hf://<dataset>"``.
+    Defaults to the dataclass default when no ArtifactsSpec was built.
     """
     if artifacts is None:
         return ArtifactsSpec().task_data_path
     return artifacts.task_data_path
-
-
-def _results_bucket_for(artifacts: ArtifactsSpec | None) -> str | None:
-    """GCS bucket for env output upload (``gs://...`` mode only).
-
-    Returns the bucket path when :attr:`ArtifactsSpec.output_path` is a
-    ``gs://...`` literal. Returns ``None`` for the other two states
-    (``None`` = skip, ``"local"`` = pull via cua) — those paths are
-    handled separately in :func:`_handle_output_best_effort`.
-    """
-    if artifacts is None:
-        return None
-    op = artifacts.output_path
-    if op and op.startswith("gs://"):
-        return op
-    return None
 
 
 def _build_run_meta(
@@ -1020,7 +939,7 @@ def _build_run_meta(
     run_id: str,
     unit: RunUnit,
     config: Any,
-    runtime_kind: str,
+    executor_kind: str,
     status: str,
     score: float | None,
     phase: str | None,
@@ -1047,7 +966,7 @@ def _build_run_meta(
             "name": getattr(config, "name", unit.agent_spec.class_),
             "version": None,
             "model": config.model,
-            "runtime": runtime_kind,
+            "executor": executor_kind,
             "config_repr": cfg_repr,
         },
         "task": {

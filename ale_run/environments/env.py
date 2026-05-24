@@ -1,4 +1,4 @@
-"""ALEEnv — OpenEnv-shaped wrapper around a Provider + EnvHandle + DesktopSession.
+"""ALEEnv — OpenEnv-shaped wrapper around a Provider + SandboxHandle + DesktopSession.
 
 The benchmark drives the tested agent natively inside the environment, not via
 (action, observation) pairs from the orchestrator. ``step()`` / ``step_async()``
@@ -11,7 +11,7 @@ Lifecycle::
 
     env = ALEEnv(provider=p, spec=env_spec)
     obs = await env.reset_async()           # acquires env + opens session
-    # ... orchestrator uses env.session, env.handle, env.current_phase ...
+    # ... orchestrator uses env.session, env.sandbox, env.current_phase ...
     await env.close_async(mode="delete")    # releases env
 """
 
@@ -24,7 +24,7 @@ from typing import Any
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import Action, Observation, State
 
-from ..base_interface import EnvSpec, Provider, ReleaseMode, EnvHandle
+from ..base_interface import SandboxSpec, Provider, ReleaseMode, SandboxHandle
 
 logger = logging.getLogger(__name__)
 
@@ -41,29 +41,29 @@ PHASE_CLEANUP = "cleanup"
 
 
 class ALEEnv(Environment[Action, Observation, State]):
-    """One env per (task × variant × agent). EnvHandle is owned for the env's lifetime."""
+    """One env per (task × variant × agent). SandboxHandle is owned for the env's lifetime."""
 
     SUPPORTS_CONCURRENT_SESSIONS = True
 
-    def __init__(self, *, provider: Provider, spec: EnvSpec):
+    def __init__(self, *, provider: Provider, spec: SandboxSpec):
         super().__init__()
         self._provider = provider
         self._spec = spec
-        self._handle: EnvHandle | None = None
+        self._sandbox: SandboxHandle | None = None
         self._session: Any | None = None
         self._current_phase: str | None = None
 
     # -------------------------------------------------------------------- props
 
     @property
-    def spec(self) -> EnvSpec:
+    def spec(self) -> SandboxSpec:
         return self._spec
 
     @property
-    def handle(self) -> EnvHandle:
-        if self._handle is None:
-            raise RuntimeError("env.handle accessed before reset_async()")
-        return self._handle
+    def sandbox(self) -> SandboxHandle:
+        if self._sandbox is None:
+            raise RuntimeError("env.sandbox accessed before reset_async()")
+        return self._sandbox
 
     @property
     def session(self) -> Any:
@@ -82,14 +82,16 @@ class ALEEnv(Environment[Action, Observation, State]):
 
     async def reset_async(
         self,
-        *,
-        exclude_profiles: set[str] | None = None,
     ) -> Observation:
         self._current_phase = PHASE_ENV_START
-        self._handle = await self._provider.acquire(
-            self._spec, exclude_profiles=exclude_profiles,
-        )
-        self._session = self._provider.open_session(self._handle)
+        self._sandbox = await self._provider.acquire(self._spec)
+        self._session = self._provider.open_session(self._sandbox)
+        # Windows-only: force the framebuffer to a known size so GUI tasks
+        # see a deterministic screen. Linux X server picks its own size.
+        if self._sandbox.os == "windows":
+            await _set_windows_resolution(
+                self._sandbox, has_gpu=self._spec.gpu is not None,
+            )
         return Observation()
 
     async def reset_session(self) -> Any:
@@ -102,11 +104,11 @@ class ALEEnv(Environment[Action, Observation, State]):
         rebuilt; ``env.session`` is updated in place so deployer/runtime
         references picked up after this call see the new session.
         """
-        if self._handle is None:
+        if self._sandbox is None:
             raise RuntimeError("reset_session() before reset_async()")
         if self._session is not None:
             await _force_close_session(self._session)
-        self._session = self._provider.open_session(self._handle)
+        self._session = self._provider.open_session(self._sandbox)
         return self._session
 
     async def close_async(self, mode: ReleaseMode = "delete") -> None:
@@ -114,12 +116,12 @@ class ALEEnv(Environment[Action, Observation, State]):
         if self._session is not None:
             await _force_close_session(self._session)
         self._session = None
-        if self._handle is not None:
+        if self._sandbox is not None:
             try:
-                await self._provider.release(self._handle, mode=mode)
+                await self._provider.release(self._sandbox, mode=mode)
             except Exception as e:
-                logger.warning("provider.release failed for %s: %s", self._handle.id, e)
-        self._handle = None
+                logger.warning("provider.release failed for %s: %s", self._sandbox.id, e)
+        self._sandbox = None
 
     async def step_async(self, *args: Any, **kwargs: Any) -> Observation:
         raise NotImplementedError(
@@ -140,7 +142,7 @@ class ALEEnv(Environment[Action, Observation, State]):
     def state(self) -> State:
         raise NotImplementedError(
             "ALEEnv.state() is intentionally absent: this benchmark does not "
-            "expose an OpenEnv-style mid-run State snapshot. Use env.handle / "
+            "expose an OpenEnv-style mid-run State snapshot. Use env.sandbox / "
             "env.session / env.current_phase from the orchastration layer."
         )
 
@@ -171,3 +173,59 @@ async def _force_close_session(session: Any) -> None:
         await asyncio.wait_for(session.close(), timeout=10)
     except (asyncio.TimeoutError, Exception) as e:
         logger.debug("session.close failed/timed out: %s", e)
+
+
+# ============================================================================
+# Windows framebuffer prep
+# ============================================================================
+
+_EXPECTED_RESOLUTION = {True: (1920, 1080), False: (1024, 768)}
+
+_SET_RES_PY = """\
+import ctypes, ctypes.wintypes as wt, sys
+u = ctypes.windll.user32
+cur_w, cur_h = u.GetSystemMetrics(0), u.GetSystemMetrics(1)
+tw, th = int(sys.argv[1]), int(sys.argv[2])
+if (cur_w, cur_h) == (tw, th):
+    print("already_ok"); sys.exit(0)
+fields = [
+    ("a",ctypes.c_wchar*32),("b",wt.WORD),("c",wt.WORD),
+    ("d",wt.WORD),("e",wt.WORD),("f",wt.DWORD),
+    ("g",ctypes.c_long),("h",ctypes.c_long),
+    ("i",wt.DWORD),("j",wt.DWORD),
+    ("k",ctypes.c_short),("l",ctypes.c_short),
+    ("m",ctypes.c_short),("n",ctypes.c_short),("o",ctypes.c_short),
+    ("p",ctypes.c_wchar*32),("q",wt.WORD),("r",wt.DWORD),
+    ("w",wt.DWORD),("ht",wt.DWORD),("fl",wt.DWORD),("fr",wt.DWORD),
+]
+DM = type("DM", (ctypes.Structure,), {"_fields_": fields})
+dm = DM(); dm.d = ctypes.sizeof(dm)
+u.EnumDisplaySettingsW(None, -1, ctypes.byref(dm))
+dm.w = tw; dm.ht = th; dm.f = 0x80000 | 0x100000
+r = u.ChangeDisplaySettingsW(ctypes.byref(dm), 0)
+print("set_ok" if r == 0 else f"failed:{r}")
+"""
+
+
+async def _set_windows_resolution(sandbox, *, has_gpu: bool) -> None:
+    """Force the Windows sandbox framebuffer to a known size.
+
+    Best-effort: failure logs a warning but doesn't fail reset_async —
+    the tested agent can usually solve at default resolution too.
+    """
+    target_w, target_h = _EXPECTED_RESOLUTION[has_gpu]
+    remote_path = r"C:\Users\User\_set_resolution.py"
+    try:
+        await sandbox.write_file(remote_path, _SET_RES_PY)
+        result = await sandbox.run_command(
+            f'python "{remote_path}" {target_w} {target_h}', timeout=20,
+        )
+        out = (result.stdout or "").strip()
+        if "set_ok" in out:
+            logger.info("display resolution set to %dx%d", target_w, target_h)
+        elif "already_ok" in out:
+            logger.info("display resolution already %dx%d", target_w, target_h)
+        else:
+            logger.warning("display resolution change result: %s", out)
+    except Exception as e:
+        logger.warning("failed to set display resolution: %s", e)

@@ -24,7 +24,10 @@ from pathlib import Path
 from typing import Any, Dict
 
 from ..base_interface import TaskDataSpec
-from ..environments.machine_types import parse_gce_machine_type
+# GCE machine-type parsing lives inside the gcloud provider now —
+# tasks/ doesn't import provider internals at module-load time. We
+# delay the import to the one site that needs it, and only when the
+# task_card actually declares a machineType.
 
 __all__ = ["TaskDataSpec", "TaskLoader"]
 
@@ -220,7 +223,8 @@ class TaskLoader:
             raw_mt = vm_cfg.get("machineType")
             task_info["machine_type"] = raw_mt
             if raw_mt is not None:
-                shape = parse_gce_machine_type(raw_mt)
+                from ..environments.providers.gcloud import _parse_gce_machine_type
+                shape = _parse_gce_machine_type(raw_mt)
                 if shape is None:
                     raise ValueError(
                         f"task_card.json for {self.task_path} has unparseable "

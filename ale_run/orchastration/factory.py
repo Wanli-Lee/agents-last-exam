@@ -100,27 +100,28 @@ def resolve_agent(spec: "AgentSpec") -> tuple[type, type]:
         mod_name, attr = cls_key.rsplit(".", 1)
         deployer_cls = getattr(importlib.import_module(mod_name), attr)
 
-    # Validate runtime against the deployer's supported set + the
-    # framework's runtime registry (every Runtime subclass that lifecycle
+    # Validate executor against the deployer's supported set + the
+    # framework's executor registry (every Executor subclass that lifecycle
     # can build).
-    from ..environments.runtime import RUNTIME_REGISTRY
+    from ..executors import EXECUTOR_REGISTRY
 
-    supported = getattr(deployer_cls, "supported_runtimes", frozenset())
-    if spec.runtime is not None and spec.runtime not in supported:
+    supported = getattr(deployer_cls, "supported_executors", frozenset())
+    default = getattr(deployer_cls, "default_executor", "") or ""
+    if spec.executor is not None and spec.executor not in supported:
         raise ValueError(
-            f"agent {cls_key!r}: runtime {spec.runtime!r} not in "
+            f"agent {cls_key!r}: executor {spec.executor!r} not in "
             f"supported set {sorted(supported)}"
         )
-    chosen = spec.runtime or next(iter(supported), None)
+    chosen = spec.executor or default or next(iter(supported), None)
     if chosen is None:
         raise ValueError(
-            f"agent {cls_key!r} declares no supported_runtimes — set the "
+            f"agent {cls_key!r} declares no supported_executors — set the "
             "ClassVar on the deployer subclass."
         )
-    if chosen not in RUNTIME_REGISTRY:
+    if chosen not in EXECUTOR_REGISTRY:
         raise NotImplementedError(
-            f"agent {cls_key!r}: chosen runtime {chosen!r} not in "
-            f"RUNTIME_REGISTRY ({sorted(RUNTIME_REGISTRY)})"
+            f"agent {cls_key!r}: chosen executor {chosen!r} not in "
+            f"EXECUTOR_REGISTRY ({sorted(EXECUTOR_REGISTRY)})"
         )
 
     return deployer_cls, _config_class_for(deployer_cls)

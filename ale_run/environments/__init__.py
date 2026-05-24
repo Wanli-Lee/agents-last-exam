@@ -1,6 +1,6 @@
 """Environments: OpenEnv-shaped VM-backed env + providers.
 
-``ALEEnv`` (env.py) wraps a Provider + EnvHandle + DesktopSession in the
+``ALEEnv`` (env.py) wraps a Provider + SandboxHandle + DesktopSession in the
 OpenEnv ``Environment[Action, Observation, State]`` shape. step() is
 intentionally absent — the tested agent drives itself inside the VM.
 
