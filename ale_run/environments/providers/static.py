@@ -18,7 +18,7 @@ import dataclasses
 import logging
 from typing import Any
 
-from ...base_interface import EnvSpec, Provider, ReleaseMode, EnvHandle
+from ...base_interface import SandboxSpec, Provider, ReleaseMode, SandboxHandle
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +35,10 @@ class StaticProviderConfig:
     endpoint: str
     """Full cua-server URL, e.g. ``http://1.2.3.4:5000``."""
 
-    os: str = "linux"
-    """OS of the pinned VM."""
+    image: str = "ale-ubuntu22"
+    """Image family the static VM was built from. Determines the
+    SandboxHandle's baked paths. Must be registered in
+    :mod:`ale_run.environments.images`."""
 
     vm_id: str = "static"
     """Informational id — shows up in logs / run.json."""
@@ -46,14 +48,19 @@ class StaticProviderConfig:
     The VM itself is never destroyed."""
 
     cleanup_script: str | None = None
-    """Shell snippet executed via ``run_remote`` on release. Only runs
-    when ``cleanup_on_release`` is True."""
+    """Shell snippet executed via ``sandbox.run_command`` on release.
+    Only runs when ``cleanup_on_release`` is True."""
 
 
 def _build_provider_config(raw: dict[str, Any]) -> StaticProviderConfig:
+    # back-compat: yaml ``os: linux`` (old) maps to the linux default image.
+    image = raw.get("image")
+    if image is None:
+        os_legacy = raw.get("os") or "linux"
+        image = "ale-ubuntu22" if os_legacy == "linux" else "ale-win10"
     return StaticProviderConfig(
         endpoint=str(raw["endpoint"]),
-        os=str(raw.get("os") or "linux"),
+        image=str(image),
         vm_id=str(raw.get("vm_id") or "static"),
         cleanup_on_release=bool(raw.get("cleanup_on_release", False)),
         cleanup_script=raw.get("cleanup_script"),
@@ -73,33 +80,27 @@ class StaticProvider(Provider):
             config = _build_provider_config(config)
         self._cfg = config
 
-    async def acquire(
-        self,
-        spec: EnvSpec,
-        *,
-        exclude_profiles: set[str] | None = None,
-    ) -> EnvHandle:
-        # StaticProvider has no capacity-profile concept; the exclude
-        # argument is accepted for ABC parity but ignored.
-        _ = exclude_profiles
-        return EnvHandle(
+    async def acquire(self, spec: SandboxSpec) -> SandboxHandle:
+        from ..images import get as get_image
+
+        image = get_image(self._cfg.image)
+        return SandboxHandle(
             id=self._cfg.vm_id,
             endpoint=self._cfg.endpoint,
-            os=self._cfg.os,
-            metadata={"static": True, "snapshot": spec.snapshot},
+            os=image.os,
+            **image.sandbox_paths(),
+            metadata={"static": True, "snapshot": spec.snapshot, "image": image.name},
         )
 
-    async def release(self, vm: EnvHandle, *, mode: ReleaseMode = "keep") -> None:
+    async def release(self, sandbox: SandboxHandle, *, mode: ReleaseMode = "keep") -> None:
         if not self._cfg.cleanup_on_release or not self._cfg.cleanup_script:
             return
-        from ..remote import run_remote
-
         try:
-            run_remote(vm, self._cfg.cleanup_script, timeout=120)
+            await sandbox.run_command(self._cfg.cleanup_script, timeout=120)
         except Exception as e:
             logger.warning("StaticProvider cleanup failed: %s", e)
 
-    def open_session(self, vm: EnvHandle) -> Any:
+    def open_session(self, vm: SandboxHandle) -> Any:
         from cua_bench.computers.remote import RemoteDesktopSession
         from .gcloud import _init_computer_skip_wait
 

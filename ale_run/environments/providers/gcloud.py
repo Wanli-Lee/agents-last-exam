@@ -12,14 +12,14 @@ The provider config (from yaml ``provider.config``) carries:
   machine_type: str                  # default machine type
   network: str                       # VPC name
   subnet: str                        # subnet within network
-  boot_disk_gb: int                  # boot disk size (default 200)
-  data_disk_gb: int                  # extra data disk size (default 200)
-  data_disk_type: str                # pd-balanced | pd-ssd | hyperdisk-balanced | auto
   instance_prefix: str               # prefix for generated VM names
   images:                            # snapshot tag → image_name mapping
-    cpu-free-ubuntu: agenthle-ubuntu-0505
-    cpu-free: agenthle-dev-cpu-free-0505
-    ...
+    ale-ubuntu22: <gcp-image-name>
+    ale-win10:    <gcp-image-name>
+
+Boot disk size comes from the GCE image's own baked size — we don't
+override it. Task data lives on the boot disk; no separate data disk
+is attached.
 """
 
 from __future__ import annotations
@@ -37,12 +37,283 @@ from typing import Any
 
 import requests
 
-from ..images import CapacityProfile, ImageConfig, PoolEntry, capacity_profiles_for
-from ..machine_types import is_accelerator_machine_type
-from ..remote import _read_first_sse_event
-from ...base_interface import EnvSpec, Provider, ReleaseMode, EnvHandle
+from dataclasses import dataclass
+
+from ...base_interface.sandbox import _read_first_sse_event
+from ...base_interface import SandboxSpec, Provider, ReleaseMode, SandboxHandle
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# GCE machine-type parsing (was ``environments/machine_types.py``)
+# ============================================================================
+
+_FAMILY_MEM_PER_VCPU: dict[str, float] = {
+    "e2-standard": 4.0,
+    "e2-highmem": 8.0,
+    "e2-highcpu": 1.0,
+    "n1-standard": 3.75,
+    "n1-highmem": 6.5,
+    "n1-highcpu": 0.9,
+    "n2-standard": 4.0,
+    "n2-highmem": 8.0,
+    "n2-highcpu": 1.0,
+    "n2d-standard": 4.0,
+    "n2d-highmem": 8.0,
+    "n2d-highcpu": 1.0,
+    "c2-standard": 4.0,
+    "c2d-standard": 4.0,
+    "c2d-highmem": 8.0,
+    "c2d-highcpu": 2.0,
+    "c3-standard": 4.0,
+    "c3-highmem": 8.0,
+    "c3-highcpu": 2.0,
+    "c4-standard": 3.75,
+    "c4-highmem": 7.75,
+    "c4-highcpu": 2.0,
+    "c4a-standard": 4.0,
+    "c4a-highmem": 8.0,
+    "c4a-highcpu": 2.0,
+    "c4d-standard": 4.0,
+    "c4d-highmem": 8.0,
+    "c4d-highcpu": 2.0,
+    "n4-standard": 4.0,
+    "n4-highmem": 8.0,
+    "n4-highcpu": 2.0,
+    "m1-megamem": 14.9,
+    "m1-ultramem": 24.0,
+    "g2-standard": 4.0,
+    "a2-highgpu": 85.0,
+    "a2-megagpu": 85.0,
+}
+
+_VALID_VCPUS: dict[str, frozenset[int]] = {
+    "c4-standard":  frozenset({2, 4, 8, 16, 32, 48, 96, 192}),
+    "c4-highmem":   frozenset({2, 4, 8, 16, 32, 48, 96, 192}),
+    "c4-highcpu":   frozenset({2, 4, 8, 16, 32, 48, 96, 192}),
+    "n2-standard":  frozenset({2, 4, 8, 16, 32, 48, 64, 80, 96, 128}),
+    "n2-highmem":   frozenset({2, 4, 8, 16, 32, 48, 64, 80, 96, 128}),
+    "n2-highcpu":   frozenset({2, 4, 8, 16, 32, 48, 64, 80, 96}),
+    "e2-standard":  frozenset({2, 4, 8, 16, 32}),
+    "e2-highmem":   frozenset({2, 4, 8, 16}),
+    "e2-highcpu":   frozenset({2, 4, 8, 16, 32}),
+    "g2-standard":  frozenset({4, 8, 12, 16, 24, 32, 48, 96}),
+}
+
+_CUSTOM_RE = re.compile(r"^(?P<family>[a-z]\w+)-custom-(?P<vcpus>\d+)-(?P<mem_mb>\d+)$")
+_STANDARD_RE = re.compile(r"^(?P<family>[a-z]\w+-\w+)-(?P<vcpus>\d+)$")
+_ACCEL_RE = re.compile(r"^(?P<family>[a-z]\w+-\w+)-(?P<count>\d+)g$")
+
+
+@dataclass(frozen=True)
+class _GCEShape:
+    vcpus: int
+    memory_gb: int
+    machine_type: str
+
+
+def _parse_gce_machine_type(machine_type: str | None) -> _GCEShape | None:
+    if not machine_type:
+        return None
+    mt = machine_type.strip().lower()
+    m = _CUSTOM_RE.match(mt)
+    if m:
+        vcpus = int(m.group("vcpus"))
+        mem_mb = int(m.group("mem_mb"))
+        return _GCEShape(vcpus=vcpus, memory_gb=max(1, mem_mb // 1024), machine_type=machine_type)
+    m = _ACCEL_RE.match(mt)
+    if m:
+        family = m.group("family")
+        count = int(m.group("count"))
+        mem_ratio = _FAMILY_MEM_PER_VCPU.get(family)
+        if mem_ratio is not None:
+            vcpus = count * 12
+            return _GCEShape(
+                vcpus=vcpus, memory_gb=max(1, int(count * mem_ratio)),
+                machine_type=machine_type,
+            )
+        logger.warning("unknown accelerator family %r in %r", family, machine_type)
+        return None
+    m = _STANDARD_RE.match(mt)
+    if m:
+        family = m.group("family")
+        vcpus = int(m.group("vcpus"))
+        mem_ratio = _FAMILY_MEM_PER_VCPU.get(family)
+        if mem_ratio is not None:
+            return _GCEShape(
+                vcpus=vcpus, memory_gb=max(1, int(vcpus * mem_ratio)),
+                machine_type=machine_type,
+            )
+        logger.warning("unknown GCE family %r in %r", family, machine_type)
+        return None
+    logger.warning("unparseable GCE machine type: %r", machine_type)
+    return None
+
+
+def _family_of(machine_type: str) -> str | None:
+    m = _STANDARD_RE.match(machine_type.strip().lower())
+    return m.group("family") if m else None
+
+
+def _is_accelerator_machine_type(machine_type: str) -> bool:
+    return _ACCEL_RE.match(machine_type.strip().lower()) is not None
+
+
+def _round_up_vcpus(family: str, target_vcpus: int) -> int | None:
+    sizes = _VALID_VCPUS.get(family)
+    if not sizes:
+        return None
+    candidates = [s for s in sizes if s >= target_vcpus]
+    return min(candidates) if candidates else None
+
+
+# ============================================================================
+# Image + capacity-profile dataclasses (was ``environments/capacity.py``)
+# ============================================================================
+
+
+@dataclass(frozen=True)
+class GcloudImageSpec:
+    """Per-snapshot GCP provisioning details (yaml-configured).
+
+    Boot disk size is intentionally NOT here — we use the GCE image's
+    baked size as-is. Task data + everything else lives on that disk.
+    """
+
+    category: str
+    image_name: str
+    default_machine_type: str
+    zone: str
+    os_type: str
+    gpu: str | None
+    network: str = "default"
+    subnet: str = "default"
+    fallback_zones: tuple[str, ...] = ()
+
+
+# Back-compat alias used by this file's own code.
+ImageConfig = GcloudImageSpec
+
+
+@dataclass(frozen=True)
+class CapacityProfile:
+    name: str
+    machine_type: str
+    zones: tuple[str, ...]
+    boot_disk_type: str = "auto"
+    priority: int = 100
+
+
+@dataclass(frozen=True)
+class PoolEntry:
+    """A capacity-pool entry: family + zone-set with size limits."""
+
+    name: str
+    machine_family: str
+    default_vcpus: int
+    max_vcpus: int
+    zones: tuple[str, ...]
+    boot_disk_type: str = "auto"
+    priority: int = 100
+
+
+def _image_zones(image_cfg: GcloudImageSpec) -> tuple[str, ...]:
+    return (image_cfg.zone, *image_cfg.fallback_zones)
+
+
+def capacity_profiles_for(
+    image_cfg: GcloudImageSpec,
+    *,
+    machine_type_override: str | None = None,
+    pool: tuple[PoolEntry, ...] = (),
+) -> tuple[CapacityProfile, ...]:
+    """Compute the prioritized list of CapacityProfiles to try for this image."""
+    target_vcpus: int | None = None
+    override_concrete_mt: str | None = None
+    if machine_type_override:
+        shape = _parse_gce_machine_type(machine_type_override)
+        if shape is None:
+            raise ValueError(
+                f"Invalid vm.machineType override {machine_type_override!r}: "
+                "could not parse as a standard GCE machine type"
+            )
+        target_vcpus = shape.vcpus
+        if "-custom-" in machine_type_override.strip().lower():
+            override_concrete_mt = machine_type_override
+        elif _is_accelerator_machine_type(machine_type_override):
+            override_concrete_mt = machine_type_override
+        else:
+            override_family = _family_of(machine_type_override)
+            if override_family is None:
+                raise ValueError(
+                    f"Invalid vm.machineType override {machine_type_override!r}: "
+                    "could not extract family"
+                )
+            rounded = _round_up_vcpus(override_family, target_vcpus)
+            if rounded is None:
+                raise ValueError(
+                    f"Invalid vm.machineType override {machine_type_override!r}: "
+                    f"family {override_family!r} cannot host {target_vcpus} vCPUs"
+                )
+            override_concrete_mt = f"{override_family}-{rounded}"
+
+    profiles: list[CapacityProfile] = []
+
+    if override_concrete_mt is not None:
+        profiles.append(
+            CapacityProfile(
+                name=f"task-card-{override_concrete_mt}",
+                priority=-1000,
+                machine_type=override_concrete_mt,
+                zones=_image_zones(image_cfg),
+            )
+        )
+
+    for entry in pool:
+        if target_vcpus is None:
+            chosen_vcpus: int | None = entry.default_vcpus
+        else:
+            if target_vcpus > entry.max_vcpus:
+                continue
+            chosen_vcpus = _round_up_vcpus(entry.machine_family, target_vcpus)
+            if chosen_vcpus is None or chosen_vcpus > entry.max_vcpus:
+                continue
+        zones = entry.zones or _image_zones(image_cfg)
+        profiles.append(
+            CapacityProfile(
+                name=f"{entry.name}-{chosen_vcpus}",
+                priority=entry.priority,
+                machine_type=f"{entry.machine_family}-{chosen_vcpus}",
+                zones=zones,
+                boot_disk_type=entry.boot_disk_type,
+            )
+        )
+
+    if not profiles:
+        profiles.append(
+            CapacityProfile(
+                name=f"image-default-{image_cfg.default_machine_type}",
+                priority=0,
+                machine_type=image_cfg.default_machine_type,
+                zones=_image_zones(image_cfg),
+            )
+        )
+
+    seen: set[tuple[str, str, tuple[str, ...]]] = set()
+    deduped: list[CapacityProfile] = []
+    for profile in profiles:
+        key = (profile.machine_type, profile.boot_disk_type, profile.zones)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(profile)
+    return tuple(deduped)
+
+
+# ============================================================================
+# GcloudProvider proper
+# ============================================================================
 
 _GCP_RETRYABLE_TRANSIENT = [
     "ratelimitexceeded",
@@ -91,9 +362,6 @@ class ProviderDefaults:
     machine_type: str = "e2-highmem-8"
     network: str = "default"
     subnet: str = "default"
-    boot_disk_gb: int = 200
-    data_disk_gb: int = 200
-    data_disk_type: str = "auto"
     zone: str = "us-central1-a"
     fallback_zones: tuple[str, ...] = ()
     os: str = "linux"
@@ -102,18 +370,16 @@ class ProviderDefaults:
 
 @dataclasses.dataclass(frozen=True)
 class SnapshotConfig:
-    """Per-snapshot full image config — mirrors simprun/images.json shape."""
+    """Per-snapshot full image config. Boot disk size comes from the GCE
+    image itself — we don't override it (task data lives on that disk too)."""
 
     image_name: str
     zone: str
     os: str
     gpu: str | None
-    boot_disk_gb: int
     default_machine_type: str
     network: str
     subnet: str
-    data_disk_gb: int
-    data_disk_type: str
     fallback_zones: tuple[str, ...]
 
 
@@ -144,9 +410,6 @@ def _build_defaults(raw: dict[str, Any] | None) -> ProviderDefaults:
         machine_type=str(raw.get("machine_type") or "e2-highmem-8"),
         network=str(raw.get("network") or "default"),
         subnet=str(raw.get("subnet") or "default"),
-        boot_disk_gb=int(raw.get("boot_disk_gb") or 200),
-        data_disk_gb=int(raw.get("data_disk_gb") or 200),
-        data_disk_type=str(raw.get("data_disk_type") or "auto"),
         zone=str(raw.get("zone") or "us-central1-a"),
         fallback_zones=tuple(raw.get("fallback_zones") or ()),
         os=str(raw.get("os") or "linux"),
@@ -171,12 +434,9 @@ def _build_snapshot_config(raw: Any, defaults: ProviderDefaults) -> SnapshotConf
         zone=str(raw.get("zone") or defaults.zone),
         os=str(raw.get("os") or defaults.os),
         gpu=raw.get("gpu", defaults.gpu),
-        boot_disk_gb=int(raw.get("boot_disk_gb") or defaults.boot_disk_gb),
         default_machine_type=str(raw.get("machine_type") or defaults.machine_type),
         network=str(raw.get("network") or defaults.network),
         subnet=str(raw.get("subnet") or defaults.subnet),
-        data_disk_gb=int(raw.get("data_disk_gb") or defaults.data_disk_gb),
-        data_disk_type=str(raw.get("data_disk_type") or defaults.data_disk_type),
         fallback_zones=tuple(raw.get("fallback_zones") or defaults.fallback_zones),
     )
 
@@ -189,7 +449,6 @@ def _build_pool_entry(raw: dict[str, Any]) -> PoolEntry:
         max_vcpus=int(raw["max_vcpus"]),
         zones=tuple(raw.get("zones") or ()),
         boot_disk_type=str(raw.get("boot_disk_type") or "auto"),
-        data_disk_type=str(raw.get("data_disk_type") or "auto"),
         priority=int(raw.get("priority", 100)),
     )
 
@@ -283,10 +542,11 @@ def _boot_disk_type(machine_type: str) -> str:
     return "pd-ssd"
 
 
-def _resolve_disk_type(machine_type: str, disk_type: str | None) -> str:
-    if not disk_type or disk_type == "auto":
+def _resolve_boot_disk_type(machine_type: str, boot_disk_type: str | None) -> str:
+    """Resolve ``"auto"`` against the machine family's required disk type."""
+    if not boot_disk_type or boot_disk_type == "auto":
         return _boot_disk_type(machine_type)
-    return disk_type
+    return boot_disk_type
 
 
 def _build_create_args(
@@ -298,9 +558,13 @@ def _build_create_args(
     label_str: str,
     project: str,
     boot_disk_type: str,
-    data_disk_type: str,
-    data_disk_gb: int,
 ) -> list[str]:
+    """``gcloud compute instances create`` argv.
+
+    Boot disk size is intentionally NOT passed — the GCE image's baked
+    size is used (task data lives on the boot disk, no separate data
+    disk attached).
+    """
     args = [
         "compute",
         "instances",
@@ -310,7 +574,6 @@ def _build_create_args(
         f"--machine-type={machine_type}",
         f"--image={image_cfg.image_name}",
         f"--image-project={project}",
-        f"--boot-disk-size={image_cfg.boot_disk_gb}GB",
         f"--boot-disk-type={boot_disk_type}",
         f"--network={image_cfg.network}",
         f"--subnet={image_cfg.subnet}",
@@ -318,13 +581,8 @@ def _build_create_args(
         f"--labels={label_str}",
         "--format=json",
     ]
-    data_disk_name = name[:58] + "-data"
-    args.append(
-        f"--create-disk=name={data_disk_name},size={data_disk_gb}GB,"
-        f"type={data_disk_type},auto-delete=yes"
-    )
     if image_cfg.gpu:
-        if not is_accelerator_machine_type(machine_type):
+        if not _is_accelerator_machine_type(machine_type):
             args.append(f"--accelerator=type={image_cfg.gpu},count=1")
         args.append("--maintenance-policy=TERMINATE")
     if image_cfg.os_type == "windows":
@@ -340,10 +598,8 @@ async def _try_create_in_zone(
     zone: str,
     label_str: str,
     project: str,
-    data_disk_gb: int,
 ) -> tuple[bool, str, str, str]:
-    boot_disk_type = _resolve_disk_type(profile.machine_type, profile.boot_disk_type)
-    data_disk_type = _resolve_disk_type(profile.machine_type, profile.data_disk_type)
+    boot_disk_type = _resolve_boot_disk_type(profile.machine_type, profile.boot_disk_type)
     args = _build_create_args(
         name=name,
         image_cfg=image_cfg,
@@ -352,8 +608,6 @@ async def _try_create_in_zone(
         label_str=label_str,
         project=project,
         boot_disk_type=boot_disk_type,
-        data_disk_type=data_disk_type,
-        data_disk_gb=data_disk_gb,
     )
     last_stderr = ""
     for attempt in range(1, _GCP_MAX_RETRIES_TRANSIENT + 1):
@@ -576,12 +830,7 @@ class GcloudProvider(Provider):
 
     # ------------------------------------------------------------------ acquire
 
-    async def acquire(
-        self,
-        spec: EnvSpec,
-        *,
-        exclude_profiles: set[str] | None = None,
-    ) -> EnvHandle:
+    async def acquire(self, spec: SandboxSpec) -> SandboxHandle:
         snap_cfg = self._cfg.images.get(spec.snapshot)
         if snap_cfg is None:
             raise KeyError(
@@ -601,12 +850,9 @@ class GcloudProvider(Provider):
             machine_type_override=None,
             pool=pool,
         )
-        if exclude_profiles:
-            profiles = tuple(p for p in profiles if p.name not in exclude_profiles)
         if not profiles:
             raise RuntimeError(
-                f"no capacity profile resolved for snapshot={spec.snapshot!r} "
-                f"(after excluding {sorted(exclude_profiles or ())})"
+                f"no capacity profile resolved for snapshot={spec.snapshot!r}"
             )
 
         name = generate_vm_name(
@@ -641,7 +887,6 @@ class GcloudProvider(Provider):
                     zone=zone,
                     label_str=label_str,
                     project=self._cfg.project,
-                    data_disk_gb=snap_cfg.data_disk_gb,
                 )
                 if ok:
                     stdout = out
@@ -672,22 +917,31 @@ class GcloudProvider(Provider):
         if not ready:
             raise RuntimeError(f"CUA server at {cua_url} did not become ready")
 
-        return EnvHandle(
+        from ..images import get as get_image
+
+        # Map snapshot's os_type back to a registered image family.
+        # TODO: drive this off explicit yaml ``images.<snapshot>.family``;
+        # for now we infer ale-ubuntu22 / ale-win10 from the os.
+        image_family = "ale-ubuntu22" if image_cfg.os_type == "linux" else "ale-win10"
+        image = get_image(image_family)
+        return SandboxHandle(
             id=name,
             endpoint=cua_url,
-            os=image_cfg.os_type,
+            os=image.os,
+            **image.sandbox_paths(),
             metadata={
                 "zone": used_zone,
                 "project": self._cfg.project,
                 "machine_type": used_profile.machine_type,
                 "capacity_profile": used_profile.name,
                 "external_ip": external_ip,
+                "image": image.name,
             },
         )
 
     # ------------------------------------------------------------------ release
 
-    async def release(self, vm: EnvHandle, *, mode: ReleaseMode = "delete") -> None:
+    async def release(self, vm: SandboxHandle, *, mode: ReleaseMode = "delete") -> None:
         zone = vm.metadata.get("zone")
         if not zone:
             logger.warning("VM %s has no zone in metadata; skipping %s", vm.id, mode)
@@ -703,7 +957,7 @@ class GcloudProvider(Provider):
 
     # ------------------------------------------------------------------ session
 
-    def open_session(self, vm: EnvHandle) -> Any:
+    def open_session(self, vm: SandboxHandle) -> Any:
         from cua_bench.computers.remote import RemoteDesktopSession
 
         session = RemoteDesktopSession(
@@ -723,7 +977,6 @@ class GcloudProvider(Provider):
             zone=snap_cfg.zone,
             os_type=snap_cfg.os,
             gpu=snap_cfg.gpu,
-            boot_disk_gb=snap_cfg.boot_disk_gb,
             network=snap_cfg.network,
             subnet=snap_cfg.subnet,
             fallback_zones=snap_cfg.fallback_zones,

@@ -3,13 +3,14 @@
 Lives on the host (``runtime: local``) or in a docker container
 (``runtime: docker``) — same code, framework picks where to run.
 
-The deployer's surface (per :class:`InHostDeployer`):
+The deployer's surface:
 
-  __init__(runtime): stores the runtime context
-  install():         sanity-check imports + at least one API key (from base)
-  launch(prompt):    runs the OpenClaw harness end-to-end, writes
-                     transcripts to runtime.work_dir, returns
-                     AgentRunResult
+  __init__(executor): stores the executor (per-unit context + I/O)
+  install():          import-check the harness modules + at least one
+                      API key env var
+  launch(prompt):     runs the OpenClaw harness end-to-end, writes
+                      transcripts to executor.work_dir, returns
+                      AgentRunResult
   parse_artifacts():  reads work_dir's transcripts → ATIF Steps via builder
 
 The OpenClaw harness itself is unchanged (lives at :mod:`.harness`,
@@ -26,12 +27,12 @@ import uuid
 from pathlib import Path
 from typing import Any, ClassVar
 
-from ale_run.agents.deployers import InHostDeployer
 from ale_run.base_interface import (
     AgentRunResult,
     BaseAgentConfig,
+    BaseAgentDeployer,
+    TrajectoryBuilder,
 )
-from ale_run.base_interface import TrajectoryBuilder
 
 from .config import AleClawConfig
 from .transcript_to_trajectory import parse_transcripts_into
@@ -68,29 +69,63 @@ logger = logging.getLogger(__name__)
 _HARNESS_AGENTS_MD = Path(__file__).resolve().parent / "harness" / "AGENTS.md"
 
 
-class AleClawDeployer(InHostDeployer):
+class AleClawDeployer(BaseAgentDeployer):
     """OpenClaw harness deployer. Runs on host or in docker container.
 
-    Both ``local`` and ``docker`` runtimes are supported — same code path.
-    The docker runtime adds process / fs / env isolation; the local
-    runtime is faster for dev. yaml picks one explicitly when both apply
+    Both ``local`` and ``docker`` executors are supported — same code path.
+    The docker executor adds process / fs / env isolation; the local
+    one is faster for dev. yaml picks one explicitly when both apply
     (with default ``local`` if omitted).
-
-    ``install`` from :class:`InHostDeployer` checks the declared
-    imports + API-key env, plus :meth:`_extra_install` here logs the
-    resolved config.
     """
 
-    supported_runtimes: ClassVar[frozenset[str]] = frozenset({"local", "docker"})
+    default_executor: ClassVar[str] = "local"
+    supported_executors: ClassVar[frozenset[str]] = frozenset({"local", "docker"})
 
-    required_modules: ClassVar[tuple[str, ...]] = (".harness.agent_loop",)
-    api_key_alternatives: ClassVar[tuple[str, ...]] = (
+    # Modules ``install`` will import-fail-fast on (typo-catching).
+    _required_modules: ClassVar[tuple[str, ...]] = (".harness.agent_loop",)
+    # At least one of these env vars must be set or ``install`` raises.
+    _api_key_alternatives: ClassVar[tuple[str, ...]] = (
         "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY",
     )
 
     @property
     def version(self) -> str | None:
         return self.config.upstream_version
+
+    # =========================================================================
+    # install — fast-fail on import + API key checks, then mkdir work_dir
+    # =========================================================================
+
+    async def install(self) -> None:
+        import importlib
+        import os as _os
+
+        # Relative-imports anchor: this deployer's parent package
+        # (i.e. ``ale_run.agents.ale_claw``).
+        deployer_pkg = type(self).__module__.rsplit(".", 1)[0]
+        for mod in self._required_modules:
+            try:
+                if mod.startswith("."):
+                    importlib.import_module(mod, package=deployer_pkg)
+                else:
+                    importlib.import_module(mod)
+            except ImportError as e:
+                raise RuntimeError(
+                    f"{type(self).__name__}: failed to import {mod!r}: {e}"
+                ) from e
+        if not any(_os.environ.get(k) for k in self._api_key_alternatives):
+            raise RuntimeError(
+                f"{type(self).__name__}: no LLM API key in env — set one of "
+                f"{', '.join(self._api_key_alternatives)}"
+            )
+        await self.executor.mkdir(self.executor.work_dir)
+        logger.info(
+            "%s: install ok (model=%s, work_dir=%s, executor=%s)",
+            type(self).__name__,
+            getattr(self.config, "model", "?"),
+            self.executor.work_dir,
+            self.executor.kind,
+        )
 
     # =========================================================================
     # launch / parse_artifacts
@@ -101,13 +136,13 @@ class AleClawDeployer(InHostDeployer):
 
         Builds memory_store / session_mgr / tools / OpenClawComputerAgent,
         runs the async-generator loop with wall-clock timeout, returns the
-        outcome. Transcripts land in ``self.runtime.work_dir`` for
+        outcome. Transcripts land in ``self.executor.work_dir`` for
         :meth:`parse_artifacts` to read later.
         """
         cfg: AleClawConfig = self.config  # type: ignore[assignment]
-        # work_dir from BaseRuntime is a substrate-native str; local /
+        # work_dir from BaseExecutor is a substrate-native str; local /
         # docker runtimes are host-visible so wrapping in Path is safe.
-        work_dir = Path(self.runtime.work_dir)
+        work_dir = Path(self.executor.work_dir)
         work_dir.mkdir(parents=True, exist_ok=True)
 
         # Harness-internal id for memory + session keying (just a folder name).
@@ -118,10 +153,19 @@ class AleClawDeployer(InHostDeployer):
         trajectory_dir.mkdir(parents=True, exist_ok=True)
         logger.info("ale-claw: launch — work_dir=%s task_id=%s", work_dir, task_id)
 
-        # ---- 1. Drive-VM session (constructed inside the runtime substrate) ----
-        # In local runtime this is host → VM RPC. In docker runtime it's
+        # ---- 1. Drive-VM session (deployer-side, talks to eval cua-server) ----
+        # In local executor this is host → VM RPC. In docker executor it's
         # container → VM RPC (container has --network host so endpoint reaches).
-        session = await self.runtime.make_session()
+        from cua_bench.computers.remote import RemoteDesktopSession
+
+        sb = self.executor.sandbox
+        session = RemoteDesktopSession(
+            api_url=sb.endpoint,
+            os_type=sb.os,
+            ephemeral=False,        # env lifecycle is owned by ALEEnv
+            headless=True,
+        )
+        await session.check_status()
 
         # ---- 2. Memory + session + subagent registry ----
         memory_store = MemoryStore(task_id=task_id, base_dir=str(memory_base))

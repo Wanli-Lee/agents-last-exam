@@ -32,19 +32,17 @@ class AgentSpec:
             ``ale.runner.factory.AGENT_REGISTRY``, or a fully-qualified
             Deployer class path (e.g. ``"my_pkg.MyDeployer"``).
         config: kwargs passed verbatim into the deployer's Config dataclass.
-        runtime: which substrate to run the deployer in: ``"vm"`` (inside
-            the eval VM), ``"local"`` (this Python process), or
+        executor: which substrate to run the deployer in: ``"vm"`` (drive
+            a remote cua-server VM), ``"local"`` (this Python process), or
             ``"docker"`` (host docker container). Must be in
-            ``DeployerCls.supported_runtimes`` or ``None`` (factory picks
-            the sole value when the deployer supports exactly one; else
-            picks the first sorted value as a friendly default — currently
-            ``"local"`` wins over ``"docker"`` for native-flavor deployers).
+            ``DeployerCls.supported_executors`` or ``None`` (factory uses
+            ``DeployerCls.default_executor``).
     """
 
     id: str
     class_: str
     config: dict[str, Any] = field(default_factory=dict)
-    runtime: str | None = None
+    executor: str | None = None
 
 
 @dataclass

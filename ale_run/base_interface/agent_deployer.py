@@ -1,7 +1,7 @@
 """BaseAgentDeployer — the minimal contract every ALE agent implements.
 
 A deployer is just code: a few Python methods that the framework places
-into a runtime substrate (vm / local / docker). The framework calls
+into an executor (vm / local / docker). The framework calls
 ``install`` → ``launch`` → ``parse_artifacts`` for each unit.
 
 Lives in ``base_interface/`` rather than ``agents/`` so concrete agent
@@ -19,10 +19,10 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from .trajectory import Trajectory, TrajectoryBuilder
 
 if TYPE_CHECKING:
-    # BaseRuntime and BaseAgentDeployer reference each other in their
+    # BaseExecutor and BaseAgentDeployer reference each other in their
     # public signatures. Same-package TYPE_CHECKING keeps the cycle from
     # surfacing at runtime; type-checkers see both directions.
-    from .agent_runtime import BaseRuntime
+    from .executor import BaseExecutor
 
 
 # =============================================================================
@@ -68,7 +68,7 @@ class AgentRunResult:
     """Outcome of :meth:`BaseAgentDeployer.launch` — handed to
     :meth:`BaseAgentDeployer.parse_artifacts` along with the gathered work_dir.
 
-    Pure data; serializable across runtime boundaries.
+    Pure data; serializable across executor boundaries.
     """
 
     status: str                          # "completed" | "timeout" | "failed"
@@ -105,31 +105,36 @@ class EpisodeResult:
 class BaseAgentDeployer(abc.ABC):
     """Minimal deployer contract.
 
-    Subclasses MUST set :attr:`supported_runtimes` (declares which
-    substrates this agent can run on: any subset of ``{"vm","local","docker"}``).
-    The framework validates yaml ``runtime`` against this set.
+    Subclasses MUST set :attr:`supported_executors` (declares which
+    substrates this agent can run on: any subset of ``{"sandbox","local","docker"}``)
+    AND :attr:`default_executor` (the one used when yaml omits the field).
+    The framework validates yaml ``executor`` against ``supported_executors``.
     """
 
-    supported_runtimes: ClassVar[frozenset[str]] = frozenset()
-    """Subclass overrides — strings match yaml ``runtime: <kind>`` values.
+    default_executor: ClassVar[str] = ""
+    """The executor kind used when yaml's ``agent.executor`` is omitted.
+    Empty = error at resolve time. Concrete deployer subclass declares."""
+
+    supported_executors: ClassVar[frozenset[str]] = frozenset()
+    """Subclass overrides — strings match yaml ``executor: <kind>`` values.
     Empty set is a programmer error caught at ``resolve_agent`` time."""
 
     hot_artifacts: ClassVar[tuple[str, ...]] = ()
-    """Files (relative to :attr:`BaseRuntime.work_dir`) the framework
+    """Files (relative to :attr:`BaseExecutor.work_dir`) the framework
     should tail while the agent runs. Read by the IncrementalPuller on
     vm-runtime: each path is fetched in deltas every ~15 s so a SIGTERM
     mid-agent doesn't lose the transcript. Empty tuple (the default)
     disables incremental sync — the final one-shot gather still runs."""
 
-    def __init__(self, runtime: BaseRuntime):
-        self.runtime = runtime
-        self.config = runtime.config        # convenience alias
+    def __init__(self, executor: BaseExecutor):
+        self.executor = executor
+        self.config = executor.config        # convenience alias
 
     # ---- abstract methods ----
 
     @abc.abstractmethod
     async def install(self) -> None:
-        """Stage prereqs for this run. Use ``self.runtime`` for all
+        """Stage prereqs for this run. Use ``self.executor`` for all
         substrate I/O; the substrate itself (VM, container, host
         process) is the framework's concern — the agent code is
         identical anywhere."""
@@ -156,9 +161,9 @@ class BaseAgentDeployer(abc.ABC):
         with :class:`Step` entries.
 
         Pure function — always runs on the framework host after the
-        framework has gathered the runtime's work_dir locally. Doesn't
-        need a runtime instance; static across all runtime kinds for a
-        given agent. Partial / missing logs are valid; emit a single
+        framework has gathered the executor's work_dir locally. Doesn't
+        need an executor instance; static across all executor kinds for
+        a given agent. Partial / missing logs are valid; emit a single
         ``source="system"`` step explaining the gap and return cleanly."""
 
     # ---- optional metadata ----

@@ -1,18 +1,20 @@
 """``base_interface`` — every settled contract the framework agrees on.
 
 This package has **zero internal dependencies**: it imports only stdlib,
-pydantic, and openenv. Every other top-level layer (``agents/``,
-``environments/``, ``tasks/``, ``orchastration/``) depends on it; nothing
-in those layers cross-references each other's internals.
+pydantic, openenv, and requests. Every other top-level layer
+(``agents/``, ``environments/``, ``tasks/``, ``orchastration/``,
+``executors/``) depends on it; nothing in those layers cross-references
+each other's internals.
 
 Contents:
 
 * :class:`BaseAgentDeployer`, :class:`BaseAgentConfig`,
   :class:`AgentRunResult`, :class:`EpisodeResult` — agent contract.
-* :class:`BaseRuntime` — substrate adapter contract.
-* :class:`Provider`, :class:`EnvSpec`, :class:`EnvHandle`,
-  :data:`ReleaseMode` — compute-env provisioning contract (VMs,
-  containers, anything that speaks cua-server HTTP).
+* :class:`BaseExecutor` — executor (substrate adapter) contract.
+* :class:`SandboxHandle`, :class:`SandboxSpec`, :class:`Provider`,
+  :data:`OS`, :data:`ReleaseMode`, :class:`RangeResult`,
+  :class:`SandboxUnreachableError` — sandbox (the cua-server target)
+  data + API + provisioning contract.
 * :class:`TaskDataSpec` — task data-staging contract.
 * :class:`Trajectory`, :class:`TrajectoryBuilder`, :class:`Step`,
   :class:`ToolCall`, :class:`ToolResult`, :class:`Observation`,
@@ -20,8 +22,7 @@ Contents:
   :class:`ContentPart`, :class:`ImageSource` — ATIF trajectory format.
 
 The only intra-package coupling is the ``BaseAgentDeployer`` ↔
-``BaseRuntime`` reference, which both files manage via TYPE_CHECKING.
-Outside ``base_interface/`` the cycle is invisible.
+``BaseExecutor`` reference, which both files manage via TYPE_CHECKING.
 """
 from __future__ import annotations
 
@@ -31,13 +32,15 @@ from .agent_deployer import (
     BaseAgentDeployer,
     EpisodeResult,
 )
-from .agent_runtime import BaseRuntime
-from .compute_env import (
-    EnvHandle,
-    EnvSpec,
+from .executor import BaseExecutor
+from .sandbox import (
     OS,
     Provider,
+    RangeResult,
     ReleaseMode,
+    SandboxHandle,
+    SandboxSpec,
+    SandboxUnreachableError,
 )
 from .task_data import TaskDataSpec
 from .trajectory import (
@@ -62,14 +65,16 @@ __all__ = [
     "BaseAgentConfig",
     "BaseAgentDeployer",
     "EpisodeResult",
-    # agent_runtime.py
-    "BaseRuntime",
-    # compute_env.py
-    "EnvHandle",
-    "EnvSpec",
+    # executor.py
+    "BaseExecutor",
+    # sandbox.py
     "OS",
     "Provider",
+    "RangeResult",
     "ReleaseMode",
+    "SandboxHandle",
+    "SandboxSpec",
+    "SandboxUnreachableError",
     # task_data.py
     "TaskDataSpec",
     # trajectory.py

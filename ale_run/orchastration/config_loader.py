@@ -266,10 +266,12 @@ def _build_cleanup_mode(eff: dict[str, Any]) -> str:
 
 
 _VALID_OUTPUT_PATH_LITERALS = frozenset({"local"})
+_VALID_TASK_DATA_LITERALS = frozenset({"baked_in_sandbox"})
 
 
 def _build_artifacts(raw: dict[str, Any]) -> ArtifactsSpec:
     defaults = ArtifactsSpec()
+
     output_path = raw.get("output_path")
     if output_path is not None:
         op = str(output_path).strip()
@@ -279,8 +281,19 @@ def _build_artifacts(raw: dict[str, Any]) -> ArtifactsSpec:
                 f"'gs://...' bucket path; got {output_path!r}"
             )
         output_path = op or None
+
+    task_data_path = raw.get("task_data_path") or defaults.task_data_path
+    tdp = str(task_data_path).strip()
+    if (tdp not in _VALID_TASK_DATA_LITERALS
+            and not tdp.startswith("gs://")
+            and not tdp.startswith("hf://")):
+        raise ValueError(
+            f"artifacts_path.task_data_path must be 'baked_in_sandbox', "
+            f"'gs://<bucket>', or 'hf://<dataset>'; got {task_data_path!r}"
+        )
+
     return ArtifactsSpec(
-        task_data_path=raw.get("task_data_path") or defaults.task_data_path,
+        task_data_path=tdp,
         output_path=output_path,
     )
 
@@ -291,10 +304,10 @@ def _build_artifacts(raw: dict[str, Any]) -> ArtifactsSpec:
 #   harness | class : str          — registry shortcut OR fqdn
 #   model            : str          — sugar → config.model
 #   id               : str | None   — defaults to harness/class short name
-#   runtime          : str | None   — vm | local | docker (auto-pick if None)
+#   executor         : str | None   — vm | local | docker (deployer default if None)
 #   profile          : str | None   — consumed by the merger; not in AgentSpec
 #   config           : dict         — passed verbatim to the deployer Config
-_AGENT_TOP_KEYS = frozenset({"harness", "class", "model", "id", "runtime", "profile", "config"})
+_AGENT_TOP_KEYS = frozenset({"harness", "class", "model", "id", "executor", "profile", "config"})
 
 
 def _build_agent_single(raw: dict[str, Any], *, base_dir: Path) -> AgentSpec:
@@ -336,11 +349,11 @@ def _build_agent_single(raw: dict[str, Any], *, base_dir: Path) -> AgentSpec:
         # Default to the registry shortcut, or the unqualified tail of a fqdn.
         agent_id = cls if cls in AGENT_REGISTRY else cls.rsplit(".", 1)[-1]
 
-    runtime = merged.get("runtime")
-    if runtime is not None and not isinstance(runtime, str):
-        raise TypeError(f"agent.runtime must be a string, got {type(runtime).__name__}")
+    executor = merged.get("executor")
+    if executor is not None and not isinstance(executor, str):
+        raise TypeError(f"agent.executor must be a string, got {type(executor).__name__}")
 
-    return AgentSpec(id=str(agent_id), class_=cls, config=config, runtime=runtime)
+    return AgentSpec(id=str(agent_id), class_=cls, config=config, executor=executor)
 
 
 # ---- environment ---------------------------------------------------------
