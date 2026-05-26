@@ -24,10 +24,10 @@
 #                    profile name — until either staging succeeds or the pool
 #                    is exhausted.
 #
-# External users: the published `agenthle-unified-v1` image lives in the
+# External users: the published `ale-unified-v1` image lives in the
 # public project `agenthle-488519`. If you run VMs in that project the
 # defaults below work as-is. Otherwise replicate the image + the VPC named
-# `agenthle-vpc` (firewall rules expose port 5000 for the CUA server).
+# `ale-vpc` (firewall rules expose port 5000 for the CUA server).
 
 project: ${env:GCP_PROJECT}
 service_account_key: ${env:GCP_SA_KEY}
@@ -35,8 +35,8 @@ instance_prefix: ale                  # VM names: `ale-<task-slug>-<hash8>`
 
 defaults:
   machine_type: e2-highmem-8          # used when capacity_pools is empty for a snapshot
-  network: agenthle-vpc               # VPC must expose port 5000 (CUA server)
-  subnet: agenthle-vpc                # subnet within the network (same name OK)
+  network: ale-vpc               # VPC must expose port 5000 (CUA server)
+  subnet: ale-vpc                # subnet within the network (same name OK)
   data_disk_gb: 200                   # extra data disk (E:\ on Win, /media/user/data on Linux)
   data_disk_type: auto                # `auto` → pd-ssd, except c4-/m4-/x4- → hyperdisk-balanced
   zone: us-central1-a
@@ -78,8 +78,8 @@ images:
     os: windows
     gpu: nvidia-l4-vws
     boot_disk_gb: 750
-    network: osworld-vpc
-    subnet: osworld-vpc
+    network: ale-vpc
+    subnet: ale-vpc
     fallback_zones: [us-central1-b]
 
   gpu-license:
@@ -87,8 +87,8 @@ images:
     os: windows
     gpu: nvidia-l4-vws
     boot_disk_gb: 750
-    network: osworld-vpc
-    subnet: osworld-vpc
+    network: ale-vpc
+    subnet: ale-vpc
     fallback_zones: [us-central1-b]
 
 # ==========================================================================

@@ -273,7 +273,7 @@ Venv root: `~/.venvs/<name>` (Linux), `%USERPROFILE%\.venvs\<name>` (Windows). S
 
 ### Misleading or no-op
 
-- `session.vnc_url` — placeholder `"http://localhost:8006/?autoconnect=true"` in client-only mode. agenthle VMs do not expose noVNC. Pass `vnc_url=` to the ctor only if a real port is known.
+- `session.vnc_url` — placeholder `"http://localhost:8006/?autoconnect=true"` in client-only mode. ALE VMs do not expose noVNC. Pass `vnc_url=` to the ctor only if a real port is known.
 - `session.close_all_windows()` — no-op.
 - `session.start(headless=False)` — opens VNC in the host's browser, not the VM. Keep `headless=True`.
 

@@ -7,6 +7,7 @@
 - No fluff or cheerful filler text
 - Technical prose only, be kind but direct (e.g., "Thanks @user" not "Thanks so much @user!")
 - When the user asks a question, answer it first before making edits or running implementation commands.
+- In docs (README, `docs/`, user-facing markdown), avoid em dashes (—) when possible; prefer periods, commas, colons, or parentheses instead.
 
 ## Code Quality
 
