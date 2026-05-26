@@ -1,187 +1,178 @@
-"""BaseExecutor — substrate adapter providing the minimal I/O + process
-primitives a deployer needs to do its work.
+"""BaseExecutor — substrate adapter that places + drives a deployer.
 
-Three concrete subclasses (in :mod:`ale_run.executors`):
+The framework recognises three Executor types (in :mod:`ale_run.executors`):
 
-* :class:`SandboxExecutor`     — substrate is a remote cua-server VM;
-                            primitives go over HTTP RPC
-* :class:`LocalExecutor`  — substrate is the framework's own Python
-                            process / host shell
-* :class:`DockerExecutor` — substrate is a host docker container;
-                            primitives via ``docker exec``
+* :class:`LocalExecutor`   — run the deployer in the framework's own
+                             Python process.
+* :class:`DockerExecutor`  — ``docker run`` a fresh container per unit,
+                             ship the deployer + ALE source into it,
+                             entrypoint runs the deployer in-container.
+* :class:`SandboxExecutor` — scp the ALE source to the sandbox VM,
+                             ``cua.python_exec`` a bootstrap that runs
+                             the deployer inside the sandbox itself.
 
-Each Executor is the per-unit context the deployer reads (work_dir,
-sandbox, env, config) AND the I/O surface it acts through. The
-deployer ALWAYS runs on the framework host — only the I/O calls cross
-the substrate boundary.
+What the executor IS to a deployer
+----------------------------------
 
-Naming note: ``Executor`` here = **where the deployer's I/O lands**,
-NOT to the OpenEnv ``Environment`` (the task world the agent acts on,
-with reset/step semantics). The two coincide physically for ``vm``
-mode but are conceptually distinct.
+A passive data carrier. The deployer's ``__init__(executor)`` reads
+``executor.work_dir / sandbox / config / env`` and operates with **Python
+stdlib only** (``subprocess`` / ``pathlib`` / ``json`` / ``asyncio``).
+The deployer never calls the three abstract methods below — those are
+the **lifecycle's** handle on the substrate, not the deployer's.
 
-Surface
--------
+What the executor IS to the lifecycle
+-------------------------------------
 
-Filesystem primitives:
+Three methods:
 
-  ``run_command`` / ``write_file`` / ``read_file`` / ``exists`` /
-  ``mkdir`` / ``rm`` / ``list_dir``
+* :meth:`run_deployer`   — place + run the deployer end-to-end;
+                           return an :class:`AgentRunResult`.
+* :meth:`gather_dir`     — bulk-pull ``src`` (substrate-native path)
+                           into ``dst`` (host directory). No-op when
+                           ``src`` is already a host path.
+* :meth:`download_range` — incremental ranged read of a single file on
+                           the substrate. Used by hot-artifact tailing.
 
-  Plus a derived convenience: ``read_text``.
+Cross-OS deployer contract
+--------------------------
 
-Process-lifecycle primitives:
-
-  ``spawn_detached`` — write a script + launch it detached,
-                       return the OS PID
-  ``wait_marker``    — poll a done-marker file while watching process
-                       liveness; return ``(status, exit_code)``
-  ``kill_process``   — TERM + KILL; idempotent
-
-That's it. 10 abstract methods, 1 derived helper. Each Executor MUST
-implement all 10. Anything broader (URL fetch, cua session, agent
-image path conventions) belongs to the deployer or to ``SandboxHandle``,
-NOT here.
+The Sandbox executor's substrate may be linux OR windows (per
+:attr:`SandboxHandle.os`). Deployer code is responsible for its own OS
+dispatch using ``self.executor.sandbox.os``; the framework does not
+abstract this.
 """
 from __future__ import annotations
 
 import abc
-import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, ClassVar, Iterable
+from typing import Any, ClassVar, TYPE_CHECKING
 
-from .sandbox import SandboxHandle
+from .sandbox import RangeResult, SandboxHandle
 
-# Forward refs are inlined where needed; no TYPE_CHECKING block to avoid
-# import-cycle confusion.
+if TYPE_CHECKING:
+    from .agent_deployer import AgentRunResult, BaseAgentDeployer
+
+
+@dataclass
+class GatherReport:
+    """Outcome of :meth:`BaseExecutor.gather_dir`.
+
+    Always returned (never raised) so the lifecycle can log and proceed
+    when transport hiccups. Empty/no-op pulls report ``files == 0``.
+    """
+
+    transport: str                # "local" | "docker-bindmount" | "cua"
+    files: int = 0
+    bytes: int = 0
+    error: str | None = None
 
 
 @dataclass
 class BaseExecutor(abc.ABC):
-    """Per-unit substrate adapter. Constructed once per run by the lifecycle."""
+    """Per-unit substrate adapter. Constructed once per run by the
+    lifecycle; lives for the duration of one run unit.
+    """
 
-    # ──────── context (data fields) ────────
+    # ──────── data fields (deployer reads these) ────────
 
-    # ``config`` is the resolved per-agent config (claude_code → ClaudeCodeConfig).
-    # Type annotated as ``Any`` to avoid importing BaseAgentConfig here (it lives
-    # in agent_deployer.py and would create an interface-layer cycle).
+    # Annotated as ``Any`` to avoid importing :class:`BaseAgentConfig`
+    # here (it lives in ``agent_deployer`` and a real type would create
+    # an interface-package cycle).
     config: Any
+    """Per-agent resolved config (claude_code → ClaudeCodeConfig …).
+    Concrete dataclass; deployer reads via ``self.config`` alias."""
 
     work_dir: str
     """Substrate-native scratch dir owned by this run. POSIX or Windows-
-    style depending on :attr:`sandbox.os`. Always a string — wrap in
-    :class:`Path` on the host side when needed."""
-
-    host_artifacts_dir: Path
-    """Host-side path where artifacts end up after the lifecycle's gather.
-    For Local/Docker this is the same as ``work_dir``; for Vm it's a
-    separate directory the lifecycle gathers into."""
+    style depending on :attr:`sandbox.os`. The deployer's
+    transcript / stderr / done.marker land here."""
 
     sandbox: SandboxHandle
-    """Post-provision reference to the compute env this unit runs against.
-    Always set — every benchmark target is a live env."""
+    """The cua-server eval target. Deployer reads ``sandbox.endpoint /
+    .os / .work_dir_base / ...`` to talk to its evaluation environment.
+    The Executor itself uses the handle internally for scp + cua RPC
+    when the substrate IS the sandbox (SandboxExecutor)."""
 
     env: dict[str, str] = field(default_factory=dict)
-    """Env vars the framework wants injected into the agent process
-    (api keys, base URLs). Deployers fold these into the launch shell."""
+    """Env vars the framework wants injected into the deployer's
+    process (api keys, base URLs). The deployer folds these into its
+    launched-agent shell."""
 
-    kind: ClassVar[str] = ""
-    """Subclass-supplied. Matches yaml ``executor: <kind>`` values."""
+    type: ClassVar[str] = ""
+    """Subclass-supplied discriminator. Matches yaml ``executor: <type>``
+    values. Validated on concrete-subclass creation."""
 
-    # ──────── filesystem primitives ────────
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        # Concrete subclasses must set ``type``; intermediate abstract
+        # bases (still carrying abstract methods) are skipped.
+        if getattr(cls, "__abstractmethods__", None):
+            return
+        if not getattr(cls, "type", ""):
+            raise TypeError(
+                f"{cls.__name__}: concrete Executor subclass must set "
+                "class attribute `type` to a non-empty string"
+            )
 
-    @abc.abstractmethod
-    async def run_command(
-        self, command: str, *, timeout: float = 60,
-    ) -> subprocess.CompletedProcess:
-        """Run a shell command on the substrate. Always returns a
-        ``CompletedProcess`` (never raises on non-zero rc — caller checks
-        ``.returncode``). On transport failure: rc=-1, stderr describes."""
-
-    @abc.abstractmethod
-    async def write_file(self, path: str, content: str | bytes) -> None:
-        """Write ``content`` to ``path`` on the substrate. Overwrites.
-        Binary-safe (base64 path for Windows)."""
-
-    @abc.abstractmethod
-    async def read_file(self, path: str) -> bytes:
-        """Read ``path`` as bytes. Empty bytes on missing file or transport
-        error — caller checks :meth:`exists` first if the distinction
-        matters."""
+    # ──────── methods (lifecycle uses these) ────────
 
     @abc.abstractmethod
-    async def exists(self, path: str) -> bool: ...
-
-    @abc.abstractmethod
-    async def mkdir(self, path: str) -> None:
-        """Create ``path`` and any missing parents. Idempotent."""
-
-    @abc.abstractmethod
-    async def rm(self, paths: Iterable[str]) -> None:
-        """Best-effort remove. Never raises on missing files."""
-
-    @abc.abstractmethod
-    async def list_dir(self, path: str) -> list[dict[str, Any]]:
-        """Recursive directory walk. Returns a flat list of entries; each:
-
-            ``{"relpath": "<path-from-base>", "is_dir": bool, "size": int}``
-
-        ``relpath`` uses the substrate's native separator. Returns
-        ``[]`` on missing directory or transport error."""
-
-    async def read_text(self, path: str) -> str:
-        """UTF-8 decode of :meth:`read_file`. The one derived helper."""
-        return (await self.read_file(path)).decode("utf-8", errors="replace")
-
-    # ──────── process lifecycle primitives ────────
-
-    @abc.abstractmethod
-    async def spawn_detached(
+    async def run_deployer(
         self,
         *,
-        script_body: str,
-        script_path: str,
-        pid_file: str,
-        reset_files: list[str] | None = None,
-    ) -> int:
-        """Write ``script_body`` to ``script_path``, mark it executable
-        if needed, spawn it detached, wait until the launcher writes the
-        child PID to ``pid_file``, return that PID.
+        deployer_cls: type["BaseAgentDeployer"],
+        prompt: str,
+        timeout_s: float,
+    ) -> "AgentRunResult":
+        """Place + drive the deployer end-to-end on this substrate.
 
-        ``script_body`` is the agent-specific shell/PS script. The
-        executor wraps it in a launcher that:
-          - removes ``reset_files`` (if any) before spawn
-          - daemonizes (setsid / Start-Process / docker exec -d) so the
-            child outlives the RPC call
-          - writes its child PID to ``pid_file``
+        Concrete implementations:
 
-        The script MUST be self-contained: own stdout/stderr redirects,
-        own done-marker write. The executor never touches its body."""
+        * **LocalExecutor**: in-process construct + ``await install();
+          await launch()``.
+        * **DockerExecutor**: stage spec.json into the host bind-mount,
+          ``docker run`` with an entrypoint that imports the deployer,
+          constructs a local-flavored Executor inside the container,
+          and runs it. Returns the container's ``_result.json``.
+        * **SandboxExecutor**: scp the ``ale_run/`` tree into the
+          sandbox, ``cua.python_exec`` a bootstrap that imports the
+          deployer + constructs a local-flavored Executor in-sandbox
+          and runs it. Returns the bootstrap's result dict.
+
+        On crash inside the substrate, the implementation MUST surface
+        the traceback in :attr:`AgentRunResult.error` (and pull any
+        crash logs into the host's gather target if possible)."""
 
     @abc.abstractmethod
-    async def wait_marker(
+    async def gather_dir(
         self,
-        marker_path: str,
         *,
-        pid: int,
-        timeout: float,
-        poll_interval: float = 5.0,
-    ) -> tuple[str, int | None]:
-        """Poll ``marker_path`` until it appears, while also checking
-        that the PID is still alive.
+        src: str,
+        dst: Path,
+    ) -> GatherReport:
+        """Recursively copy ``src`` (substrate-native path) into ``dst``
+        (host directory; created if missing).
 
-        Returns ``(status, exit_code)``:
-
-          ``("completed", 0)``   — marker shows rc == 0
-          ``("failed", rc)``     — marker shows rc != 0
-          ``("crashed", None)``  — process gone before marker appeared
-          ``("timeout", None)``  — deadline hit, marker never appeared
-
-        Caller decides whether to kill the PID on timeout (typically
-        yes — see :meth:`kill_process`)."""
+        No-op (``files=0``) when ``src`` is already a host path
+        (LocalExecutor, DockerExecutor with bind mount). Best-effort —
+        any per-file failure is logged but does not raise; the
+        ``error`` field on the return value reports the first failure."""
 
     @abc.abstractmethod
-    async def kill_process(self, pid: int) -> None:
-        """Send TERM, wait 2 s, send KILL. Idempotent — does not raise
-        if the process is already gone."""
+    async def download_range(
+        self,
+        *,
+        src: str,
+        start: int,
+        max_bytes: int,
+    ) -> RangeResult:
+        """Read ``[start, start+max_bytes)`` of ``src`` on the substrate.
+
+        Returns a :class:`RangeResult` carrying the new bytes plus the
+        current total file size (so callers can detect file truncation
+        or rotation). Used by hot-artifact tailing (incremental sync of
+        transcript.jsonl / stderr.log etc.) for sandbox runs; for local
+        and docker runs the file IS on host and callers can just read
+        directly — but the method is implemented uniformly so callers
+        don't have to special-case substrate type."""
