@@ -50,11 +50,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# Convention: ale_run source ships to ``<home>/.ale-src/`` on the sandbox.
+# Convention: ale_run source ships to ``<home>/.ale-src/`` on the sandbox,
+# where <home> is the parent of work_dir_base (e.g. /home/user/.ale → /home/user).
 def _ale_src_root_for(sandbox: SandboxHandle) -> str:
     if sandbox.is_linux:
-        return "/home/user/.ale-src"
-    return r"C:\Users\User\.ale-src"
+        home = sandbox.work_dir_base.rstrip("/").rsplit("/", 1)[0]
+        return f"{home}/.ale-src"
+    home = sandbox.work_dir_base.rstrip("\\").rsplit("\\", 1)[0]
+    return rf"{home}\.ale-src"
 
 
 # Gather retries

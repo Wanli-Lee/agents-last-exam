@@ -596,13 +596,6 @@ def _build_env_spec(task_meta: dict[str, Any], *, unit: RunUnit | None = None) -
     )
 
 
-def _work_dir_remote(os_type: str, agent_name: str, run_id: str) -> str:
-    """Remote-side scratch dir for SandboxExecutor deployers."""
-    if os_type == "linux":
-        return f"/home/user/.ale/{agent_name}/{run_id}"
-    return rf"C:\Users\User\.ale\{agent_name}\{run_id}"
-
-
 def _build_executor(
     *,
     executor_type: str,
@@ -621,7 +614,9 @@ def _build_executor(
     """
     env_passthrough = _collect_env_passthrough()
     if executor_type == "sandbox":
-        remote_work_dir = _work_dir_remote(env.sandbox.os, agent_name, run_id)
+        sb = env.sandbox
+        sep = "/" if sb.is_linux else "\\"
+        remote_work_dir = f"{sb.work_dir_base.rstrip(sep)}{sep}{agent_name}{sep}{run_id}"
         return SandboxExecutor(
             config=config,
             work_dir=remote_work_dir,
