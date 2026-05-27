@@ -162,4 +162,7 @@ def build_provider(spec: "ProviderSpec") -> "Provider":
     if kind == "static":
         from ..environments.providers.static import StaticProvider
         return StaticProvider(spec.config)
+    if kind == "docker":
+        from ..environments.providers.docker import DockerProvider
+        return DockerProvider(spec.config)
     raise NotImplementedError(f"provider kind {kind!r} is not implemented")
