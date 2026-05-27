@@ -25,7 +25,7 @@ tasks:
     variants: [0]
 
 artifacts_path:
-  task_data_source: baked_in_sandbox
+  task_data_source: gs://ale-data-public
   output_path: local
 
 output:

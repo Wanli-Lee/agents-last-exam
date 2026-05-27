@@ -88,7 +88,7 @@ def load_experiment(path: str | Path) -> ExperimentSpec:
         raise TypeError(f"experiment yaml root must be a mapping, got {type(pre).__name__}")
     secret_file = pre.get("secret_file")
     if secret_file is not None:
-        _load_dotenv(_resolve_path(secret_file, base_dir))
+        _load_dotenv(_resolve_path(secret_file, base_dir), override=True)
     else:
         # Convenience auto-detect. `secret/.env` is the canonical location
         # (alongside the checked-in `secret/.env.example` template); legacy
@@ -107,11 +107,15 @@ def load_experiment(path: str | Path) -> ExperimentSpec:
 # Env + yaml helpers
 # =============================================================================
 
-def _load_dotenv(path: Path) -> None:
+def _load_dotenv(path: Path, *, override: bool = False) -> None:
     """Hand-rolled dotenv parser. Format: ``KEY=value`` per line; ``#``
     starts a line comment; surrounding single/double quotes are stripped;
     blank lines and unparseable lines are skipped (logged at DEBUG).
-    Shell env wins — never overwrites an already-set os.environ key.
+
+    When ``override=False`` (default / auto-detected files), shell env
+    wins — never overwrites an already-set os.environ key.  When
+    ``override=True`` (explicit ``secret_file:`` in the experiment yaml),
+    the file is the authoritative source and overwrites shell values.
 
     Missing file is silently ignored — most setups have one, some don't.
     """
@@ -138,7 +142,10 @@ def _load_dotenv(path: Path) -> None:
         if not key.isidentifier():
             logger.debug("dotenv %s:%d skipped (bad key): %r", path, line_no, raw)
             continue
-        os.environ.setdefault(key, value)
+        if override:
+            os.environ[key] = value
+        else:
+            os.environ.setdefault(key, value)
 
 
 def _read_yaml(path: Path) -> Any:

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from tasks.common_config import GeneralTaskConfig
 
-DATA_ROOT = "/media/user/data/agenthle"
+DATA_ROOT = "/media/user/data/ale-data"
 
 
 @dataclass

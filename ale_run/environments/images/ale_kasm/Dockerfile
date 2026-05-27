@@ -4,11 +4,11 @@
 # Agents (claude, droid, cursor-agent, openclaw, etc.) are NOT baked in;
 # each agent's deployer.install() handles its own binary at runtime.
 #
-# Build:
-#   docker build -t agentslastexam/ale-kasm:latest docker/kasm/
+# Build (from repo root):
+#   docker build -t agentslastexam/ale-kasm:latest ale_run/environments/images/ale_kasm/
 #
 # Build for x86 from ARM host:
-#   docker buildx build --platform linux/amd64 -t agentslastexam/ale-kasm:latest docker/kasm/
+#   docker buildx build --platform linux/amd64 -t agentslastexam/ale-kasm:latest ale_run/environments/images/ale_kasm/
 #
 # Base image: Kasm core Ubuntu 22.04 (Jammy) with XFCE, KasmVNC, PulseAudio.
 # Ships Node 22 + npm 10 in the base layer (kasm-recorder user).
@@ -71,6 +71,11 @@ WORKDIR $HOME
 RUN mkdir -p $HOME && chown -R 1000:0 $HOME
 
 # ============================================================
+# 6b. Task data root (owned by kasm-user for GCS staging)
+# ============================================================
+RUN mkdir -p /media/user/data/ale-data && chown -R 1000:0 /media/user
+
+# ============================================================
 # 7. Python tooling: uv + CUA packages + Playwright
 # ============================================================
 RUN python3.12 -m pip install uv
@@ -81,7 +86,12 @@ RUN uv pip install --system playwright && \
     python3.12 -m playwright install --with-deps firefox
 
 # ============================================================
-# 8. Cache cleanup
+# 8. gsutil (needed for gs:// task data staging)
+# ============================================================
+RUN uv pip install --system gsutil
+
+# ============================================================
+# 9. Cache cleanup
 # ============================================================
 RUN rm -rf /home/kasm-user/.cache/uv /root/.cache/uv
 RUN chown -R 1000:0 /home/kasm-user/.cache 2>/dev/null || true
