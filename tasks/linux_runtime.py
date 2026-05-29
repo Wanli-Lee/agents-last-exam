@@ -6,9 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from tasks.common_config import GeneralTaskConfig
-
-DATA_ROOT = "/media/user/data/ale-data"
+from tasks.common_config import GeneralTaskConfig, _UNSET_DATA_ROOT
 
 
 @dataclass
@@ -18,10 +16,11 @@ class LinuxTaskConfig(GeneralTaskConfig):
     DOMAIN_NAME: str = ""
     OS_TYPE: str = "linux"
     VARIANT_NAME: str = "base"
+    REMOTE_ROOT_DIR: str = _UNSET_DATA_ROOT
 
     @property
     def task_dir(self) -> str:
-        return f"{DATA_ROOT}/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}"
+        return f"{self.REMOTE_ROOT_DIR}/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}"
 
     @property
     def data_task_dir(self) -> str:
