@@ -62,47 +62,51 @@ class DroidDeployer(BaseAgentDeployer):
     # =========================================================================
 
     async def _auto_install_cli(self) -> None:
-        """Install the droid binary via the official Factory.ai installer.
+        """Install the droid binary, pinned to ``_PINNED_VERSION``.
 
-        Falls back to a direct pinned-version download if the shell
-        installer fails (e.g. missing ``xdg-utils``).
+        Primary path is the direct pinned-version download (so the
+        installed binary matches the version of record for reproducible
+        experiments). The official installer — which always pulls the
+        *latest* release — is only a fallback if the pinned download
+        fails.
         """
         home = os.path.expanduser("~")
         bin_dir = f"{home}/.local/bin"
         os.makedirs(bin_dir, exist_ok=True)
 
-        proc = await asyncio.to_thread(
+        direct = await asyncio.to_thread(
             subprocess.run,
-            ["bash", "-c", "curl -fsSL https://app.factory.ai/cli | sh"],
+            [
+                "bash", "-c",
+                f'curl -fsSL "https://downloads.factory.ai/factory-cli/releases/'
+                f'{self._PINNED_VERSION}/linux/x64/droid" '
+                f'-o "{bin_dir}/droid" && chmod +x "{bin_dir}/droid"',
+            ],
             capture_output=True, text=True, timeout=180,
         )
-        if proc.returncode == 0:
-            logger.info("droid: installed via official script — %s",
-                        (proc.stdout or "").strip()[-200:])
-        else:
-            logger.warning(
-                "droid: official installer failed (rc=%d), trying pinned download …",
-                proc.returncode,
-            )
-            direct = await asyncio.to_thread(
-                subprocess.run,
-                [
-                    "bash", "-c",
-                    f'curl -fsSL "https://downloads.factory.ai/factory-cli/releases/'
-                    f'{self._PINNED_VERSION}/linux/x64/droid" '
-                    f'-o "{bin_dir}/droid" && chmod +x "{bin_dir}/droid"',
-                ],
-                capture_output=True, text=True, timeout=180,
-            )
-            if direct.returncode != 0:
-                raise RuntimeError(
-                    f"droid install failed — both official installer "
-                    f"(rc={proc.returncode}: {(proc.stderr or '')[:300]}) and "
-                    f"pinned download (rc={direct.returncode}: "
-                    f"{(direct.stderr or '')[:300]}) failed"
-                )
+        if direct.returncode == 0:
             logger.info("droid: installed via pinned download (v%s)",
                         self._PINNED_VERSION)
+        else:
+            logger.warning(
+                "droid: pinned download failed (rc=%d), falling back to "
+                "official installer (NOTE: pulls latest, not pinned) …",
+                direct.returncode,
+            )
+            proc = await asyncio.to_thread(
+                subprocess.run,
+                ["bash", "-c", "curl -fsSL https://app.factory.ai/cli | sh"],
+                capture_output=True, text=True, timeout=180,
+            )
+            if proc.returncode != 0:
+                raise RuntimeError(
+                    f"droid install failed — both pinned download "
+                    f"(rc={direct.returncode}: {(direct.stderr or '')[:300]}) and "
+                    f"official installer (rc={proc.returncode}: "
+                    f"{(proc.stderr or '')[:300]}) failed"
+                )
+            logger.info("droid: installed via official script — %s",
+                        (proc.stdout or "").strip()[-200:])
 
         if bin_dir not in os.environ.get("PATH", ""):
             os.environ["PATH"] = f"{bin_dir}:{os.environ.get('PATH', '')}"
@@ -139,6 +143,11 @@ class DroidDeployer(BaseAgentDeployer):
         factory_home = Path(home) / ".factory"
         factory_home.mkdir(parents=True, exist_ok=True)
 
+        # Ensure the cua MCP bridge is installed at sandbox.mcp_server_dir
+        # (idempotent: no-op when prebaked, install when missing).
+        from ale_run.agents._bootstrap import cua_bridge_env, ensure_cua_mcp_server
+        await ensure_cua_mcp_server(sandbox)
+
         # MCP config
         mcp_config = {
             "mcpServers": {
@@ -147,6 +156,7 @@ class DroidDeployer(BaseAgentDeployer):
                     "command": sandbox.node,
                     "args": [self._join(sandbox.mcp_server_dir, "src", "index.js",
                                         is_linux=sandbox.is_linux)],
+                    "env": cua_bridge_env(self.executor),
                     "disabled": False,
                 },
             },

@@ -33,7 +33,21 @@ class DroidConfig(BaseAgentConfig):
     name: ClassVar[str] = "droid"
 
     model: str = "anthropic/claude-sonnet-4-6"
-    reasoning_effort: str = "medium"
+
+    # ---- routing (no secrets — API keys come from shell env) ----
+    provider: str = "openrouter"
+    """Routing provider, matching agenthle's droid config. droid is a
+    closed-source Factory binary whose model calls go through the BYOK
+    ``customModels`` entry; the deployer wires that to OpenRouter
+    (``baseUrl=https://openrouter.ai/api/v1`` + OPENROUTER_API_KEY), so
+    ``"openrouter"`` is the only routing the deployer implements today.
+    ``byok_provider`` below selects the wire protocol within that route."""
+
+    reasoning_effort: str = "high"
+    """``--reasoning-effort``: off | none | low | medium | high. Defaults to
+    ``high`` to match agenthle's operational droid YAMLs (the agenthle
+    dataclass default of ``medium`` was not the value actually run)."""
+
     skip_permissions_unsafe: bool = True
     max_output_tokens: int = 32000
     byok_provider: str = "generic-chat-completion-api"
