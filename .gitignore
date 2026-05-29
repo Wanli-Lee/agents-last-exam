@@ -28,9 +28,17 @@ experiments/
 # Per-session working notes / planning docs — not part of the public repo.
 docs/sessions/
 docs/dev
+docs/.deprecated-opus4-7/
+
+# Local-only scratchpad
+/context.md
 
 # Secrets — checked-in template lives at secret/.env.example.
 # `.env` matches at any depth, so it also covers `secret/.env`.
 .env
 secret/*.json
 hf_token
+
+# Per-task secret store (real values ignored; .example templates tracked)
+secret/eval_time/gemini.env
+secret/eval_time/openai.env
