@@ -23,6 +23,13 @@
   ],
   "referenceFiles": [],
   "evaluation": "**Hard gate conditions:** Per-floor screenshot files (`<floor>.png`) must exist under `output/`.\n**Scoring method:** Per-floor LLM-vision comparison via `evaluate_milestone_mode` + `compare_screenshots_game` — each captured floor screenshot is matched against a held-out reference frame of the same floor from the original build. Floors are scored independently and averaged; this mirrors the porting workflow where each floor's reference must independently match the original before reimplementation can proceed.\n**What does a PERFECT output look like?** A complete set of per-floor reference frames (`1.png`, `2.png`, `3.png`) under `output/`, each visually matching its corresponding original floor — ready to be handed off as the port's visual ground truth.\n**What does a WRONG/empty output look like?** Missing per-floor screenshots, mislabeled floor numbers, or captures from the wrong floor (e.g. all three screenshots from floor 1) — yields a partial or 0.0 score.",
+  "evaluatorCredentials": [
+    {
+      "type": "openai_api_key",
+      "file": "openai.env",
+      "purpose": "OpenAI vision/LLM judge scores the deliverable during evaluate(); sourced from secret/eval_time/openai.env"
+    }
+  ],
   "vm": {
     "machineType": "g2-standard-8",
     "snapshot": "gpu-license",

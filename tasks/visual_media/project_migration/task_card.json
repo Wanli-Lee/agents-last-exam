@@ -49,6 +49,13 @@
     }
   ],
   "evaluation": "**Hard gate conditions:** `output/migrated_project.cpr` must exist; `output/stems/` must contain at least one non-silent WAV stem; and `output/overview.png` must pass a Cubase screenshot gate.\n\n**Weighted scoring when all gates pass:** stem completeness and quality contributes `0.20` (`valid matched stems / expected reference stems`), and timbral similarity contributes `0.80` (mean MFCC-based cosine-similarity score, with `>= 0.70` receiving full credit).\n\n**What does a PERFECT output look like?** A migrated Cubase project, a full set of non-silent unclipped stems matching the reference track inventory, and a valid Cubase screenshot, for a score near `1.0`.\n\n**What does a WRONG or empty output look like?** Missing required files, silent stems, or a non-Cubase screenshot cause an immediate `0.0`; poor plugin substitutions keep the gate passing but reduce the timbral score.",
+  "evaluatorCredentials": [
+    {
+      "type": "openai_api_key",
+      "file": "openai.env",
+      "purpose": "OpenAI vision/LLM judge scores the deliverable during evaluate(); sourced from secret/eval_time/openai.env"
+    }
+  ],
   "vm": {
     "machineType": "c4-standard-4",
     "snapshot": "cpu-license",
