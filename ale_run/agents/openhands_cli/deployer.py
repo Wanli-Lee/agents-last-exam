@@ -214,12 +214,12 @@ class OpenHandsCliDeployer(BaseAgentDeployer):
     def _build_env_file(self, cfg: OpenHandsCliConfig) -> str:
         """Build the ~/.openhands/.env content."""
         # Secrets flow via ``self.executor.env`` (a sidecar writes the keys
-        # into the executor env); resolve from there, falling back to the
-        # process env — never from ``os.environ`` as the primary path.
+        # into the executor env); resolve from there only, never from
+        # ``os.environ``.
         exec_env = dict(self.executor.env or {})
 
         def _key(name: str) -> str:
-            return exec_env.get(name) or os.environ.get(name, "")
+            return exec_env.get(name, "")
 
         or_key = _key("OPENROUTER_API_KEY")
         anthropic_key = _key("ANTHROPIC_API_KEY")

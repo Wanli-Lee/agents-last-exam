@@ -376,10 +376,10 @@ class ForgecodeDeployer(BaseAgentDeployer):
             env[k] = v
 
         # Secrets flow via ``self.executor.env`` (a sidecar writes the keys
-        # into the executor env); resolve from there, never from
-        # ``os.environ`` as the primary path.
+        # into the executor env); resolve from there only, never from
+        # ``os.environ``.
         def _key(name: str) -> str:
-            return exec_env.get(name) or env.get(name) or ""
+            return exec_env.get(name, "")
 
         if cfg.is_openrouter:
             # OpenRouter routing: forge speaks the Anthropic protocol,
