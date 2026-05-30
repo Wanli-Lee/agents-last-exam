@@ -39,3 +39,6 @@ docs/dev
 .env
 secret/*.json
 hf_token
+
+# claude code
+.claude/
