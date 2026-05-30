@@ -373,22 +373,24 @@ class ForgecodeDeployer(BaseAgentDeployer):
         For direct providers: exports the appropriate API key env var.
         """
         env = os.environ.copy()
-        for k, v in (self.executor.env or {}).items():
+        exec_env = dict(self.executor.env or {})
+        for k, v in exec_env.items():
             env[k] = v
+
+        # Secrets flow via ``self.executor.env`` (a sidecar writes the keys
+        # into the executor env); resolve from there, never from
+        # ``os.environ`` as the primary path.
+        def _key(name: str) -> str:
+            return exec_env.get(name) or env.get(name) or ""
 
         if cfg.is_openrouter:
             # OpenRouter routing: forge speaks the Anthropic protocol,
             # so we point it at OpenRouter's v1 endpoint.
-            or_key = os.environ.get("OPENROUTER_API_KEY") or ""
-            for k, v in (self.executor.env or {}).items():
-                if k == "OPENROUTER_API_KEY":
-                    or_key = v
-            if not or_key:
-                or_key = cfg.api_keys.get("OPENROUTER_API_KEY", "")
+            or_key = _key("OPENROUTER_API_KEY")
             if not or_key:
                 raise RuntimeError(
-                    "ForgecodeDeployer: OPENROUTER_API_KEY is not set. "
-                    "Export it or pass it via executor env / api_keys."
+                    "ForgecodeDeployer: OPENROUTER_API_KEY is not set in the "
+                    "executor env."
                 )
             env["ANTHROPIC_API_KEY"] = or_key
             env["ANTHROPIC_BASE_URL"] = "https://openrouter.ai/api/v1"
@@ -396,14 +398,7 @@ class ForgecodeDeployer(BaseAgentDeployer):
             # Direct provider: infer from model prefix
             prefix = cfg.model.split("/", 1)[0].lower()
             if prefix == "anthropic":
-                key = (
-                    cfg.api_keys.get("ANTHROPIC_API_KEY")
-                    or os.environ.get("ANTHROPIC_API_KEY")
-                    or ""
-                )
-                for k, v in (self.executor.env or {}).items():
-                    if k == "ANTHROPIC_API_KEY":
-                        key = v
+                key = _key("ANTHROPIC_API_KEY")
                 if not key:
                     raise RuntimeError(
                         "ForgecodeDeployer: ANTHROPIC_API_KEY not set for "
@@ -411,14 +406,7 @@ class ForgecodeDeployer(BaseAgentDeployer):
                     )
                 env["ANTHROPIC_API_KEY"] = key
             elif prefix == "openai" or prefix.startswith("gpt"):
-                key = (
-                    cfg.api_keys.get("OPENAI_API_KEY")
-                    or os.environ.get("OPENAI_API_KEY")
-                    or ""
-                )
-                for k, v in (self.executor.env or {}).items():
-                    if k == "OPENAI_API_KEY":
-                        key = v
+                key = _key("OPENAI_API_KEY")
                 if not key:
                     raise RuntimeError(
                         "ForgecodeDeployer: OPENAI_API_KEY not set for "

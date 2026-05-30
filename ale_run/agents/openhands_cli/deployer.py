@@ -213,19 +213,16 @@ class OpenHandsCliDeployer(BaseAgentDeployer):
 
     def _build_env_file(self, cfg: OpenHandsCliConfig) -> str:
         """Build the ~/.openhands/.env content."""
-        # Resolve API key from config or environment
-        or_key = os.environ.get("OPENROUTER_API_KEY", "")
-        anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        for k, v in (self.executor.env or {}).items():
-            if k == "OPENROUTER_API_KEY":
-                or_key = v
-            elif k == "ANTHROPIC_API_KEY":
-                anthropic_key = v
-        # Also check api_keys bag on config
-        if cfg.api_keys.get("OPENROUTER_API_KEY"):
-            or_key = cfg.api_keys["OPENROUTER_API_KEY"]
-        if cfg.api_keys.get("ANTHROPIC_API_KEY"):
-            anthropic_key = cfg.api_keys["ANTHROPIC_API_KEY"]
+        # Secrets flow via ``self.executor.env`` (a sidecar writes the keys
+        # into the executor env); resolve from there, falling back to the
+        # process env — never from ``os.environ`` as the primary path.
+        exec_env = dict(self.executor.env or {})
+
+        def _key(name: str) -> str:
+            return exec_env.get(name) or os.environ.get(name, "")
+
+        or_key = _key("OPENROUTER_API_KEY")
+        anthropic_key = _key("ANTHROPIC_API_KEY")
 
         # Provider-driven routing (explicit, not a model-name heuristic).
         if cfg.provider == "openrouter":
