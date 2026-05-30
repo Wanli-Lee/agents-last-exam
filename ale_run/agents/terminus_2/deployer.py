@@ -218,8 +218,8 @@ class Terminus2Deployer(BaseAgentDeployer):
         env = self._build_env(cfg)
 
         logger.info(
-            "terminus_2: launching (model=%s, provider=%s, timeout=%.0fs)",
-            cfg.litellm_model_id, cfg.provider, cfg.timeout_s,
+            "terminus_2: launching (model=%s, provider=%s)",
+            cfg.litellm_model_id, cfg.provider,
         )
 
         t0 = time.monotonic()
@@ -236,19 +236,17 @@ class Terminus2Deployer(BaseAgentDeployer):
             )
         logger.info("terminus_2: spawned pid=%s", proc.pid)
 
-        deadline = t0 + cfg.timeout_s
-        while proc.poll() is None:
-            if time.monotonic() > deadline:
-                self._kill_process(proc)
-                return AgentRunResult(
-                    status="timeout",
-                    pid=proc.pid,
-                    transcript_path=str(agent_dir / "trajectory.json"),
-                    stderr_path=str(stdout_log),
-                    duration_s=time.monotonic() - t0,
-                    error=f"wall budget {cfg.timeout_s}s exceeded",
-                )
-            await asyncio.sleep(_POLL_INTERVAL_S)
+        # The episode wall budget is orchestration-owned: the executor wraps
+        # launch() in asyncio.wait_for(timeout=timeout_s) (derived from the
+        # task), so we just wait for the child here. If that budget fires we
+        # are cancelled mid-await; kill the process group (tmux server +
+        # children) before propagating so it cannot outlive the run.
+        try:
+            while proc.poll() is None:
+                await asyncio.sleep(_POLL_INTERVAL_S)
+        except asyncio.CancelledError:
+            self._kill_process(proc)
+            raise
 
         # Give the CLI a beat to flush the final trajectory.json + recording.
         await asyncio.sleep(_TERM_GRACE_S)

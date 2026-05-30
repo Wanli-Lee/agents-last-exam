@@ -313,7 +313,7 @@ class OpenClawCliDeployer(BaseAgentDeployer):
         tools_also_allow = list(CUA_TOOL_NAMES)
         agent_defaults: dict = {
             "model": {"primary": primary_model},
-            "timeoutSeconds": int(cfg.timeout_s),
+            "timeoutSeconds": int(cfg.agent_timeout_s),
             "models": {primary_model: {}},
         }
         # Only add heartbeat config when a valid duration is specified;
@@ -651,7 +651,7 @@ class OpenClawCliDeployer(BaseAgentDeployer):
             "--agent", _AGENT_ID,
             "--message", prompt,
             "--json",
-            "--timeout", str(int(cfg.timeout_s)),
+            "--timeout", str(int(cfg.agent_timeout_s)),
             "--thinking", cfg.thinking,
         ]
         env = self._build_env(cfg, env_file)
@@ -672,30 +672,30 @@ class OpenClawCliDeployer(BaseAgentDeployer):
         pid_file.write_text(str(proc.pid), encoding="ascii")
         logger.info("openclaw_cli: spawned pid=%s", proc.pid)
 
-        deadline = t0 + cfg.timeout_s
-        while proc.poll() is None:
-            if time.monotonic() > deadline:
+        # The episode wall budget is orchestration-owned: the executor wraps
+        # launch() in asyncio.wait_for(timeout=timeout_s) (derived from the
+        # task), so we just wait for the child here. (OpenClaw also enforces
+        # its own internal --timeout=agent_timeout_s.) If the orchestration
+        # budget fires we are cancelled mid-await; reap the child before
+        # propagating so it cannot outlive the run.
+        try:
+            while proc.poll() is None:
+                await asyncio.sleep(_POLL_INTERVAL_S)
+        except asyncio.CancelledError:
+            try:
+                proc.terminate()
+            except ProcessLookupError:
+                pass
+            try:
+                await asyncio.wait_for(
+                    asyncio.to_thread(proc.wait), timeout=_TERM_GRACE_S,
+                )
+            except (asyncio.TimeoutError, asyncio.CancelledError):
                 try:
-                    proc.terminate()
+                    proc.kill()
                 except ProcessLookupError:
                     pass
-                try:
-                    await asyncio.wait_for(
-                        asyncio.to_thread(proc.wait), timeout=_TERM_GRACE_S,
-                    )
-                except asyncio.TimeoutError:
-                    try:
-                        proc.kill()
-                    except ProcessLookupError:
-                        pass
-                return AgentRunResult(
-                    status="timeout",
-                    pid=proc.pid,
-                    stderr_path=str(stderr_log),
-                    duration_s=time.monotonic() - t0,
-                    error=f"wall budget {cfg.timeout_s}s exceeded",
-                )
-            await asyncio.sleep(_POLL_INTERVAL_S)
+            raise
 
         duration_s = time.monotonic() - t0
         exit_code = proc.returncode

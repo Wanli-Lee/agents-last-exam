@@ -80,6 +80,13 @@ class OpenClawCliConfig:
         env so it cannot override the chosen direct provider.
     Missing the required key for the chosen provider is a hard error."""
 
+    # OpenClaw's OWN internal run budget, written into openclaw.json
+    # (``timeoutSeconds``) and passed as ``agent --local --timeout <s>``.
+    # This is an agent-consumed knob (the CLI enforces it itself), distinct
+    # from the orchestration episode budget. agenthle
+    # openclaw_cli_openrouter_gpt-5_4.yaml: timeout_seconds: 600.
+    agent_timeout_s: int = 600
+
     # agenthle openclaw_cli deployer default (_thinking_level): "high".
     thinking: str = "high"
     # agenthle openclaw_cli_openrouter_gpt-5_4.yaml sets vision_model to the
