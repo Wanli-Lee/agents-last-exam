@@ -79,8 +79,14 @@ _DISABLED_TOOLS_OPENROUTER = _DISABLED_TOOLS_BASE + (
 
 
 def native_to_openrouter_model(model: str) -> str:
-    if model.startswith(("x-ai/", "xai/")):
+    # Already a provider-qualified OpenRouter id ("anthropic/claude-...",
+    # "openai/gpt-...", "x-ai/grok-...", "google/..."): pass through unchanged.
+    # Forcing an "x-ai/" prefix here turned "anthropic/claude-sonnet-4-6" into
+    # the invalid "x-ai/anthropic/claude-sonnet-4-6" (OpenRouter 400).
+    if "/" in model:
         return model
+    # Bare grok model name (e.g. "grok-4-1-fast-reasoning"): map to its
+    # OpenRouter id, defaulting to the x-ai/ namespace.
     return _NATIVE_TO_OPENROUTER.get(model, f"x-ai/{model}")
 
 

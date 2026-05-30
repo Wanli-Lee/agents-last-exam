@@ -1,5 +1,26 @@
 # Grok CLI Integration Notes
 
+> ## ⚠️ KNOWN ISSUES (tool_smoke, 2026-05-29)
+>
+> **1. OpenRouter model prefix — FIXED.** `native_to_openrouter_model()` used to
+> force an `x-ai/` prefix on any model that didn't already start with `x-ai/`,
+> so an OpenRouter slug like `anthropic/claude-sonnet-4-6` became the invalid
+> `x-ai/anthropic/claude-sonnet-4-6` → OpenRouter 400 `not a valid model ID`,
+> instant crash. Fixed in `config.py`: any model already in `provider/model`
+> form (contains `/`) is passed through unchanged; only bare names get the
+> `x-ai/` default.
+>
+> **2. Fork bundle crashes on background-process tools — OPEN (deferred).**
+> After the prefix fix, grok_cli on Linux (bun fork bundle) still scores 0.0 on
+> `demo/tool_smoke`: when the agent exercises a background-process tool
+> (e.g. `bash` with `background:true`, `process_logs`, `process_stop`) the
+> bundle dies with **`Fatal: write after end`** (writing to an already-closed
+> stream), rc=1, killing the whole CLI mid-run before it can write the report.
+> Root cause is in the fork bundle's background-process / stream handling — a
+> code fix in `cua-verse/grok-cli`, not a config change. **Deferred; revisit
+> later.** The Windows path uses the native `grok.exe` (not the bun bundle), so
+> it may not reproduce identically — check the win10 tool_smoke result.
+
 ## Source And Fork
 
 - Upstream: `superagent-ai/grok-cli` (closed-source binary releases)
