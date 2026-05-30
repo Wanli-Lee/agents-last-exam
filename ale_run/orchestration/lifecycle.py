@@ -762,8 +762,14 @@ async def pull_agent_output(
     but never aborts the run (eval still runs on the live env regardless).
     """
     task_data = task_meta.get("task_data")
-    if task_data is None or not task_data.requires_task_data:
-        writer.emit_event("output_gather_skipped", reason="task_requires_no_data")
+    # Output-pull is gated on the task IDENTITY (domain/task/variant), not on
+    # input-data staging: a task can produce output to gather without consuming
+    # any staged input (e.g. tool_smoke, REQUIRES_TASK_DATA=False). Coupling
+    # this to requires_task_data is what silently dropped tool_report.json.
+    if task_data is None or not (
+        task_data.domain_name and task_data.task_name and task_data.variant_name
+    ):
+        writer.emit_event("output_gather_skipped", reason="no_task_identity")
         return
     from ..environments import output_pull
 

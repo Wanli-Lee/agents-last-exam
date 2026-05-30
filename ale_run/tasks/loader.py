@@ -349,25 +349,30 @@ class TaskLoader:
             )
 
         requires_task_data = bool(explicit_requires)
-        if not requires_task_data:
-            return TaskDataSpec(requires_task_data=False)
 
         domain_name = str(metadata.get("domain_name") or "").strip()
         task_name = str(metadata.get("task_name") or "").strip()
         variant_name = str(metadata.get("variant_name") or "").strip()
-        if not domain_name or not task_name or not variant_name:
+        have_identity = bool(domain_name and task_name and variant_name)
+
+        if requires_task_data and not have_identity:
             raise RuntimeError(
                 f"Task {self.task_path} requires task data but metadata is missing "
                 f"domain_name/task_name/variant_name "
                 f"(got domain_name={domain_name!r}, task_name={task_name!r}, variant_name={variant_name!r})"
             )
 
+        # Always populate the task identity (domain/task/variant) even when the
+        # task stages NO input data (requires_task_data=False). Output-pull only
+        # needs the identity to locate <task_data_root>/<domain>/<task>/<variant>/
+        # output; it must not be coupled to input staging — a task can produce
+        # output to gather without consuming any staged input (e.g. tool_smoke).
         return TaskDataSpec(
-            requires_task_data=True,
+            requires_task_data=requires_task_data,
             domain_name=domain_name,
             task_name=task_name,
             variant_name=variant_name,
-            source_relpath=f"{domain_name}/{task_name}/{variant_name}",
+            source_relpath=f"{domain_name}/{task_name}/{variant_name}" if have_identity else "",
             input_dir=metadata.get("input_dir"),
             software_dir=metadata.get("software_dir"),
             reference_dir=metadata.get("reference_dir"),
