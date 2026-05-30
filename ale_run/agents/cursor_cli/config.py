@@ -26,11 +26,12 @@ class CursorCliConfig:
 
     name: ClassVar[str] = "cursor-cli"
 
-    # agenthle cursor_cli.yaml: claude-4.6-sonnet-medium (a Cursor catalog
-    # name; cursor-agent has no OpenRouter routing). Set ``""`` for "auto"
-    # (deployer omits --model and cursor-agent picks its Composer model) if
-    # per-model account quotas on a pinned catalog name become a problem.
-    model: str = "claude-4.6-sonnet-medium"
+    # Default = "" ("auto"): the deployer omits --model so cursor-agent picks
+    # its own Composer model. agenthle's cursor_cli.yaml pinned the catalog name
+    # ``claude-4.6-sonnet-medium``, but this migration deliberately runs "auto"
+    # because the pinned Sonnet catalog name hits per-model Cursor ACCOUNT
+    # QUOTAS (validated: pinned Sonnet failed on quota; auto passes). Keep "".
+    model: str = ""
     """Cursor catalog model id (e.g. ``claude-4.6-sonnet-medium``,
     ``claude-opus-4-7-thinking-high``, ``gpt-5.5-high``). Empty string =
     "auto" — the deployer omits ``--model`` and cursor-agent picks its own
