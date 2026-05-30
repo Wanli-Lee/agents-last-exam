@@ -28,7 +28,6 @@ from typing import ClassVar
 
 from ale_run.base_interface import (
     AgentRunResult,
-    BaseAgentConfig,
     BaseAgentDeployer,
     ContentPart,
     Observation,
@@ -513,7 +512,7 @@ class CodexDeployer(BaseAgentDeployer):
         cls,
         *,
         work_dir: Path,
-        config: BaseAgentConfig,
+        config: CodexConfig,
         run_result: AgentRunResult,
         builder: TrajectoryBuilder,
     ) -> None:

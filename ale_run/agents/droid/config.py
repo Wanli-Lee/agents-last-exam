@@ -9,8 +9,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import ClassVar
 
-from ale_run.base_interface import BaseAgentConfig
-
 _DISABLED_TOOLS = (
     "squad-board",
     "slack_post_message",
@@ -27,12 +25,18 @@ _DISABLED_TOOLS = (
 
 
 @dataclass
-class DroidConfig(BaseAgentConfig):
-    """Tunables for :class:`DroidDeployer`."""
+class DroidConfig:
+    """Tunables for :class:`DroidDeployer`.
+
+    Standalone config (no shared base). The episode wall-budget is
+    orchestration-owned; ``timeout_s`` is no longer an agent knob.
+    """
 
     name: ClassVar[str] = "droid"
 
-    model: str = "anthropic/claude-sonnet-4-6"
+    # agenthle droid_openrouter_claude_opus_4_7.yaml: anthropic/claude-opus-4.7
+    # (alt droid_openrouter_gpt5_5.yaml: openai/gpt-5.5).
+    model: str = "anthropic/claude-opus-4.7"
 
     # ---- routing (no secrets — API keys come from shell env) ----
     provider: str = "openrouter"
@@ -49,7 +53,10 @@ class DroidConfig(BaseAgentConfig):
     dataclass default of ``medium`` was not the value actually run)."""
 
     skip_permissions_unsafe: bool = True
-    max_output_tokens: int = 32000
+    # agenthle droid_openrouter_*.yaml: max_output_tokens: 128000 (the model's
+    # per-request output cap on OpenRouter — the "no client-side limit" choice;
+    # higher values get a hard 400 on the first call).
+    max_output_tokens: int = 128000
     byok_provider: str = "generic-chat-completion-api"
     disabled_tools: tuple[str, ...] = _DISABLED_TOOLS
     enabled_tools: tuple[str, ...] = ()

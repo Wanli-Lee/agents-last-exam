@@ -40,7 +40,6 @@ from typing import Any, ClassVar
 
 from ale_run.base_interface import (
     AgentRunResult,
-    BaseAgentConfig,
     BaseAgentDeployer,
     ContentPart,
     Observation,
@@ -397,7 +396,7 @@ class Terminus2Deployer(BaseAgentDeployer):
         cls,
         *,
         work_dir: Path,
-        config: BaseAgentConfig,
+        config: Terminus2Config,
         run_result: AgentRunResult,
         builder: TrajectoryBuilder,
     ) -> None:

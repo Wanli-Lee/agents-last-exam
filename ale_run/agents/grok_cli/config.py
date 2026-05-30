@@ -17,8 +17,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import ClassVar
 
-from ale_run.base_interface import BaseAgentConfig
-
 # Fork ``grok.exe`` (native Windows, self-contained). Built on the win VM
 # via ``bun build --compile src/index.ts`` from cua-verse/grok-cli
 # ``#agenthle`` — cross-compiling to Windows fails (@opentui externalization)
@@ -91,12 +89,18 @@ def native_to_openrouter_model(model: str) -> str:
 
 
 @dataclass
-class GrokCliConfig(BaseAgentConfig):
-    """Tunables for :class:`GrokCliDeployer`."""
+class GrokCliConfig:
+    """Tunables for :class:`GrokCliDeployer`.
+
+    Standalone config (no shared base). The episode wall-budget is
+    orchestration-owned; ``timeout_s`` is no longer an agent knob.
+    """
 
     name: ClassVar[str] = "grok-cli"
 
-    model: str = "grok-4-1-fast-reasoning"
+    # agenthle grok_cli_openrouter.yaml: x-ai/grok-4.3 (direct grok_cli.yaml:
+    # grok-4-1-fast-reasoning). Default to the openrouter operational value.
+    model: str = "x-ai/grok-4.3"
 
     # ---- routing (no secrets — API keys come from shell env) ----
     provider: str = "openrouter"
@@ -110,7 +114,10 @@ class GrokCliConfig(BaseAgentConfig):
         GROK_API_KEY. Requires GROK_API_KEY.
     Missing the required key for the chosen provider is a hard error."""
 
-    max_tool_rounds: int = 400
+    # agenthle grok_cli_openrouter.yaml: max_tool_rounds: -1 (≡ unlimited;
+    # the deployer maps -1 → 100_000 because grok-cli's loop has no native
+    # "no cap" mode). Direct grok_cli.yaml uses 400.
+    max_tool_rounds: int = -1
     disabled_tools: tuple[str, ...] = _DISABLED_TOOLS_OPENROUTER
 
     bundle_url: str = ""

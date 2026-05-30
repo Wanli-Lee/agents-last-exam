@@ -29,7 +29,6 @@ from typing import Any, ClassVar
 
 from ale_run.base_interface import (
     AgentRunResult,
-    BaseAgentConfig,
     BaseAgentDeployer,
     TrajectoryBuilder,
 )
@@ -368,7 +367,7 @@ class AleClawDeployer(BaseAgentDeployer):
         cls,
         *,
         work_dir: Path,
-        config: BaseAgentConfig,
+        config: AleClawConfig,
         run_result: AgentRunResult,
         builder: TrajectoryBuilder,
     ) -> None:

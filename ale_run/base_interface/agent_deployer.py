@@ -12,7 +12,7 @@ other layer of the framework agrees on.
 from __future__ import annotations
 
 import abc
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -28,35 +28,23 @@ if TYPE_CHECKING:
 # =============================================================================
 # Config
 # =============================================================================
-
-@dataclass
-class BaseAgentConfig:
-    """Shared tunables for any agent.
-
-    Subclasses MUST set the class attribute ``name``. They MAY add their
-    own fields; they SHOULD NOT redefine the standard fields below.
-    """
-
-    # Identifier — set on concrete config subclasses, NOT __init__ field.
-    name: ClassVar[str] = ""
-
-    model: str = ""
-    """LLM model id, e.g. ``claude-opus-4-7``, ``gpt-5``. Empty string =
-    use the deployer's own default (each subclass documents its default)."""
-
-    max_turns: int | None = None
-    """Upper bound on agent turns. None = no cap (deployer enforces other
-    limits like timeout / max_budget)."""
-
-    timeout_s: float = 18000.0
-    """Wall-clock budget for the whole episode (including evaluate)."""
-
-    save_screenshots: bool = True
-    """Hint to deployers that capture screenshots."""
-
-    api_keys: dict[str, str] = field(default_factory=dict)
-    """Bag of name → value for arbitrary env vars. Caller passes explicitly;
-    never auto-read from os.environ."""
+#
+# There is intentionally NO shared ``BaseAgentConfig`` base class. Each
+# agent's config is a standalone ``@dataclass`` in
+# ``ale_run.agents.<agent>.config`` that declares ONLY the knobs that
+# agent's deployer actually consumes (plus ``model`` and a ``name``
+# ClassVar). A single shared base used to conflate orchestration concerns
+# (the episode wall-budget) with agent behavior, and the defaults it
+# injected silently diverged from each agent's per-config source of truth;
+# distributing the fields by ownership keeps every config self-describing.
+#
+# The wall-clock episode budget (formerly ``timeout_s`` on this base) is
+# orchestration-owned: it is derived from the task at run time
+# (``orchestration/lifecycle.py`` reads ``task_meta["timeout_s"]``) and
+# enforced by the executor, which wraps ``launch()`` in
+# ``asyncio.wait_for(timeout=timeout_s)`` and kills the in-substrate
+# process on expiry. Deployers therefore do NOT self-poll a config
+# ``timeout_s``; on ``CancelledError`` they reap their child and re-raise.
 
 
 # =============================================================================
@@ -154,7 +142,7 @@ class BaseAgentDeployer(abc.ABC):
         cls,
         *,
         work_dir: Path,
-        config: BaseAgentConfig,
+        config: Any,
         run_result: AgentRunResult,
         builder: TrajectoryBuilder,
     ) -> None:

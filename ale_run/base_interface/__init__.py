@@ -8,8 +8,10 @@ each other's internals.
 
 Contents:
 
-* :class:`BaseAgentDeployer`, :class:`BaseAgentConfig`,
-  :class:`AgentRunResult`, :class:`EpisodeResult` — agent contract.
+* :class:`BaseAgentDeployer`, :class:`AgentRunResult`,
+  :class:`EpisodeResult` — agent contract. (Each agent owns its own
+  standalone config dataclass in ``agents/<agent>/config.py``; there is
+  intentionally no shared ``BaseAgentConfig``.)
 * :class:`BaseExecutor` — executor (substrate adapter) contract.
 * :class:`SandboxHandle`, :class:`SandboxSpec`, :class:`Provider`,
   :data:`OS`, :data:`ReleaseMode`, :class:`RangeResult`,
@@ -28,7 +30,6 @@ from __future__ import annotations
 
 from .agent_deployer import (
     AgentRunResult,
-    BaseAgentConfig,
     BaseAgentDeployer,
     EpisodeResult,
 )
@@ -62,7 +63,6 @@ from .trajectory import (
 __all__ = [
     # agent_deployer.py
     "AgentRunResult",
-    "BaseAgentConfig",
     "BaseAgentDeployer",
     "EpisodeResult",
     # executor.py

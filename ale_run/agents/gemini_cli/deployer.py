@@ -17,7 +17,6 @@ from typing import ClassVar
 
 from ale_run.base_interface import (
     AgentRunResult,
-    BaseAgentConfig,
     BaseAgentDeployer,
     ContentPart,
     Observation,
@@ -162,6 +161,7 @@ class GeminiCliDeployer(BaseAgentDeployer):
             "tools": {
                 "exclude": list(cfg.disabled_tools),
             },
+            "maxSessionTurns": cfg.max_session_turns,
             "policyPaths": [str(gemini_home / "agenthle_policy.toml")],
         }
         (gemini_home / "settings.json").write_text(
@@ -359,7 +359,7 @@ class GeminiCliDeployer(BaseAgentDeployer):
         cls,
         *,
         work_dir: Path,
-        config: BaseAgentConfig,
+        config: GeminiCliConfig,
         run_result: AgentRunResult,
         builder: TrajectoryBuilder,
     ) -> None:

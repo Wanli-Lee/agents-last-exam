@@ -1,8 +1,9 @@
 """AleClawConfig: per-episode knobs for the OpenClaw native agent deployer.
 
-Inherits :class:`BaseAgentConfig` for the standard surface
-(``model`` / ``max_turns`` / ``timeout_s``) and adds OpenClaw-specific
-knobs below.
+Standalone config (no shared base). Declares ``model`` / ``max_turns``
+(mapped to OpenClaw's ``max_steps``) plus the OpenClaw-specific knobs
+below. The episode wall-budget is orchestration-owned, so this config no
+longer carries ``timeout_s``.
 
 **API keys live in the operator's shell env**, not in this config. The
 deployer never touches ``os.environ`` — litellm (the harness's LLM
@@ -21,7 +22,6 @@ Typical usage::
     cfg = AleClawConfig(
         model="openrouter/anthropic/claude-sonnet-4-20250514",
         max_turns=100,
-        timeout_s=3600,
     )
 """
 from __future__ import annotations
@@ -29,16 +29,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import ClassVar
 
-from ale_run.base_interface import BaseAgentConfig
-
 
 @dataclass
-class AleClawConfig(BaseAgentConfig):
+class AleClawConfig:
     """Tunables for :class:`AleClawDeployer`."""
 
     name: ClassVar[str] = "ale-claw"
 
-    # ---- override base defaults ----
     model: str = "openrouter/anthropic/claude-sonnet-4.6"
     """LiteLLM-format model id. Maps to OpenClaw's ``model`` kwarg verbatim.
     OpenRouter routes work via the vendored ``unified_loop`` (registered for
@@ -46,10 +43,6 @@ class AleClawConfig(BaseAgentConfig):
 
     max_turns: int | None = 100
     """Mapped to OpenClaw's ``max_steps``. Hard ceiling on the agent run loop."""
-
-    timeout_s: float = 3600.0
-    """Wall-clock budget for the whole episode. Enforced via
-    :func:`asyncio.wait_for` around the harness's ``agent.run`` loop."""
 
     # ---- model variants ----
     summary_model: str | None = None

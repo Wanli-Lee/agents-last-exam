@@ -12,8 +12,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import ClassVar
 
-from ale_run.base_interface import BaseAgentConfig
-
 # Default NPM package version for the Codex CLI.
 _DEFAULT_CODEX_VERSION = "0.114.0"
 
@@ -35,13 +33,17 @@ _DEFAULT_PATCHED_BINARY_URL_WINDOWS = (
 
 
 @dataclass
-class CodexConfig(BaseAgentConfig):
-    """Tunables for :class:`CodexDeployer`."""
+class CodexConfig:
+    """Tunables for :class:`CodexDeployer`.
+
+    Standalone config (no shared base). The episode wall-budget is
+    orchestration-owned; ``timeout_s`` is no longer an agent knob.
+    """
 
     name: ClassVar[str] = "codex"
 
+    # agenthle codex_openrouter.yaml: openai/gpt-5.4 (direct codex.yaml: gpt-5.4).
     model: str = "openai/gpt-5.4"
-    timeout_s: float = 600
 
     # ---- routing (no secrets — API keys come from shell env) ----
     provider: str = "openrouter"

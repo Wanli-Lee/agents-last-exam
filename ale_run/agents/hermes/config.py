@@ -10,10 +10,8 @@ configurable via ``provider`` field but defaults to ``openrouter``.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import ClassVar
-
-from ale_run.base_interface import BaseAgentConfig
 
 # Toolset ids match hermes-agent/toolsets.py::TOOLSETS plus runtime-registered
 # ``mcp-<server>`` ids.  See the old hermes_openrouter.yaml for the rationale
@@ -79,17 +77,20 @@ DEFAULT_DISABLED_TOOLSETS: tuple[str, ...] = (
 
 
 @dataclass
-class HermesConfig(BaseAgentConfig):
+class HermesConfig:
     """Tunables for :class:`HermesDeployer`.
 
     Hermes is Linux-only.  The fork carries patches for MCP ImageContent
     multimodal forwarding and tool-result truncation guards.
+
+    Standalone config (no shared base). The episode wall-budget is
+    orchestration-owned; ``timeout_s`` is no longer an agent knob.
     """
 
     name: ClassVar[str] = "hermes"
 
-    model: str = "anthropic/claude-sonnet-4-6"
-    timeout_s: float = 600
+    # agenthle hermes_openrouter.yaml: anthropic/claude-sonnet-4.6.
+    model: str = "anthropic/claude-sonnet-4.6"
     max_turns: int = 100_000
     """Hermes has no ``-1 = unlimited`` sentinel for ``--max-turns``.
     ``IterationBudget.consume`` does ``if used >= max_total: stop``.

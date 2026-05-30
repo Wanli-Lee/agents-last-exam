@@ -24,8 +24,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import ClassVar
 
-from ale_run.base_interface import BaseAgentConfig
-
 # Built-in Claude Code tools that break headless (`-p`) runs. Mirrors the
 # default disabled_tools list shipped in agenthle's claude_code_openrouter.yaml
 # — passed to the CLI as repeated ``--disallowedTools`` flags. Each either
@@ -50,13 +48,24 @@ _DISABLED_TOOLS = (
 
 
 @dataclass
-class ClaudeCodeConfig(BaseAgentConfig):
-    """Tunables for :class:`ClaudeCodeDeployer`."""
+class ClaudeCodeConfig:
+    """Tunables for :class:`ClaudeCodeDeployer`.
+
+    Standalone config (no shared base). The episode wall-budget is
+    orchestration-owned; ``timeout_s`` is no longer an agent knob.
+    """
 
     name: ClassVar[str] = "claude-code"
 
-    # ---- override base default ----
-    model: str = "claude-sonnet-4-6"
+    # agenthle claude_code_openrouter.yaml: anthropic/claude-opus-4.6
+    # (direct claude_code.yaml: claude-sonnet-4-6).
+    model: str = "anthropic/claude-opus-4.6"
+
+    # agenthle claude_code_openrouter.yaml: max_turns: -1 (≡ unlimited; the
+    # deployer omits --max-turns when < 0). Direct claude_code.yaml: 300.
+    # The base class used to leave this None → --max-turns was always
+    # skipped; pinning -1 restores the explicit-unlimited intent.
+    max_turns: int | None = -1
 
     # ---- routing (no secrets — API keys come from shell env) ----
     provider: str = "openrouter"

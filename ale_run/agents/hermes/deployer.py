@@ -35,7 +35,6 @@ import yaml
 
 from ale_run.base_interface import (
     AgentRunResult,
-    BaseAgentConfig,
     BaseAgentDeployer,
     ContentPart,
     Observation,
@@ -713,7 +712,7 @@ disown $CHILD 2>/dev/null || true
         cls,
         *,
         work_dir: Path,
-        config: BaseAgentConfig,
+        config: HermesConfig,
         run_result: AgentRunResult,
         builder: TrajectoryBuilder,
     ) -> None:

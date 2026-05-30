@@ -26,7 +26,6 @@ from typing import ClassVar
 
 from ale_run.base_interface import (
     AgentRunResult,
-    BaseAgentConfig,
     BaseAgentDeployer,
     ContentPart,
     Observation,
@@ -809,7 +808,7 @@ class OpenClawCliDeployer(BaseAgentDeployer):
         cls,
         *,
         work_dir: Path,
-        config: BaseAgentConfig,
+        config: OpenClawCliConfig,
         run_result: AgentRunResult,
         builder: TrajectoryBuilder,
     ) -> None:

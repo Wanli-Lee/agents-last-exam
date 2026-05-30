@@ -31,7 +31,6 @@ from typing import Any, ClassVar
 
 from ale_run.base_interface import (
     AgentRunResult,
-    BaseAgentConfig,
     BaseAgentDeployer,
     ContentPart,
     Observation,
@@ -202,6 +201,38 @@ class ForgecodeDeployer(BaseAgentDeployer):
             cfg.model, cfg.provider,
         )
 
+        # ----------------------------------------------------------
+        # 4. CUA MCP bridge. forge supports MCP via a `.mcp.json` read from the
+        #    project-local cwd AND the global ~/forge/.mcp.json (Anthropic MCP
+        #    schema: mcpServers.<name>.{command,args,env}). Wire the cua server
+        #    the same way every other MCP-capable agent does; CUA_SERVER_URL
+        #    points the bridge at the image's cua-server port. The project-local
+        #    copy (forge's cwd = dump_dir) is written in launch().
+        # ----------------------------------------------------------
+        sandbox = self.executor.sandbox
+        from ale_run.agents._bootstrap import cua_bridge_env, ensure_cua_mcp_server
+        await ensure_cua_mcp_server(sandbox)
+        mcp_index = f"{sandbox.mcp_server_dir.rstrip('/')}/src/index.js"
+        self._mcp_config = {
+            "mcpServers": {
+                "cua": {
+                    "command": sandbox.node,
+                    "args": [mcp_index],
+                    "env": cua_bridge_env(self.executor),
+                },
+            },
+        }
+        # Global config home is ~/.forge (WITH dot) — same dir as .forge.toml.
+        # NB: the forge docs say "~/forge/.mcp.json" but creating a no-dot
+        # ~/forge dir derails forge's config resolution (it then thinks no
+        # provider is set and drops into an interactive provider picker, which
+        # ENXIOs on the missing TTY in headless `-p` mode). The real location is
+        # ~/.forge/.mcp.json.
+        (forge_home / ".mcp.json").write_text(
+            json.dumps(self._mcp_config, indent=2), encoding="utf-8",
+        )
+        logger.info("forgecode: cua MCP bridge wired (~/.forge/.mcp.json)")
+
     # =========================================================================
     # launch
     # =========================================================================
@@ -218,6 +249,14 @@ class ForgecodeDeployer(BaseAgentDeployer):
         exit_code_file = wd / "exit_code.txt"
         dump_dir = wd / "dump_dir"
         dump_dir.mkdir(parents=True, exist_ok=True)
+
+        # Project-local .mcp.json in forge's cwd (dump_dir). Project-local takes
+        # precedence over the global ~/forge/.mcp.json written in install().
+        mcp_cfg = getattr(self, "_mcp_config", None)
+        if mcp_cfg:
+            (dump_dir / ".mcp.json").write_text(
+                json.dumps(mcp_cfg, indent=2), encoding="utf-8",
+            )
 
         # Clean up previous run artifacts
         for f in (transcript_file, stderr_log, pid_file, exit_code_file):
@@ -448,7 +487,7 @@ class ForgecodeDeployer(BaseAgentDeployer):
         cls,
         *,
         work_dir: Path,
-        config: BaseAgentConfig,
+        config: ForgecodeConfig,
         run_result: AgentRunResult,
         builder: TrajectoryBuilder,
     ) -> None:

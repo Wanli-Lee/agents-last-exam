@@ -10,22 +10,26 @@ multi-key environments cannot accidentally route through the wrong vendor.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import ClassVar
-
-from ale_run.base_interface import BaseAgentConfig
 
 
 @dataclass
-class ForgecodeConfig(BaseAgentConfig):
-    """Tunables for :class:`ForgecodeDeployer`."""
+class ForgecodeConfig:
+    """Tunables for :class:`ForgecodeDeployer`.
+
+    Standalone config (no shared base). The episode wall-budget is
+    orchestration-owned; ``timeout_s`` is no longer an agent knob.
+    """
 
     name: ClassVar[str] = "forgecode"
 
-    model: str = "anthropic/claude-sonnet-4-6"
-    timeout_s: float = 600
+    # agenthle forgecode_openrouter.yaml: anthropic/claude-sonnet-4.6
+    # (direct variant forgecode.yaml uses anthropic/claude-sonnet-4).
+    model: str = "anthropic/claude-sonnet-4.6"
 
     # Sampling / model knobs surfaced through forge.toml.
+    # agenthle: temperature 0.7 (both openrouter + direct).
     temperature: float | None = 0.7
 
     # Reserved for future use: forge tool names to disable.  forge itself
