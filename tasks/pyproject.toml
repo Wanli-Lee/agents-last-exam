@@ -8,6 +8,8 @@ version = "0.1.0"
 description = "Auto-generated eval dependencies for published tasks."
 requires-python = ">=3.12,<3.14"
 dependencies = [
+    "rasterio>=1.4.0",
+    "netCDF4>=1.7.0",
     "PyMuPDF>=1.27.2.3",
     "PyYAML>=6.0.3",
     "aiohttp>=3.13.5",
