@@ -175,7 +175,7 @@ async def start(task_cfg, session: cb.DesktopSession):
 
 async def _choose_candidate_path(meta: dict[str, Any], session: cb.DesktopSession) -> Optional[str]:
     preferred = meta["preferred_output_path"]
-    if await session.exists(preferred):
+    if (await session.file_exists(preferred) or await session.directory_exists(preferred)):
         return preferred
 
     result = await _run_command(

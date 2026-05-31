@@ -363,8 +363,8 @@ async def start_variant_task(task_cfg, session: cb.DesktopSession) -> None:
     db_name = task_cfg.metadata["db_name"]
     work_dir = eval_work_dir(task_cfg.metadata["variant_name"])
 
-    await session.makedirs(out_dir)
-    await session.makedirs(work_dir)
+    await session.interface.create_dir(out_dir)
+    await session.interface.create_dir(work_dir)
 
     try:
         info = await _reset_db(
@@ -416,7 +416,7 @@ async def evaluate_variant_task(task_cfg, session: cb.DesktopSession) -> list[fl
     db_name = task_cfg.metadata["db_name"]
     run_tag = task_cfg.metadata["run_tag"]
     work_dir = eval_work_dir(task_cfg.metadata["variant_name"])
-    await session.makedirs(work_dir)
+    await session.interface.create_dir(work_dir)
 
     report = {
         "task_tag": task_cfg.metadata["variant_name"],
