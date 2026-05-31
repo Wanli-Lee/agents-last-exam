@@ -748,6 +748,29 @@ disown $CHILD 2>/dev/null || true
             "usage": usage,
         })
 
+        # Route the session-export usage into a StepMetrics so finalize() sums
+        # it (per-message usage is not in the export — only these aggregates).
+        # Hermes reports cost via actual_cost_usd / estimated_cost_usd.
+        if usage:
+            uncached = usage.get("uncached_input_tokens") or 0
+            output = usage.get("output_tokens") or 0
+            cache_read = usage.get("cache_read_input_tokens") or 0
+            cache_write = usage.get("cache_write_input_tokens") or 0
+            cost = usage.get("total_cost_usd")
+            if uncached or output or cache_read or cache_write or cost is not None:
+                builder.add_step(
+                    source="system",
+                    message=None,
+                    metrics=StepMetrics(
+                        input_tokens=uncached,
+                        output_tokens=output,
+                        cache_read_tokens=cache_read,
+                        cache_creation_tokens=cache_write,
+                        cost_usd=cost,
+                    ),
+                    extra={"usage_session": True},
+                )
+
     @classmethod
     def _consume_message(cls, msg: dict, builder: TrajectoryBuilder) -> None:
         """Convert a single hermes session message into trajectory step(s)."""
