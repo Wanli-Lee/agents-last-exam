@@ -113,7 +113,9 @@ class OdooTaskConfig(GeneralTaskConfig):
 
     @property
     def task_description(self) -> str:
-        prompt_text = (self.variant_source_dir / "input" / "prompt.txt").read_text(encoding="utf-8").strip()
+        prompt_text = (
+            (self.variant_source_dir / "input" / "prompt.txt").read_text(encoding="utf-8").strip()
+        )
         out_dir = self.output_dir
         return f"""\
 Goal:
@@ -212,9 +214,9 @@ async def _run_psql_json(
 
     if pg_password:
         cmd = (
-            'powershell -NoProfile -Command '
-            f'"$env:PGPASSWORD=\'{pg_password}\'; '
-            f"& '{psql_path}' {psql_args} -d {db_name} -t -A -q -f \\\"{sql_path}\\\"\""
+            "powershell -NoProfile -Command "
+            f"\"$env:PGPASSWORD='{pg_password}'; "
+            f'& \'{psql_path}\' {psql_args} -d {db_name} -t -A -q -f \\"{sql_path}\\""'
         )
     else:
         cmd = f'"{psql_path}" {psql_args} -d {db_name} -t -A -q -f "{sql_path}"'
@@ -246,14 +248,25 @@ async def _reset_db(
     odoo_service_name: str = "odoo-server-19.0",
 ):
     # Stop Odoo service so it does not hold connections during DB reset
-    await _run_cmd(session, f'powershell -NoProfile -Command "Stop-Service -Name \'{odoo_service_name}\' -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 5"')
+    await _run_cmd(
+        session,
+        f"powershell -NoProfile -Command \"Stop-Service -Name '{odoo_service_name}' -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 5\"",
+    )
 
     try:
         terminate_sql = (
             f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
             f"WHERE datname='{target_db}' AND pid<>pg_backend_pid();"
         )
-        await _run_psql_json(session, psql_path, psql_args, "postgres", "SELECT json_build_object('ok', true)::text;", work_dir, pg_password)
+        await _run_psql_json(
+            session,
+            psql_path,
+            psql_args,
+            "postgres",
+            "SELECT json_build_object('ok', true)::text;",
+            work_dir,
+            pg_password,
+        )
         await _run_psql_json(
             session,
             psql_path,
@@ -267,8 +280,8 @@ async def _reset_db(
         pass
 
     cmd_drop = (
-        'powershell -NoProfile -Command '
-        f'"$env:PGPASSWORD=\'{pg_password}\'; '
+        "powershell -NoProfile -Command "
+        f"\"$env:PGPASSWORD='{pg_password}'; "
         f"& '{dropdb_path}' {psql_args} --if-exists {target_db}\""
     )
     drop_res = await _run_cmd(session, cmd_drop, timeout=240.0)
@@ -276,29 +289,32 @@ async def _reset_db(
         logger.warning("dropdb %s failed: %s", target_db, drop_res.get("stderr"))
 
     cmd_create_template = (
-        'powershell -NoProfile -Command '
-        f'"$env:PGPASSWORD=\'{pg_password}\'; '
+        "powershell -NoProfile -Command "
+        f"\"$env:PGPASSWORD='{pg_password}'; "
         f"& '{createdb_path}' {psql_args} -T {template_db} {target_db}\""
     )
     res = await _run_cmd(session, cmd_create_template, timeout=360.0)
     if res.get("return_code", 0) == 0:
         # Restart Odoo service after successful DB reset
-        await _run_cmd(session, f'powershell -NoProfile -Command "Start-Service -Name \'{odoo_service_name}\' -ErrorAction SilentlyContinue"')
+        await _run_cmd(
+            session,
+            f"powershell -NoProfile -Command \"Start-Service -Name '{odoo_service_name}' -ErrorAction SilentlyContinue\"",
+        )
         return {"method": "createdb -T"}
 
     dump_path = win_join(work_dir, "template_dump.dump")
     cmd_dump = (
-        'powershell -NoProfile -Command '
-        f'"$env:PGPASSWORD=\'{pg_password}\'; '
-        f"& '{pg_dump_path}' {psql_args} -Fc -f \\\"{dump_path}\\\" {template_db}\""
+        "powershell -NoProfile -Command "
+        f"\"$env:PGPASSWORD='{pg_password}'; "
+        f'& \'{pg_dump_path}\' {psql_args} -Fc -f \\"{dump_path}\\" {template_db}"'
     )
     res = await _run_cmd(session, cmd_dump, timeout=900.0)
     if res.get("return_code", 0) != 0:
         raise RuntimeError(f"pg_dump failed: {res.get('stderr')}")
 
     cmd_create_empty = (
-        'powershell -NoProfile -Command '
-        f'"$env:PGPASSWORD=\'{pg_password}\'; '
+        "powershell -NoProfile -Command "
+        f"\"$env:PGPASSWORD='{pg_password}'; "
         f"& '{createdb_path}' {psql_args} {target_db}\""
     )
     res = await _run_cmd(session, cmd_create_empty, timeout=240.0)
@@ -306,17 +322,23 @@ async def _reset_db(
         raise RuntimeError(f"createdb failed: {res.get('stderr')}")
 
     cmd_restore = (
-        'powershell -NoProfile -Command '
-        f'"$env:PGPASSWORD=\'{pg_password}\'; '
-        f"& '{pg_restore_path}' {psql_args} -d {target_db} \\\"{dump_path}\\\"\""
+        "powershell -NoProfile -Command "
+        f"\"$env:PGPASSWORD='{pg_password}'; "
+        f'& \'{pg_restore_path}\' {psql_args} -d {target_db} \\"{dump_path}\\""'
     )
     res = await _run_cmd(session, cmd_restore, timeout=1200.0)
     if res.get("return_code", 0) != 0:
-        await _run_cmd(session, 'powershell -NoProfile -Command "Start-Service -Name OdooServer -ErrorAction SilentlyContinue"')
+        await _run_cmd(
+            session,
+            'powershell -NoProfile -Command "Start-Service -Name OdooServer -ErrorAction SilentlyContinue"',
+        )
         raise RuntimeError(f"pg_restore failed: {res.get('stderr')}")
 
     # Restart Odoo service after successful DB reset
-    await _run_cmd(session, 'powershell -NoProfile -Command "Start-Service -Name OdooServer -ErrorAction SilentlyContinue"')
+    await _run_cmd(
+        session,
+        'powershell -NoProfile -Command "Start-Service -Name OdooServer -ErrorAction SilentlyContinue"',
+    )
     return {"method": "pg_dump/pg_restore"}
 
 
@@ -347,10 +369,14 @@ async def _reset_admin_credentials(
     res = await _run_cmd(session, f'"{odoo_python_path}" "{script_path}"', timeout=120.0)
     stdout = res.get("stdout") or ""
     if "OK" not in stdout:
-        raise RuntimeError(f"admin credential reset failed: stdout={stdout}, stderr={res.get('stderr')}")
+        raise RuntimeError(
+            f"admin credential reset failed: stdout={stdout}, stderr={res.get('stderr')}"
+        )
 
 
-async def _write_report(session: cb.DesktopSession, *, out_dir: str, work_dir: str, report: dict) -> None:
+async def _write_report(
+    session: cb.DesktopSession, *, out_dir: str, work_dir: str, report: dict
+) -> None:
     payload = json.dumps(report, indent=2)
     await session.write_file(win_join(work_dir, "autograde_report.json"), payload)
     if not is_fixture_output_dir(out_dir):
@@ -381,7 +407,9 @@ async def start_variant_task(task_cfg, session: cb.DesktopSession) -> None:
             work_dir=work_dir,
             odoo_service_name=task_cfg.metadata.get("odoo_service_name", "odoo-server-19.0"),
         )
-        await session.write_file(win_join(work_dir, "RESET_OK.txt"), f"Reset OK. method={info.get('method')}\n")
+        await session.write_file(
+            win_join(work_dir, "RESET_OK.txt"), f"Reset OK. method={info.get('method')}\n"
+        )
         try:
             await _reset_admin_credentials(
                 session,
@@ -486,7 +514,7 @@ SELECT json_build_object(
         await _write_report(session, out_dir=out_dir, work_dir=work_dir, report=report)
         return [0.0]
 
-    schema_sql = r'''
+    schema_sql = r"""
 SELECT json_build_object(
   'sml_qty_col',
     CASE
@@ -509,7 +537,7 @@ SELECT json_build_object(
       ELSE NULL
     END
 )::text;
-'''
+"""
     try:
         schema = await _run_psql_json(
             session,
@@ -803,23 +831,33 @@ SELECT json_build_object(
     checks = {
         "landed_cost_rm010_60": _float_eq(lc_split.get("RM-010", 0), 60.00),
         "landed_cost_rm020_40": _float_eq(lc_split.get("RM-020", 0), 40.00),
-        "landed_cost_vendor_bill_paid": int(report["evidence"].get("lc_bill_paid_cnt", 0) or 0) >= 1,
+        "landed_cost_vendor_bill_paid": int(report["evidence"].get("lc_bill_paid_cnt", 0) or 0)
+        >= 1,
         "so_confirmed_exists": bool(so) and str(so.get("state", "")).lower() in ("sale", "done"),
-        "so_lines_fp3_acc3": bool(so) and _float_eq(so.get("fp_qty", 0), 3.0) and _float_eq(so.get("acc_qty", 0), 3.0),
+        "so_lines_fp3_acc3": bool(so)
+        and _float_eq(so.get("fp_qty", 0), 3.0)
+        and _float_eq(so.get("acc_qty", 0), 3.0),
         "dropship_done_acc900_3": int(report["evidence"].get("dropship_done_cnt", 0) or 0) >= 1,
         "mo_sa200_done_qty3": int(report["evidence"].get("mo_sa_done_cnt", 0) or 0) >= 1,
         "mo_fp1000_done_qty3": int(report["evidence"].get("mo_fp_done_cnt", 0) or 0) >= 1,
-        "workorders_done_at_least2": int(report["evidence"].get("workorders_done_cnt", 0) or 0) >= 2,
+        "workorders_done_at_least2": int(report["evidence"].get("workorders_done_cnt", 0) or 0)
+        >= 2,
         "paid_invoice_460": any(_float_eq(item, 460.00) for item in inv),
         "paid_invoice_230": any(_float_eq(item, 230.00) for item in inv),
         "paid_creditnote_200": any(_float_eq(item, 200.00) for item in credit),
-        "paid_vendor_bills_at_least6": int(report["evidence"].get("paid_vendor_bills_cnt", 0) or 0) >= 6,
+        "paid_vendor_bills_at_least6": int(report["evidence"].get("paid_vendor_bills_cnt", 0) or 0)
+        >= 6,
         "fp_serials_all": fp_lots == {"SSK-0001", "SSK-0002", "SSK-0003"},
         "sc_serials_all": sc_lots == {"CS-0001", "CS-0002", "CS-0003"},
-        "subcontract_sc300_received_3_serials": int(report["evidence"].get("subcontract_sc_distinct_lots", 0) or 0) >= 3,
+        "subcontract_sc300_received_3_serials": int(
+            report["evidence"].get("subcontract_sc_distinct_lots", 0) or 0
+        )
+        >= 3,
         "scrap_rm030_qty1_done": int(report["evidence"].get("scrap_rm030_cnt", 0) or 0) >= 1,
-        "extra_po_rm030_qty1_exists": int(report["evidence"].get("extra_po_rm030_cnt", 0) or 0) >= 1,
-        "analytic_expense_travel_12345": int(report["evidence"].get("analytic_expense_cnt", 0) or 0) >= 1,
+        "extra_po_rm030_qty1_exists": int(report["evidence"].get("extra_po_rm030_cnt", 0) or 0)
+        >= 1,
+        "analytic_expense_travel_12345": int(report["evidence"].get("analytic_expense_cnt", 0) or 0)
+        >= 1,
         "WH_RM010_zero": _float_eq(wh_prod_qty("WH", "RM-010"), 0.0),
         "WH_RM020_zero": _float_eq(wh_prod_qty("WH", "RM-020"), 0.0),
         "MyCo_RM010_4": _float_eq(wh_prod_qty("My Co", "RM-010"), 4.0),
@@ -828,7 +866,9 @@ SELECT json_build_object(
         "SSK0002_not_in_WH": _float_eq(float(ssk2_map.get("WH", 0) or 0), 0.0),
     }
 
-    report["score_items"] = [{"name": name, "passed": bool(passed), "weight": 1.0} for name, passed in checks.items()]
+    report["score_items"] = [
+        {"name": name, "passed": bool(passed), "weight": 1.0} for name, passed in checks.items()
+    ]
     report["checks"].update({name: bool(passed) for name, passed in checks.items()})
     total = len(checks)
     passed = sum(1 for value in checks.values() if value)
@@ -882,7 +922,9 @@ Answer with ONLY YES or NO.
                             "details": res,
                         }
     except Exception as exc:
-        logger.warning("[%s] screenshot grading skipped: %s", task_cfg.metadata["variant_name"], exc)
+        logger.warning(
+            "[%s] screenshot grading skipped: %s", task_cfg.metadata["variant_name"], exc
+        )
 
     await _write_report(session, out_dir=out_dir, work_dir=work_dir, report=report)
     return [report["final_score"]]
