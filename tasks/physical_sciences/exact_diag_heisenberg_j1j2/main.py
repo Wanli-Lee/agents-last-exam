@@ -56,19 +56,19 @@ class ExactDiagHeisenbergConfig(LinuxTaskConfig):
 
     @property
     def output_ground_state(self) -> str:
-        return f"{self.remote_output_dir}/ground_state.npz"
+        return f"{self.output_dir}/ground_state.npz"
 
     @property
     def output_correlations(self) -> str:
-        return f"{self.remote_output_dir}/correlations.npz"
+        return f"{self.output_dir}/correlations.npz"
 
     @property
     def output_dynamical_sf(self) -> str:
-        return f"{self.remote_output_dir}/dynamical_sf.npz"
+        return f"{self.output_dir}/dynamical_sf.npz"
 
     @property
     def output_results(self) -> str:
-        return f"{self.remote_output_dir}/results.json"
+        return f"{self.output_dir}/results.json"
 
     @property
     def reference_outputs_dir(self) -> str:
@@ -95,7 +95,7 @@ Implement an exact diagonalization workflow for the spin-1/2 `J1-J2` Heisenberg 
 - Do not install extra packages or use external quantum frameworks.
 
 ## What You Must Produce
-Write the required files under `{self.remote_output_dir}`:
+Write the required files under `{self.output_dir}`:
 - `ground_state.npz`
 - `correlations.npz`
 - `dynamical_sf.npz`
@@ -104,7 +104,7 @@ Write the required files under `{self.remote_output_dir}`:
 ## Important Constraints
 - Follow the file schema and scientific checks in `{self.problem_spec}`.
 - Do not modify files under `{self.input_dir}`.
-- Do not write outside `{self.remote_output_dir}`.
+- Do not write outside `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict[str, Any]:

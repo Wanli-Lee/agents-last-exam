@@ -39,7 +39,7 @@ CANONICAL_OUTPUT_DIRS = {"output", "output_test_pos", "output_test_neg"}
 def _canonical_output_dir_name(path: str) -> str:
     normalized = posixpath.normpath(path.replace("\\", "/"))
     if normalized not in CANONICAL_OUTPUT_DIRS:
-        raise ValueError(f"REMOTE_OUTPUT_DIR must normalize to one of {sorted(CANONICAL_OUTPUT_DIRS)}")
+        raise ValueError(f"OUTPUT_SUBDIR must normalize to one of {sorted(CANONICAL_OUTPUT_DIRS)}")
     return normalized
 
 
@@ -62,10 +62,10 @@ class TaskConfig(LinuxTaskConfig):
 
     @property
     def output_dir_name(self) -> str:
-        return _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
+        return _canonical_output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
-    def remote_output_dir(self) -> str:
+    def output_dir(self) -> str:
         return f"{self.task_dir}/{self.output_dir_name}"
 
     @property
@@ -95,11 +95,11 @@ class TaskConfig(LinuxTaskConfig):
     @property
     def output_files(self) -> dict[str, str]:
         return {
-            "pf_solver.py": f"{self.remote_output_dir}/pf_solver.py",
-            "tier1_results.npz": f"{self.remote_output_dir}/tier1_results.npz",
-            "tier2_results.npz": f"{self.remote_output_dir}/tier2_results.npz",
-            "tier3_results.npz": f"{self.remote_output_dir}/tier3_results.npz",
-            "results.json": f"{self.remote_output_dir}/results.json",
+            "pf_solver.py": f"{self.output_dir}/pf_solver.py",
+            "tier1_results.npz": f"{self.output_dir}/tier1_results.npz",
+            "tier2_results.npz": f"{self.output_dir}/tier2_results.npz",
+            "tier3_results.npz": f"{self.output_dir}/tier3_results.npz",
+            "results.json": f"{self.output_dir}/results.json",
         }
 
     @property
@@ -126,10 +126,10 @@ Recommended workflow:
 1. Change into `{self.task_dir}`
 2. Read `{self.problem_spec_file}` in full before coding
 3. Use `"{self.python_wrapper}" your_script.py` or `"{self.python_wrapper}" -c "..."` to run Python with the staged NumPy/SciPy environment
-4. Implement your solver and save it to `{self.remote_output_dir}/pf_solver.py`
-5. Run the solver and write every required artifact under `{self.remote_output_dir}`
+4. Implement your solver and save it to `{self.output_dir}/pf_solver.py`
+5. Run the solver and write every required artifact under `{self.output_dir}`
 
-Required outputs under `{self.remote_output_dir}`:
+Required outputs under `{self.output_dir}`:
 - `pf_solver.py`
 - `tier1_results.npz`
 - `tier2_results.npz`
@@ -145,7 +145,7 @@ Requirements:
   - Tier 3: `overall_rmse_filter_pos < 3.0`, `overall_rmse_smoother_pos < overall_rmse_filter_pos`, and `mean_ess > 500`
 - Tier 1 and Tier 2 are required for any passing score. Tier 3 upgrades the task from partial credit to full credit.
 - If you cannot complete Tier 3, still write truthful Tier 1 / Tier 2 outputs and a truthful `results.json` rather than fabricating missing work.
-- Do not modify files outside `{self.remote_output_dir}`.
+- Do not modify files outside `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict:
@@ -167,7 +167,7 @@ Requirements:
         return metadata
 
 
-config = TaskConfig(DOMAIN_NAME=DOMAIN_NAME, TASK_NAME=TASK_NAME, VARIANT_NAME=VARIANT_NAME)
+config = TaskConfig()
 
 
 @cb.tasks_config(split="train")

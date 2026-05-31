@@ -2,8 +2,8 @@
 
 import json
 import logging
-import os
 import shlex
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from typing import Any
@@ -40,7 +40,6 @@ DOMAIN_NAME = "computing_math"
 TASK_NAME = "ranking_node_feature_parity_recovery_instance_1"
 TASK_ID = f"{DOMAIN_NAME}/{TASK_NAME}"
 VARIANT_NAME="base"
-LINUX_REMOTE_ROOT = "/media/user/data/agenthle"
 EVAL_TMP_DIR = f"/tmp/agenthle_eval/{TASK_NAME}"
 WORKSPACE_ROOT = "/workspace"
 
@@ -85,21 +84,12 @@ def _parse_json_stdout(raw: str) -> dict[str, Any]:
     raise ValueError(f"unable to parse verifier JSON from stdout: {text[:1000]}")
 
 
+@dataclass
 class RankingNodeFeatureParityRecoveryConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = "ranking_node_feature_parity_recovery_instance_1"
     VARIANT_NAME: str = "base"
     OS_TYPE: str = "linux"
-
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(
-            DOMAIN_NAME=DOMAIN_NAME,
-            TASK_NAME=TASK_NAME,
-            VARIANT_NAME=VARIANT_NAME,
-            OS_TYPE="linux",
-            REMOTE_ROOT_DIR=kwargs.pop("REMOTE_ROOT_DIR", os.environ.get("REMOTE_ROOT_DIR", LINUX_REMOTE_ROOT)),
-            REMOTE_OUTPUT_DIR=kwargs.pop("REMOTE_OUTPUT_DIR", os.environ.get("REMOTE_OUTPUT_DIR", "output")),
-        )
 
     @property
     def input_workspace_archive(self) -> str:
@@ -123,7 +113,7 @@ class RankingNodeFeatureParityRecoveryConfig(LinuxTaskConfig):
 
     @property
     def candidate_file(self) -> str:
-        return _remote_join(self.remote_output_dir, "safe_recover.py")
+        return _remote_join(self.output_dir, "safe_recover.py")
 
     @property
     def task_description(self) -> str:
@@ -150,7 +140,7 @@ Your tool must:
    - `{WORKSPACE_ROOT}/state/feature_manifest.json`
 
 When you are done, copy your final `safe_recover.py` to the output directory:
-- `cp {WORKSPACE_ROOT}/safe_recover.py {self.remote_output_dir}/safe_recover.py`
+- `cp {WORKSPACE_ROOT}/safe_recover.py {self.output_dir}/safe_recover.py`
 
 The evaluator will replay your script on a fresh workspace, so make sure it works from a clean state.
 
@@ -179,7 +169,7 @@ Notes:
                 "reference_dir": self.reference_dir,
                 "output_test_pos_dir": self.output_test_pos_dir,
                 "output_test_neg_dir": self.output_test_neg_dir,
-                "remote_output_dir": self.remote_output_dir,
+                "output_dir": self.output_dir,
                 "candidate_file": self.candidate_file,
                 "workspace_root": WORKSPACE_ROOT,
                 "canonical_gcs_root": "gs://ale-data-all/computing_math/ranking_node_feature_parity_recovery_instance_1/base/",
@@ -228,7 +218,7 @@ class _RankingNodeSetup(BaseTaskSetup):
         if missing:
             raise RuntimeError("missing staged paths: " + "; ".join(missing))
 
-        await session.makedirs(meta["remote_output_dir"])
+        await session.makedirs(meta["output_dir"])
 
         tool_check = await _run_command(
             session,
@@ -292,8 +282,8 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
             shlex.quote(meta["runtime_env_dir"]),
             "--reference-dir",
             shlex.quote(meta["reference_dir"]),
-            "--remote-output-dir",
-            shlex.quote(meta["remote_output_dir"]),
+            "--output-dir",
+            shlex.quote(meta["output_dir"]),
             "--workspace-root",
             shlex.quote(meta["workspace_root"]),
         ]

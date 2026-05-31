@@ -1,7 +1,6 @@
 """Cell tracking benchmark over a fluorescence microscopy time-lapse sequence."""
 
 import logging
-import os
 import posixpath
 import re
 import sys
@@ -37,7 +36,7 @@ def _canonical_output_dir_name(path: str) -> str:
     normalized = posixpath.normpath(path.replace("\\", "/"))
     if normalized not in ALLOWED_OUTPUT_DIRS:
         raise ValueError(
-            "REMOTE_OUTPUT_DIR must normalize to one of: " + ", ".join(sorted(ALLOWED_OUTPUT_DIRS))
+            "OUTPUT_SUBDIR must normalize to one of: " + ", ".join(sorted(ALLOWED_OUTPUT_DIRS))
         )
     return normalized
 
@@ -65,13 +64,13 @@ class CellTrackingConfig(LinuxTaskConfig):
         return f"{self.software_dir}/python_cell_tracking.sh"
 
     @property
-    def remote_output_dir(self) -> str:
-        output_dir_name = _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
+    def output_dir(self) -> str:
+        output_dir_name = _canonical_output_dir_name(self.OUTPUT_SUBDIR)
         return f"{self.task_dir}/{output_dir_name}"
 
     @property
     def track_output_file(self) -> str:
-        return f"{self.remote_output_dir}/res_track.txt"
+        return f"{self.output_dir}/res_track.txt"
 
     @property
     def reference_track_file(self) -> str:
@@ -99,7 +98,7 @@ Recommended setup:
 Your task:
 1. Segment individual cells in every frame.
 2. Track cells across all 30 frames so the same cell keeps a consistent positive integer label.
-3. Save labeled tracking masks as `{self.remote_output_dir}/mask000.tif` through `{self.remote_output_dir}/mask029.tif`.
+3. Save labeled tracking masks as `{self.output_dir}/mask000.tif` through `{self.output_dir}/mask029.tif`.
 4. Save the lineage table as `{self.track_output_file}`.
 
 Output format:
@@ -108,7 +107,7 @@ Output format:
 - `res_track.txt` must use Cell Tracking Challenge format with four whitespace-separated integer columns per row: `L B E P`.
 - `L` is the cell label, `B` is the first frame index, `E` is the last frame index, and `P` is the parent label or `0`.
 
-A successful result should accurately segment the cells and keep their identities consistent over time. Do not modify files under `input/`; write final result files only under `{self.remote_output_dir}`.
+A successful result should accurately segment the cells and keep their identities consistent over time. Do not modify files under `input/`; write final result files only under `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict:
@@ -122,13 +121,13 @@ A successful result should accurately segment the cells and keep their identitie
                 "python_wrapper": self.python_wrapper,
                 "track_output_file": self.track_output_file,
                 "reference_track_file": self.reference_track_file,
-                "output_dir_name": _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR),
+                "output_dir_name": _canonical_output_dir_name(self.OUTPUT_SUBDIR),
             }
         )
         return metadata
 
 
-config = CellTrackingConfig(REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"))
+config = CellTrackingConfig()
 
 
 @cb.tasks_config(split="train")
@@ -168,7 +167,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
 
         pred_masks = {}
         for frame in range(FRAME_COUNT):
-            mask_path = f'{meta["remote_output_dir"]}/mask{frame:03d}.tif'
+            mask_path = f'{meta["output_dir"]}/mask{frame:03d}.tif'
             if not await session.exists(mask_path):
                 logger.info("Missing output mask: %s", mask_path)
                 return [0.0]

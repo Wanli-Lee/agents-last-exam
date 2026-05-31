@@ -46,7 +46,7 @@ class TaskConfig(LinuxTaskConfig):
 
     @property
     def answer_path(self) -> str:
-        return f"{self.remote_output_dir}/answer.txt"
+        return f"{self.output_dir}/answer.txt"
 
     @property
     def secret_path(self) -> str:
@@ -102,7 +102,7 @@ async def start(task_cfg, session: cb.DesktopSession):
     meta = task_cfg.metadata
     token = meta["token"]
 
-    for d in (meta["input_dir"], meta["remote_output_dir"]):
+    for d in (meta["input_dir"], meta["output_dir"]):
         await session.run_command(f"mkdir -p {d!r}", check=False)
     await session.run_command(f"rm -f {meta['answer_path']!r}", check=False)
     await session.run_command(f"rm -rf {meta['reference_dir']!r}", check=False)

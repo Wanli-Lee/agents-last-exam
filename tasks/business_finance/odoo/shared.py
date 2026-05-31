@@ -114,7 +114,7 @@ class OdooTaskConfig(GeneralTaskConfig):
     @property
     def task_description(self) -> str:
         prompt_text = (self.variant_source_dir / "input" / "prompt.txt").read_text(encoding="utf-8").strip()
-        out_dir = self.remote_output_dir
+        out_dir = self.output_dir
         return f"""\
 Goal:
 Complete the recovered end-to-end Odoo supply-chain workflow and leave the final business state inside the task database.
@@ -358,7 +358,7 @@ async def _write_report(session: cb.DesktopSession, *, out_dir: str, work_dir: s
 
 
 async def start_variant_task(task_cfg, session: cb.DesktopSession) -> None:
-    out_dir = task_cfg.metadata["remote_output_dir"]
+    out_dir = task_cfg.metadata["output_dir"]
     template_db = task_cfg.metadata["template_db"]
     db_name = task_cfg.metadata["db_name"]
     work_dir = eval_work_dir(task_cfg.metadata["variant_name"])
@@ -411,7 +411,7 @@ def _float_eq(a, b, tol=0.01) -> bool:
 
 
 async def evaluate_variant_task(task_cfg, session: cb.DesktopSession) -> list[float]:
-    out_dir = task_cfg.metadata["remote_output_dir"]
+    out_dir = task_cfg.metadata["output_dir"]
     ref_dir = task_cfg.metadata.get("reference_dir")
     db_name = task_cfg.metadata["db_name"]
     run_tag = task_cfg.metadata["run_tag"]

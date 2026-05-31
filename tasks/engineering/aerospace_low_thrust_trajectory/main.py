@@ -44,7 +44,7 @@ def _canonical_output_dir_name(path: str) -> str:
     normalized = posixpath.normpath(path.replace("\\", "/"))
     if normalized not in CANONICAL_OUTPUT_DIR_NAMES:
         raise ValueError(
-            "REMOTE_OUTPUT_DIR must normalize to one of: output, output_test_pos, output_test_neg"
+            "OUTPUT_SUBDIR must normalize to one of: output, output_test_pos, output_test_neg"
         )
     return normalized
 
@@ -57,10 +57,10 @@ class TaskConfig(LinuxTaskConfig):
 
     @property
     def output_dir_name(self) -> str:
-        return _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
+        return _canonical_output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
-    def remote_output_dir(self) -> str:
+    def output_dir(self) -> str:
         return f"{self.task_dir}/{self.output_dir_name}"
 
     @property
@@ -117,7 +117,7 @@ Read the staged problem specification and output contract, then create the requi
 """
 
     def output_file(self, filename: str) -> str:
-        return f"{self.remote_output_dir}/{filename}"
+        return f"{self.output_dir}/{filename}"
 
     def reference_file(self, filename: str) -> str:
         return f"{self.reference_dir}/{filename}"
@@ -127,7 +127,6 @@ Read the staged problem specification and output contract, then create the requi
         metadata.update(
             {
                 "task_dir": self.task_dir,
-                "data_task_dir": self.data_task_dir,
                 "input_dir": self.input_dir,
                 "software_dir": self.software_dir,
                 "output_dir_name": self.output_dir_name,

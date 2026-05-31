@@ -2,7 +2,6 @@
 
 import json
 import logging
-import os
 from dataclasses import dataclass
 from pathlib import PureWindowsPath
 
@@ -29,7 +28,6 @@ def _is_runtime_output_dir(path: str) -> bool:
 
 @dataclass
 class RedditAIPostCodebookConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = os.environ.get("REMOTE_ROOT_DIR", r"E:\agenthle")
     DOMAIN_NAME: str = "psychology_neuro"
     TASK_NAME: str = "reddit_ai_post_codebook_boolean_coding"
     VARIANT_NAME: str = "base"
@@ -53,7 +51,7 @@ class RedditAIPostCodebookConfig(GeneralTaskConfig):
 
     @property
     def output_workbook(self) -> str:
-        return win_join(self.remote_output_dir, self.OUTPUT_FILENAME)
+        return win_join(self.output_dir, self.OUTPUT_FILENAME)
 
     @property
     def reference_workbook(self) -> str:

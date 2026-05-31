@@ -1,7 +1,6 @@
 """Digital marketing audience segmentation benchmark task."""
 
 import logging
-import os
 from dataclasses import dataclass
 
 import cua_bench as cb
@@ -24,15 +23,15 @@ class SegmentationConfig(LinuxTaskConfig):
 
     @property
     def segment_def_output(self) -> str:
-        return f"{self.remote_output_dir}/segment_definition.json"
+        return f"{self.output_dir}/segment_definition.json"
 
     @property
     def roster_output(self) -> str:
-        return f"{self.remote_output_dir}/audience_roster.csv"
+        return f"{self.output_dir}/audience_roster.csv"
 
     @property
     def overlap_output(self) -> str:
-        return f"{self.remote_output_dir}/overlap_report.tsv"
+        return f"{self.output_dir}/overlap_report.tsv"
 
     @property
     def segment_def_ref(self) -> str:
@@ -49,7 +48,7 @@ class SegmentationConfig(LinuxTaskConfig):
     @property
     def task_description(self) -> str:
         inp = self.input_dir
-        out = self.remote_output_dir
+        out = self.output_dir
         return (
             "You are a digital marketing analyst performing audience segmentation "
             "for a re-engagement campaign.\n\n"
@@ -111,9 +110,7 @@ class SegmentationConfig(LinuxTaskConfig):
         return metadata
 
 
-config = SegmentationConfig(
-    REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"),
-)
+config = SegmentationConfig()
 
 
 @cb.tasks_config(split="train")

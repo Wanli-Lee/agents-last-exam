@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -61,7 +61,7 @@ def _canonical_output_dir_name(path: str) -> str:
     normalized = path.replace("\\", "/").strip("/")
     if normalized not in ALLOWED_OUTPUT_DIRS:
         raise ValueError(
-            "REMOTE_OUTPUT_DIR must be one of: " + ", ".join(sorted(ALLOWED_OUTPUT_DIRS))
+            "OUTPUT_SUBDIR must be one of: " + ", ".join(sorted(ALLOWED_OUTPUT_DIRS))
         )
     return normalized
 
@@ -70,15 +70,12 @@ def _as_text(payload: Any) -> str:
     return payload.decode("utf-8") if isinstance(payload, bytes) else str(payload)
 
 
+@dataclass
 class DitPipelineCfgAlignmentConfig(LinuxTaskConfig):
-    def __init__(self, remote_output_dir: str = "output") -> None:
-        super().__init__(
-            DOMAIN_NAME=DOMAIN_NAME,
-            TASK_NAME=TASK_NAME,
-            VARIANT_NAME=VARIANT_NAME,
-            OS_TYPE="linux",
-            REMOTE_OUTPUT_DIR=remote_output_dir,
-        )
+    DOMAIN_NAME: str = DOMAIN_NAME
+    TASK_NAME: str = TASK_NAME
+    VARIANT_NAME: str = VARIANT_NAME
+    OS_TYPE: str = "linux"
 
     @property
     def starter_pipeline(self) -> str:
@@ -105,13 +102,16 @@ class DitPipelineCfgAlignmentConfig(LinuxTaskConfig):
         return f"{self.reference_dir}/pipeline_dit.py"
 
     @property
-    def remote_output_dir(self) -> str:
-        output_dir_name = _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
-        return f"{self.task_dir}/{output_dir_name}"
+    def output_dir_name(self) -> str:
+        return _canonical_output_dir_name(self.OUTPUT_SUBDIR)
+
+    @property
+    def output_dir(self) -> str:
+        return f"{self.task_dir}/{self.output_dir_name}"
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/pipeline_dit.py"
+        return f"{self.output_dir}/pipeline_dit.py"
 
     @property
     def task_description(self) -> str:
@@ -150,16 +150,14 @@ Do not rely on hidden evaluator files while solving.
                 "software_note": self.software_note,
                 "reference_file": self.reference_file,
                 "output_file": self.output_file,
-                "output_dir_name": _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR),
+                "output_dir_name": self.output_dir_name,
                 "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{VARIANT_NAME}/",
             }
         )
         return metadata
 
 
-config = DitPipelineCfgAlignmentConfig(
-    remote_output_dir=os.environ.get("REMOTE_OUTPUT_DIR", "output")
-)
+config = DitPipelineCfgAlignmentConfig()
 
 
 @cb.tasks_config(split="train")

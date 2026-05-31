@@ -70,7 +70,7 @@ class EGT710TaskConfig(GeneralTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return rf"{self.remote_output_dir}\submission.csv"
+        return rf"{self.output_dir}\submission.csv"
 
     @property
     def reference_file(self) -> str:

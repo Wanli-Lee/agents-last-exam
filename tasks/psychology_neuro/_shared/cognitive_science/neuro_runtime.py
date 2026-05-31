@@ -10,9 +10,8 @@ from typing import Optional
 
 import cua_bench as cb
 
-from tasks.common_config import GeneralTaskConfig
+from tasks.common_config import GeneralTaskConfig, get_data_root
 from tasks.psychology_neuro._shared.cognitive_science.neuro_common import (
-    DATA_ROOT,
     DEFAULT_VARIANT,
     DESKTOP_ROOT,
     DOMAIN_NAME,
@@ -58,7 +57,7 @@ async def _run_command(
 
 async def ensure_layout(session: cb.DesktopSession, task_name: str, domain_name: str = DOMAIN_NAME) -> None:
     desktop_variant_root = f"{DESKTOP_ROOT}/{domain_name}/{task_name}/{DEFAULT_VARIANT}"
-    data_variant_root = f"{DATA_ROOT}/{domain_name}/{task_name}/{DEFAULT_VARIANT}"
+    data_variant_root = f"{get_data_root()}/{domain_name}/{task_name}/{DEFAULT_VARIANT}"
     desktop_parent = desktop_variant_root.rsplit("/", 1)[0]
     result = await _run_command(
         session,
@@ -102,10 +101,6 @@ class NeuroTaskConfig(GeneralTaskConfig):
         return f"{DESKTOP_ROOT}/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}"
 
     @property
-    def data_task_dir(self) -> str:
-        return f"{DATA_ROOT}/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}"
-
-    @property
     def input_dir(self) -> str:
         return f"{self.task_dir}/input"
 
@@ -118,8 +113,8 @@ class NeuroTaskConfig(GeneralTaskConfig):
         return f"{self.task_dir}/software"
 
     @property
-    def remote_output_dir(self) -> str:
-        return f"{self.task_dir}/{self.REMOTE_OUTPUT_DIR}"
+    def output_dir(self) -> str:
+        return f"{self.task_dir}/{self.OUTPUT_SUBDIR}"
 
     @property
     def launch_script(self) -> str:
@@ -129,7 +124,7 @@ class NeuroTaskConfig(GeneralTaskConfig):
     def task_description(self) -> str:
         inputs = "\n".join(f"- `{self.input_dir}/{name}`" for name in self.spec.input_files)
         outputs = "\n".join(
-            f"- `{self.remote_output_dir}/{name}`" for name in self.spec.required_outputs
+            f"- `{self.output_dir}/{name}`" for name in self.spec.required_outputs
         )
         return f"""\
 You are a neuroimaging analyst completing a GUI workflow in {self.spec.software_name} {self.spec.software_version}.
@@ -148,10 +143,10 @@ Key staged files:
 Launch the correct GUI workflow with:
 - `{self.launch_script}`
 
-The Desktop task folder is a symlink into `/media/user/data/agenthle/...`, so write all outputs under the staged task directory only.
+The Desktop task folder is a symlink into the staged data directory, so write all outputs under the staged task directory only.
 
 ## Required Output Files
-Save these outputs exactly under `{self.remote_output_dir}`:
+Save these outputs exactly under `{self.output_dir}`:
 {outputs}
 
 ## Evaluation
@@ -167,11 +162,10 @@ Do not read from `reference/`, `output_test_pos/`, or `output_test_neg/`.
             {
                 "task_title": self.TASK_TITLE,
                 "task_dir": self.task_dir,
-                "data_task_dir": self.data_task_dir,
                 "input_dir": self.input_dir,
                 "reference_dir": self.reference_dir,
                 "software_dir": self.software_dir,
-                "remote_output_dir": self.remote_output_dir,
+                "output_dir": self.output_dir,
                 "launch_script": self.launch_script,
                 "required_outputs": list(self.spec.required_outputs),
                 "description_pdf": self.spec.description_pdf,
@@ -197,10 +191,10 @@ def load_single_task(task_name: str, task_title: str, *, domain_name: str | None
 async def ensure_neuro_runtime(session: cb.DesktopSession, task_name: str, domain_name: str = DOMAIN_NAME) -> None:
     """Verify the canonical neuro-runtime layout and runtime deps on the VM.
 
-    Output-dir creation is orchestration's job (clean_remote_output_dir wipes
-    and recreates remote_output_dir after start()) so this helper only owns
-    the truly neuro-specific bits: ensure the data-root symlink layout and
-    that the conda env + Python deps are available.
+    Output-dir creation is orchestration's job (it wipes and recreates the
+    output dir after start()) so this helper only owns the truly
+    neuro-specific bits: ensure the data-root symlink layout and that the
+    conda env + Python deps are available.
     """
     await ensure_layout(session, task_name, domain_name)
     await ensure_runtime_deps(session)
@@ -225,7 +219,7 @@ async def evaluate_single_task(task_cfg, session: cb.DesktopSession, task_dir: P
             f'--task-name "{task_name}" '
             f'--input-dir "{task_cfg.metadata["input_dir"]}" '
             f'--reference-dir "{task_cfg.metadata["reference_dir"]}" '
-            f'--output-dir "{task_cfg.metadata["remote_output_dir"]}"'
+            f'--output-dir "{task_cfg.metadata["output_dir"]}"'
         ),
         timeout=300.0,
     )

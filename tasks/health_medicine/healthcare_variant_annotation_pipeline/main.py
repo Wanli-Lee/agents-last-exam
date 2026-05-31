@@ -64,7 +64,7 @@ def _canonical_output_dir_name(path: str) -> str:
     normalized = posixpath.normpath(path.replace("\\", "/"))
     if normalized not in CANONICAL_OUTPUT_DIR_NAMES:
         raise ValueError(
-            "REMOTE_OUTPUT_DIR must normalize to one of: output, output_test_pos, output_test_neg"
+            "OUTPUT_SUBDIR must normalize to one of: output, output_test_pos, output_test_neg"
         )
     return normalized
 
@@ -81,10 +81,10 @@ class HealthcareVariantAnnotationConfig(LinuxTaskConfig):
 
     @property
     def output_dir_name(self) -> str:
-        return _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
+        return _canonical_output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
-    def remote_output_dir(self) -> str:
+    def output_dir(self) -> str:
         return f"{self.task_dir}/{self.output_dir_name}"
 
     @property
@@ -113,19 +113,19 @@ class HealthcareVariantAnnotationConfig(LinuxTaskConfig):
 
     @property
     def annotated_output_file(self) -> str:
-        return f"{self.remote_output_dir}/annotated_variants.tsv"
+        return f"{self.output_dir}/annotated_variants.tsv"
 
     @property
     def reportable_output_file(self) -> str:
-        return f"{self.remote_output_dir}/reportable_variants.tsv"
+        return f"{self.output_dir}/reportable_variants.tsv"
 
     @property
     def pipeline_output_file(self) -> str:
-        return f"{self.remote_output_dir}/pipeline.py"
+        return f"{self.output_dir}/pipeline.py"
 
     @property
     def run_log_output_file(self) -> str:
-        return f"{self.remote_output_dir}/run_log.json"
+        return f"{self.output_dir}/run_log.json"
 
     @property
     def reference_annotated_file(self) -> str:
@@ -150,7 +150,7 @@ Visible inputs:
 - Task-local runtime lockfile: `{self.runtime_lockfile}`
 
 Your job:
-1. Work from a writable directory under `{self.remote_output_dir}`.
+1. Work from a writable directory under `{self.output_dir}`.
 2. Read the 50 staged variants in order.
 3. Parse the raw VEP snapshot JSON lines and derive, for each variant:
    - `gene`
@@ -159,7 +159,7 @@ Your job:
    - `clinvar_significance`
    - `is_reportable`
 4. Filter the reportable subset exactly according to `{self.source_manifest_file}`.
-5. Write these files under `{self.remote_output_dir}`:
+5. Write these files under `{self.output_dir}`:
    - `annotated_variants.tsv`
    - `reportable_variants.tsv`
    - `pipeline.py`
@@ -214,9 +214,7 @@ config = HealthcareVariantAnnotationConfig()
 
 @cb.tasks_config(split="train")
 def load():
-    cfg = HealthcareVariantAnnotationConfig(
-        REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output")
-    )
+    cfg = HealthcareVariantAnnotationConfig()
     return [
         cb.Task(
             description=cfg.task_description,

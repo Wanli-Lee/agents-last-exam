@@ -2,7 +2,6 @@
 
 import json
 import logging
-import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
@@ -50,7 +49,6 @@ DOMAIN_NAME = "visual_media"
 TASK_NAME = "compress_3dgs_scene_ply"
 TASK_ID = f"{DOMAIN_NAME}/{TASK_NAME}"
 VARIANT_NAME = "base"
-WINDOWS_REMOTE_ROOT = r"E:\agenthle"
 
 
 def _remote_join(base: str, *parts: str) -> str:
@@ -125,26 +123,10 @@ async def _count_remote_ply_vertices(session: cb.DesktopSession, path: str) -> i
 
 @dataclass
 class Compress3dgsScenePlyConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = os.environ.get("REMOTE_ROOT_DIR", WINDOWS_REMOTE_ROOT)
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = VARIANT_NAME
     OS_TYPE: str = "windows"
-    REMOTE_OUTPUT_DIR: str = os.environ.get("REMOTE_OUTPUT_DIR", "output")
-
-    def __init__(self, *, remote_output_dir: str | None = None) -> None:
-        super().__init__(
-            DOMAIN_NAME=DOMAIN_NAME,
-            TASK_NAME=TASK_NAME,
-            VARIANT_NAME=VARIANT_NAME,
-            OS_TYPE="windows",
-            REMOTE_ROOT_DIR=os.environ.get("REMOTE_ROOT_DIR", WINDOWS_REMOTE_ROOT),
-            REMOTE_OUTPUT_DIR=remote_output_dir or os.environ.get("REMOTE_OUTPUT_DIR", "output"),
-        )
-
-    @property
-    def task_dir(self) -> str:
-        return _remote_join(self.REMOTE_ROOT_DIR, DOMAIN_NAME, TASK_NAME, VARIANT_NAME)
 
     @property
     def input_dir(self) -> str:
@@ -188,19 +170,19 @@ class Compress3dgsScenePlyConfig(GeneralTaskConfig):
 
     @property
     def output_ply_file(self) -> str:
-        return _remote_join(self.remote_output_dir, "point_cloud_30000_compressed.ply")
+        return _remote_join(self.output_dir, "point_cloud_30000_compressed.ply")
 
     @property
     def output_render_dir(self) -> str:
-        return _remote_join(self.remote_output_dir, "rendered_test_views")
+        return _remote_join(self.output_dir, "rendered_test_views")
 
     @property
     def output_results_file(self) -> str:
-        return _remote_join(self.remote_output_dir, "results.json")
+        return _remote_join(self.output_dir, "results.json")
 
     @property
     def output_compression_report_file(self) -> str:
-        return _remote_join(self.remote_output_dir, "compression_report.json")
+        return _remote_join(self.output_dir, "compression_report.json")
 
     @property
     def task_description(self) -> str:
@@ -222,7 +204,7 @@ Pre-installed 3DGS rendering runtime (software entry points):
 - `{self.software_dir}\\render_3dgs.bat --model_path <path> [...]` — official render.py wrapper
 - `{self.software_dir}\\README.md` — details on the installed runtime
 
-Write your outputs only under `{self.remote_output_dir}`.
+Write your outputs only under `{self.output_dir}`.
 Required output files:
 - `{self.output_ply_file}`
 - `{self.output_render_dir}\\<holdout filename>.jpg`
@@ -246,7 +228,7 @@ Important:
                 "input_dir": self.input_dir,
                 "reference_dir": self.reference_dir,
                 "software_dir": self.software_dir,
-                "remote_output_dir": self.remote_output_dir,
+                "output_dir": self.output_dir,
                 "task_prompt_file": self.task_prompt_file,
                 "baseline_results_file": self.baseline_results_file,
                 "scene_manifest_file": self.scene_manifest_file,

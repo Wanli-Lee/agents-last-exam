@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class TaskConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = r"E:\agenthle"
     DOMAIN_NAME: str = "visual_media"
 
     TASK_NAME: str = "mota_reproduction"
@@ -40,8 +39,8 @@ Goal: Reproduce a flash game with RPGMaker.
 
 Before you begin:
 1. Open the original game `{self.game_url}` in Ruffle yourself — e.g. double-click in Explorer, or run `Start-Process '{self.game_url}'` in PowerShell. Use full screen for best visibility.
-2. Copy the template project folder `{self.template_url}` to `{self.remote_output_dir}\\mota_template` — this is your working copy. PowerShell: `Copy-Item -Path '{self.template_url}' -Destination '{self.remote_output_dir}' -Recurse`
-3. Open `{self.remote_output_dir}\\mota_template\\Game.rxproj` in RPGMakerXP — e.g. double-click in Explorer, or run `Start-Process '{self.remote_output_dir}\\mota_template\\Game.rxproj'`.
+2. Copy the template project folder `{self.template_url}` to `{self.output_dir}\\mota_template` — this is your working copy. PowerShell: `Copy-Item -Path '{self.template_url}' -Destination '{self.output_dir}' -Recurse`
+3. Open `{self.output_dir}\\mota_template\\Game.rxproj` in RPGMakerXP — e.g. double-click in Explorer, or run `Start-Process '{self.output_dir}\\mota_template\\Game.rxproj'`.
 
 Then reproduce the game from level 1 - {self.MAX_LAYER} including game map, monsters, fighting logics.
  
@@ -49,7 +48,7 @@ Output:
 After completing the reproduction:
 - Preview the reproduced game in RPGMakerXP.
 - Play through the game and successfully navigate to each new floor.
-- Upon reaching each floor, save a milestone screenshot using: `save_milestone_screenshot(path="{self.remote_output_dir}\\$FLOOR_NUMBER$.png")`, where $FLOOR_NUMBER$ is the floor number you reached.
+- Upon reaching each floor, save a milestone screenshot using: `save_milestone_screenshot(path="{self.output_dir}\\$FLOOR_NUMBER$.png")`, where $FLOOR_NUMBER$ is the floor number you reached.
 
 Verification: 
 The task is considered successful if:
@@ -97,7 +96,7 @@ async def start(task_cfg, session: cb.DesktopSession):
 @cb.evaluate_task(split="train")
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     try:
-        output_dir = task_cfg.metadata["remote_output_dir"]
+        output_dir = task_cfg.metadata["output_dir"]
         reference_dir = task_cfg.metadata["reference_dir"]
         output_files, reference_files = await collect_matching_files(
             session, output_dir, reference_dir

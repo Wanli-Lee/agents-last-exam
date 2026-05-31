@@ -39,6 +39,8 @@ from ..executors import DockerExecutor, LocalExecutor, SandboxExecutor
 from ..tasks.loader import TaskLoader
 from ..tasks.driver import TaskDriver
 from .factory import build_config, resolve_agent
+
+from tasks.common_config import reset_data_root, set_data_root
 from .run_writer import RunWriter, slug_task
 from .experiment_spec import ArtifactsSpec, RunUnit, UnitResult
 from .termination import classify_error, err_dict, redact_config
@@ -47,25 +49,6 @@ logger = logging.getLogger(__name__)
 
 
 _DEFAULT_TIMEOUT_S = 7200
-
-
-def _inject_data_root(task_meta: dict[str, Any], data_root: str) -> None:
-    """Replace the ``_UNSET_DATA_ROOT`` sentinel in task metadata with the
-    real ``task_data_root`` from the image spec.  Mutates *task_meta* in place.
-    """
-    from tasks.common_config import _UNSET_DATA_ROOT
-    sentinel = _UNSET_DATA_ROOT
-
-    def _replace(v: Any) -> Any:
-        if isinstance(v, str) and sentinel in v:
-            return v.replace(sentinel, data_root)
-        return v
-
-    task_meta["description"] = _replace(task_meta.get("description", ""))
-    meta = task_meta.get("metadata")
-    if isinstance(meta, dict):
-        for k, v in meta.items():
-            meta[k] = _replace(v)
 
 
 # Mount-fallback: how many provision attempts before we give up. Matches
@@ -179,6 +162,7 @@ async def run_one_unit(
     trajectory: Trajectory | None = None
     run_result: AgentRunResult | None = None
     executor: BaseExecutor | None = None
+    data_root_token = None
 
     status = "completed"
     score: float | None = None
@@ -197,9 +181,14 @@ async def run_one_unit(
             await sem.acquire()
         try:
             task_path = Path("tasks") / unit.task_path
-            task_meta = TaskLoader(str(task_path)).load(unit.variant_index)
-            env_spec = _build_env_spec(task_meta, unit=unit)
-            timeout_s = int(task_meta.get("timeout_s") or _DEFAULT_TIMEOUT_S)
+            task_loader = TaskLoader(str(task_path))
+            # Pre-provision: only the VM-selection fields (image / machine /
+            # timeout / os). The real description + paths need the injected
+            # data root, which doesn't exist until a VM is provisioned, so we
+            # render those after provision under the data-root contextvar.
+            meta_pre = task_loader.load_meta(unit.variant_index)
+            env_spec = _build_env_spec(meta_pre, unit=unit)
+            timeout_s = int(meta_pre.get("timeout_s") or _DEFAULT_TIMEOUT_S)
 
             # ============================================================
             # Phase 0 — provision the sandbox. Single-shot: with task data
@@ -216,7 +205,12 @@ async def run_one_unit(
                 machine_type=env.sandbox.metadata.get("machine_type"),
             )
 
-            _inject_data_root(task_meta, env.sandbox.task_data_root)
+            # Bind the data root for the rest of this unit's coroutine. Every
+            # task path now renders off this contextvar; it is isolated per
+            # asyncio task, so concurrent units never see each other's root.
+            # Reset in the unit's finally.
+            data_root_token = set_data_root(env.sandbox.task_data_root)
+            task_meta = task_loader.load(unit.variant_index)
 
             builder = TrajectoryBuilder(
                 agent_name=getattr(config, "name", unit.agent_spec.class_),
@@ -244,7 +238,6 @@ async def run_one_unit(
                 variant=unit.variant_index,
                 os_type=env.sandbox.os,
                 session_rebuilder=env.reset_session,
-                data_root=env.sandbox.task_data_root,
             )
             await task_driver.setup()
 
@@ -511,6 +504,8 @@ async def run_one_unit(
 
     finally:
         # Phase 4 — cleanup. Both branches are best-effort; never raise here.
+        if data_root_token is not None:
+            reset_data_root(data_root_token)
         if task_driver is not None:
             try:
                 await task_driver.close()

@@ -162,20 +162,12 @@ class TaskConfig(GeneralTaskConfig):
     OS_TYPE: str = "windows"
 
     @property
-    def task_dir(self) -> str:
-        return rf"E:\agenthle\{self.DOMAIN_NAME}\{self.TASK_NAME}\{self.VARIANT_NAME}"
-
-    @property
-    def input_dir(self) -> str:
-        return rf"{self.task_dir}\input"
-
-    @property
     def output_path(self) -> str:
-        return rf"{self.remote_output_dir}\{self.OUTPUT_FILENAME}"
+        return rf"{self.output_dir}\{self.OUTPUT_FILENAME}"
 
     @property
     def runtime_output_dir(self) -> str:
-        return self.remote_output_dir
+        return self.output_dir
 
     @property
     def reference_path(self) -> str:

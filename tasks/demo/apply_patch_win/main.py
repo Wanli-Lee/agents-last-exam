@@ -60,7 +60,7 @@ class TaskConfig(GeneralTaskConfig):
 
     @property
     def answer_path(self) -> str:
-        return rf"{self.remote_output_dir}\patched.txt"
+        return rf"{self.output_dir}\patched.txt"
 
     @property
     def input_request_path(self) -> str:
@@ -123,7 +123,7 @@ async def start(task_cfg, session: cb.DesktopSession):
     """Stage the required-content spec; ensure reference is hidden + output clean."""
     meta = task_cfg.metadata
 
-    for d in (meta["input_dir"], meta["remote_output_dir"]):
+    for d in (meta["input_dir"], meta["output_dir"]):
         await session.run_command(
             f'powershell -NoProfile -Command "New-Item -ItemType Directory '
             f"-Force -Path '{d}' | Out-Null\"",
@@ -190,10 +190,10 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
 
     # Partial credit by exact-line hits, so a corrupted run scores >0 but <1
     # and the corruption is visible in the diff.
-    expected_lines = [l for l in expected_norm.split("\n") if l.strip()]
+    expected_lines = [ln for ln in expected_norm.split("\n") if ln.strip()]
     if not expected_lines:
         return [0.0]
-    hits = sum(1 for l in expected_lines if l in actual_norm)
+    hits = sum(1 for ln in expected_lines if ln in actual_norm)
     logger.info(
         "apply_patch_win: %d/%d exact-line hits (corruption if <%d)",
         hits, len(expected_lines), len(expected_lines),

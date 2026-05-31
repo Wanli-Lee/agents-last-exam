@@ -42,7 +42,7 @@ class AdaptVqeMolecularEnergyConfig(LinuxTaskConfig):
 
     @property
     def output_results_file(self) -> str:
-        return f"{self.remote_output_dir}/results.json"
+        return f"{self.output_dir}/results.json"
 
     @property
     def eval_dir(self) -> str:
@@ -85,7 +85,7 @@ the tier structure, the visible output schema, and the library constraints.
    - active-space note
    - Pauli-string Hamiltonian terms
 
-4. Produce exactly one file under `{self.remote_output_dir}`:
+4. Produce exactly one file under `{self.output_dir}`:
    - `results.json`
 
 5. `results.json` must follow the schema in `{self.problem_spec_file}` and
@@ -98,7 +98,7 @@ the tier structure, the visible output schema, and the library constraints.
 - Allowed libraries: NumPy and SciPy only.
 - Banned: Qiskit, Cirq, PennyLane, OpenFermion, tequila, or any other
   quantum-computing library.
-- Write only under `{self.remote_output_dir}`.
+- Write only under `{self.output_dir}`.
 - Do not modify anything under `{self.input_dir}`.
 """
 
@@ -151,7 +151,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     command = (
         f'cd {meta["eval_tmp_dir"]} && '
         f'python "{verifier_path}" '
-        f'--output-dir "{meta["remote_output_dir"]}" '
+        f'--output-dir "{meta["output_dir"]}" '
         f'--reference-file "{reference_results}"'
     )
     result = await session.run_command(command, check=False)

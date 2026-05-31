@@ -64,7 +64,7 @@ class PublicHealthMaskMandateRatioConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = "health_medicine"
     TASK_NAME: str = "public_health_mask_mandate_ratio"
     VARIANT_NAME: str = "base"
-    REMOTE_OUTPUT_DIR: str = os.environ.get("REMOTE_OUTPUT_DIR", "output")
+    OUTPUT_SUBDIR: str = os.environ.get("OUTPUT_SUBDIR", "output")
 
     @property
     def task_prompt_file(self) -> str:
@@ -88,7 +88,7 @@ class PublicHealthMaskMandateRatioConfig(LinuxTaskConfig):
 
     @property
     def output_results(self) -> str:
-        return f"{self.remote_output_dir}/results.json"
+        return f"{self.output_dir}/results.json"
 
     @property
     def reference_output(self) -> str:
@@ -111,14 +111,14 @@ What you must do:
 2. Build the stacked matched-pair county-day analysis frame and engineer the required lagged features.
 3. Fit the specified quasi-Poisson mixed model with the spline-by-treatment interaction.
 4. Compute the policy-effect ratios at relative days 14, 28, and 42, plus the arithmetic mean over days 1..42.
-5. Write exactly one file to `{self.remote_output_dir}`:
+5. Write exactly one file to `{self.output_dir}`:
    - `{self.output_results}`
 
 Output rules:
 - Write valid JSON only.
 - Use exactly the six keys listed in `output_schema.json`.
 - Output numeric values, not strings.
-- Do not modify the staged input files and do not write outside `{self.remote_output_dir}`.
+- Do not modify the staged input files and do not write outside `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict[str, Any]:

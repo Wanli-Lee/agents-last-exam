@@ -74,7 +74,7 @@ class TaskConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/gen.cpp"
+        return f"{self.output_dir}/gen.cpp"
 
     @property
     def task_description(self) -> str:
@@ -118,7 +118,7 @@ Located at: `{self.input_dir}`
 - `Binary String Copying Inputs.xlsx` — submission IDs
 
 ## Output
-Save your final generator as: `{self.remote_output_dir}/gen.cpp`
+Save your final generator as: `{self.output_dir}/gen.cpp`
 
 ## Compilation
 Use: `g++ -O2 -std=c++17 gen.cpp -o gen`
@@ -186,7 +186,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
 
     result = await session.run_command(
         f'bash "{EVAL_TMP_DIR}/run_judge_wrapper.sh" '
-        f'"{meta["remote_output_dir"]}" "{ref_dir}" "{EVAL_TMP_DIR}"',
+        f'"{meta["output_dir"]}" "{ref_dir}" "{EVAL_TMP_DIR}"',
         check=False,
     )
 

@@ -103,10 +103,6 @@ class TaskConfig(GeneralTaskConfig):
             self.LOAD_R_TARGET = specs["load_r_target"]
 
     @property
-    def task_dir(self):
-        return f"{self.REMOTE_ROOT_DIR}\\{self.DOMAIN_NAME}\\{self.TASK_NAME}\\{self.VARIANT_NAME}"
-
-    @property
     def task_description(self):
         return f"""You are given an LTspice schematic with the LTM4648 µModule DC/DC buck regulator IC already \
         placed on the canvas. Your task is to complete the circuit design by adding all required external components, \
@@ -200,7 +196,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     meta = task_cfg.metadata
     tag = meta["variant_name"]
     config = TaskConfig(VARIANT_NAME=tag)
-    output_dir = meta["remote_output_dir"]
+    output_dir = meta["output_dir"]
     score = 0.0
 
     # ══════════════════════════════════════════════

@@ -63,7 +63,7 @@ class LegalDrFeesConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/arbitration_fee_results.json"
+        return f"{self.output_dir}/arbitration_fee_results.json"
 
     @property
     def answer_key_file(self) -> str:

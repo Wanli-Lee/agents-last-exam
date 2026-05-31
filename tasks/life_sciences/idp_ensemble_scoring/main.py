@@ -64,7 +64,7 @@ class IDPEnsembleScoringConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/Final_Output.csv"
+        return f"{self.output_dir}/Final_Output.csv"
 
     @property
     def reference_file(self) -> str:

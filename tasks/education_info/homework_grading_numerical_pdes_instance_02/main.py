@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import posixpath
 import sys
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 import cua_bench as cb
@@ -44,32 +44,25 @@ def _canonical_output_dir_name(path: str) -> str:
     normalized = posixpath.normpath(path.replace("\\", "/"))
     if normalized not in CANONICAL_OUTPUT_DIR_NAMES:
         raise ValueError(
-            "REMOTE_OUTPUT_DIR must normalize to one of: "
+            "OUTPUT_SUBDIR must normalize to one of: "
             + ", ".join(sorted(CANONICAL_OUTPUT_DIR_NAMES))
         )
     return normalized
 
 
+@dataclass
 class HomeworkGradingNumericalPDEsConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = VARIANT_NAME
-
-    def __init__(self, *, remote_output_dir: str = "output") -> None:
-        super().__init__(
-            DOMAIN_NAME=DOMAIN_NAME,
-            TASK_NAME=TASK_NAME,
-            VARIANT_NAME=VARIANT_NAME,
-            OS_TYPE="linux",
-            REMOTE_OUTPUT_DIR=remote_output_dir,
-        )
+    OS_TYPE: str = "linux"
 
     @property
     def output_dir_name(self) -> str:
-        return _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
+        return _canonical_output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
-    def remote_output_dir(self) -> str:
+    def output_dir(self) -> str:
         return f"{self.task_dir}/{self.output_dir_name}"
 
     @property
@@ -174,7 +167,7 @@ class HomeworkGradingNumericalPDEsConfig(LinuxTaskConfig):
             f"- Do not read or modify evaluator-only files under `{self.reference_dir}`.\n"
             "- Keep student IDs stable across every output file.\n"
             f"- Use the task-local `{self.software_dir}/python` wrapper if you want to script the grading workflow (it `exec`s the preinstalled system Python).\n"
-            f"- Write final deliverables only under `{self.remote_output_dir}`.\n"
+            f"- Write final deliverables only under `{self.output_dir}`.\n"
         )
 
     def to_metadata(self) -> dict:
@@ -212,9 +205,7 @@ class HomeworkGradingNumericalPDEsConfig(LinuxTaskConfig):
 
 @cb.tasks_config(split="train")
 def load():
-    cfg = HomeworkGradingNumericalPDEsConfig(
-        remote_output_dir=os.environ.get("REMOTE_OUTPUT_DIR", "output")
-    )
+    cfg = HomeworkGradingNumericalPDEsConfig()
     return [
         cb.Task(
             description=cfg.task_description,
@@ -242,7 +233,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
 
         missing_outputs = []
         for filename in meta["required_output_files"]:
-            remote_file = f"{meta['remote_output_dir']}/{filename}"
+            remote_file = f"{meta['output_dir']}/{filename}"
             if not await session.exists(remote_file):
                 missing_outputs.append(filename)
                 continue

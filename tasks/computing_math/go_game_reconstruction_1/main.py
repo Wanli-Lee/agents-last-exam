@@ -5,7 +5,6 @@ from __future__ import annotations
 import importlib.util
 import json
 import logging
-import os
 import tempfile
 from pathlib import Path
 from typing import Any, Optional
@@ -13,7 +12,7 @@ from typing import Any, Optional
 import cua_bench as cb
 
 from tasks.common_setup import BaseTaskSetup
-from tasks.linux_runtime import DATA_ROOT, LinuxTaskConfig
+from tasks.linux_runtime import LinuxTaskConfig
 
 _setup = BaseTaskSetup()
 
@@ -71,15 +70,10 @@ def _parse_json_stdout(raw: str) -> Any:
 class GoGameReconstructionConfig(LinuxTaskConfig):
     """Configuration for the Sabaki GUI reconstruction benchmark."""
 
+    DOMAIN_NAME: str = "computing_math"
+    TASK_NAME: str = "go_game_reconstruction_1"
     VARIANT_NAME: str = "base"
-
-    def __init__(self) -> None:
-        super().__init__(
-            DOMAIN_NAME="computing_math", TASK_NAME="go_game_reconstruction_1",
-            VARIANT_NAME="base",
-            OS_TYPE="linux",
-            REMOTE_ROOT_DIR=os.environ.get("REMOTE_ROOT_DIR", "/media/user/data/agenthle"),
-        )
+    OS_TYPE: str = "linux"
 
     @property
     def board_image(self) -> str:
@@ -95,7 +89,7 @@ class GoGameReconstructionConfig(LinuxTaskConfig):
 
     @property
     def preferred_output_path(self) -> str:
-        return f"{self.remote_output_dir}/{self.preferred_output_name}"
+        return f"{self.output_dir}/{self.preferred_output_name}"
 
     @property
     def reference_sgf(self) -> str:
@@ -129,10 +123,10 @@ by move inside Sabaki, then export the reconstructed game as SGF.
    `"{self.sabaki_appimage}" --no-sandbox`
 2. Use Sabaki's GUI to enter the game move by move.
 3. Do not use a Go engine or a web browser.
-4. Export the SGF into `{self.remote_output_dir}`.
+4. Export the SGF into `{self.output_dir}`.
 5. Prefer the exact filename `{self.preferred_output_name}`.
 
-Only files under `{self.remote_output_dir}` count as your output.
+Only files under `{self.output_dir}` count as your output.
 """
 
     def to_metadata(self) -> dict[str, Any]:
@@ -143,7 +137,7 @@ Only files under `{self.remote_output_dir}` count as your output.
                 "task_dir": self.task_dir,
                 "input_dir": self.input_dir,
                 "software_dir": self.software_dir,
-                "remote_output_dir": self.remote_output_dir,
+                "output_dir": self.output_dir,
                 "board_image": self.board_image,
                 "sabaki_appimage": self.sabaki_appimage,
                 "preferred_output_name": self.preferred_output_name,
@@ -189,7 +183,7 @@ async def _choose_candidate_path(meta: dict[str, Any], session: cb.DesktopSessio
         "python - <<'PY'\n"
         "from pathlib import Path\n"
         "import json\n"
-        f"root = Path({meta['remote_output_dir']!r})\n"
+        f"root = Path({meta['output_dir']!r})\n"
         "files = sorted(str(path) for path in root.glob('*.sgf') if path.is_file())\n"
         "print(json.dumps(files))\n"
         "PY",
@@ -214,13 +208,13 @@ async def _choose_candidate_path(meta: dict[str, Any], session: cb.DesktopSessio
         return None
 
     fallbacks = [
-        f"{meta['remote_output_dir']}/ground-truth.sgf",
-        f"{meta['remote_output_dir']}/blank_19x19.sgf",
+        f"{meta['output_dir']}/ground-truth.sgf",
+        f"{meta['output_dir']}/blank_19x19.sgf",
     ]
     for path in fallbacks:
         if path in sgf_paths:
             return path
-    logger.warning("ambiguous candidate outputs in %s: %s", meta["remote_output_dir"], sgf_paths)
+    logger.warning("ambiguous candidate outputs in %s: %s", meta["output_dir"], sgf_paths)
     return None
 
 
@@ -231,7 +225,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     meta = task_cfg.metadata
     candidate_path = await _choose_candidate_path(meta, session)
     if not candidate_path:
-        logger.warning("no candidate SGF found in %s", meta["remote_output_dir"])
+        logger.warning("no candidate SGF found in %s", meta["output_dir"])
         return [0.0]
 
     try:

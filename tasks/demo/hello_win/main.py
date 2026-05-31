@@ -24,7 +24,6 @@ from tasks.common_config import GeneralTaskConfig
 
 logger = logging.getLogger(__name__)
 
-
 VARIANTS: list[tuple[str, dict]] = [
     ("simple",    {"expected": "hello world\r\n"}),
     ("json_kv",   {"expected_kv": {"greeting": "hello", "target": "world"}}),
@@ -34,7 +33,6 @@ VARIANTS: list[tuple[str, dict]] = [
         "line 3: done",
     ]}),
 ]
-
 
 @dataclass
 class TaskConfig(GeneralTaskConfig):
@@ -50,7 +48,7 @@ class TaskConfig(GeneralTaskConfig):
 
     @property
     def answer_path(self) -> str:
-        return rf"{self.remote_output_dir}\answer.txt"
+        return rf"{self.output_dir}\answer.txt"
 
     @property
     def input_request_path(self) -> str:
@@ -97,7 +95,6 @@ class TaskConfig(GeneralTaskConfig):
         })
         return m
 
-
 def _expected_text(variant: str, payload: dict) -> str:
     """The reference content for each variant. This is what evaluate compares against.
 
@@ -112,7 +109,6 @@ def _expected_text(variant: str, payload: dict) -> str:
     if variant == "multiline":
         return "\r\n".join(payload["expected_lines"]) + "\r\n"
     raise ValueError(f"unknown variant: {variant}")
-
 
 def _request_text(variant: str, payload: dict, output_path: str) -> str:
     """The agent-visible instructions in input\\note_request.txt for this variant."""
@@ -136,11 +132,10 @@ def _request_text(variant: str, payload: dict, output_path: str) -> str:
         return (
             f"Variant: multiline\r\n"
             f"Write these 3 lines to {output_path} (Windows CRLF, trailing newline):\r\n"
-            + "\r\n".join(f"  {l}" for l in lines)
+            + "\r\n".join(f"  {ln}" for ln in lines)
             + "\r\n"
         )
     raise ValueError(variant)
-
 
 def _helper_script(expected: str, answer_path: str, output_dir: str) -> str:
     """Build a `.cmd` script that writes the variant's expected text to answer_path.
@@ -163,11 +158,9 @@ def _helper_script(expected: str, answer_path: str, output_dir: str) -> str:
         "endlocal\r\n"
     )
 
-
 def _to_b64(s: str) -> str:
     import base64
     return base64.b64encode(s.encode("utf-8")).decode("ascii")
-
 
 @cb.tasks_config(split="train")
 def load():
@@ -185,7 +178,6 @@ def load():
         ))
     return out
 
-
 @cb.setup_task(split="train")
 async def start(task_cfg, session: cb.DesktopSession):
     """Stage input\\ + software\\ on VM; verify reference\\ NOT visible yet."""
@@ -194,7 +186,7 @@ async def start(task_cfg, session: cb.DesktopSession):
     payload = meta["expected_payload"]
 
     # Create directories (PowerShell's New-Item -Force is idempotent).
-    for d in (meta["input_dir"], meta["software_dir"], meta["remote_output_dir"]):
+    for d in (meta["input_dir"], meta["software_dir"], meta["output_dir"]):
         await session.run_command(
             f'powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path \'{d}\' | Out-Null"',
             check=False,
@@ -225,7 +217,7 @@ async def start(task_cfg, session: cb.DesktopSession):
     expected = _expected_text(variant, payload)
     await session.write_file(
         meta["software_script_path"],
-        _helper_script(expected, meta["answer_path"], meta["remote_output_dir"]),
+        _helper_script(expected, meta["answer_path"], meta["output_dir"]),
     )
 
     # Visibility check: reference MUST NOT be readable yet (eval staging unlocks).
@@ -237,7 +229,6 @@ async def start(task_cfg, session: cb.DesktopSession):
         raise RuntimeError(
             f"reference leaked during setup: {meta['reference_path']} was readable"
         )
-
 
 @cb.evaluate_task(split="train")
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
@@ -268,9 +259,9 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     if actual_norm == expected_norm:
         return [1.0]
 
-    expected_lines = [l for l in expected_norm.split("\n") if l.strip()]
+    expected_lines = [ln for ln in expected_norm.split("\n") if ln.strip()]
     if not expected_lines:
         return [0.0]
-    hits = sum(1 for l in expected_lines if l in actual_norm)
+    hits = sum(1 for ln in expected_lines if ln in actual_norm)
     partial = hits / len(expected_lines)
     return [round(partial * 0.5, 3)]

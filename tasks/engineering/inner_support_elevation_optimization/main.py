@@ -20,7 +20,6 @@ TASK_NAME = "inner_support_elevation_optimization"
 TASK_ID = f"{DOMAIN_NAME}/{TASK_NAME}"
 VARIANT_NAME = "base"
 
-REMOTE_ROOT_DIR = r"E:\agenthle"
 PLAXIS_INPUT_EXE = r"C:\Program Files\Seequent\PLAXIS 3D 2023.2\Plaxis3DInput.exe"
 PLAXIS_OUTPUT_EXE = r"C:\Program Files\Seequent\PLAXIS 3D 2023.2\Plaxis3DOutput.exe"
 PLAXIS_OUTPUT_VIEWER_EXE = r"C:\Program Files\Seequent\PLAXIS 3D Output Viewer 2023.2\Plaxis3DOutputViewer.exe"
@@ -129,18 +128,9 @@ def _parse_case_summary(csv_text: str) -> list[dict[str, str]]:
 
 @dataclass
 class InnerSupportElevationConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = REMOTE_ROOT_DIR
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = VARIANT_NAME
-
-    @property
-    def task_dir(self) -> str:
-        return _win_join(self.REMOTE_ROOT_DIR, DOMAIN_NAME, TASK_NAME, VARIANT_NAME)
-
-    @property
-    def input_dir(self) -> str:
-        return _win_join(self.task_dir, "input")
 
     @property
     def answer_template_file(self) -> str:
@@ -168,15 +158,15 @@ class InnerSupportElevationConfig(GeneralTaskConfig):
 
     @property
     def answer_file(self) -> str:
-        return _win_join(self.remote_output_dir, "answer.json")
+        return _win_join(self.output_dir, "answer.json")
 
     @property
     def case_summary_file(self) -> str:
-        return _win_join(self.remote_output_dir, "case_summary.csv")
+        return _win_join(self.output_dir, "case_summary.csv")
 
     @property
     def memo_file(self) -> str:
-        return _win_join(self.remote_output_dir, "support_position_engineering_memo.md")
+        return _win_join(self.output_dir, "support_position_engineering_memo.md")
 
     @property
     def ground_truth_file(self) -> str:
@@ -221,15 +211,15 @@ Launch the PLAXIS 3D 2023.2 executables yourself — e.g. via PowerShell:
 3. Run the staged calculations through the final excavation state for each case.
 4. Extract maximum settlement and maximum outer-wall lateral displacement for each case.
 5. Save one or more native PLAXIS project files using the filename prefix:
-   `{self.remote_output_dir}\\model_family_support_position`
+   `{self.output_dir}\\model_family_support_position`
 6. Save the structured summary table exactly to:
    `{self.case_summary_file}`
 7. Save the required images exactly to:
-   `{self.remote_output_dir}\\pos_0m_output_view.png`
-   `{self.remote_output_dir}\\pos_2m_output_view.png`
-   `{self.remote_output_dir}\\pos_4m_output_view.png`
-   `{self.remote_output_dir}\\settlement_vs_support_position.png`
-   `{self.remote_output_dir}\\lateral_disp_vs_support_position.png`
+   `{self.output_dir}\\pos_0m_output_view.png`
+   `{self.output_dir}\\pos_2m_output_view.png`
+   `{self.output_dir}\\pos_4m_output_view.png`
+   `{self.output_dir}\\settlement_vs_support_position.png`
+   `{self.output_dir}\\lateral_disp_vs_support_position.png`
 8. Save the engineering memo exactly to:
    `{self.memo_file}`
 9. Save the final machine-readable answer exactly to:
@@ -238,7 +228,7 @@ Launch the PLAXIS 3D 2023.2 executables yourself — e.g. via PowerShell:
 ## Output Requirements
 - `answer.json` must use the exact schema from `{self.answer_template_file}`
 - Report settlement and displacement as positive magnitudes in millimeters
-- Keep all work products inside `{self.remote_output_dir}`
+- Keep all work products inside `{self.output_dir}`
 """
 
     def to_metadata(self) -> dict[str, Any]:
@@ -308,7 +298,7 @@ def _has_exact_answer_schema(answer_payload: dict[str, Any]) -> bool:
 @cb.evaluate_task(split="train")
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     meta = task_cfg.metadata
-    output_dir = meta["remote_output_dir"]
+    output_dir = meta["output_dir"]
     answer_file = meta["answer_file"]
     case_summary_file = meta["case_summary_file"]
     memo_file = meta["memo_file"]

@@ -31,7 +31,6 @@ def win_join(*parts: str) -> str:
 
 @dataclass
 class VideoStoryboardConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = os.environ.get("REMOTE_ROOT_DIR", r"E:\agenthle")
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = VARIANT_NAME
@@ -54,7 +53,7 @@ class VideoStoryboardConfig(GeneralTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return win_join(self.remote_output_dir, OUTPUT_NAME)
+        return win_join(self.output_dir, OUTPUT_NAME)
 
     @property
     def reference_storyboard(self) -> str:

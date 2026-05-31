@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -70,7 +69,7 @@ class DataPipelineEtlConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = "computing_math"
     TASK_NAME: str = "data_pipeline_etl_instance_1"
     VARIANT_NAME: str = "base"
-    REMOTE_OUTPUT_DIR: str = os.environ.get("REMOTE_OUTPUT_DIR", "output")
+    OS_TYPE: str = "linux"
 
     @property
     def task_prompt_file(self) -> str:
@@ -110,19 +109,19 @@ class DataPipelineEtlConfig(LinuxTaskConfig):
 
     @property
     def output_db(self) -> str:
-        return f"{self.remote_output_dir}/warehouse.db"
+        return f"{self.output_dir}/warehouse.db"
 
     @property
     def output_report(self) -> str:
-        return f"{self.remote_output_dir}/data_quality_report.json"
+        return f"{self.output_dir}/data_quality_report.json"
 
     @property
     def output_summary(self) -> str:
-        return f"{self.remote_output_dir}/warehouse_summary.json"
+        return f"{self.output_dir}/warehouse_summary.json"
 
     @property
     def runtime_scratch_dir(self) -> str:
-        return f"{self.remote_output_dir}/_runtime"
+        return f"{self.output_dir}/_runtime"
 
     @property
     def reference_db(self) -> str:

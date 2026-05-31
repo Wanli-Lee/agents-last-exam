@@ -6,7 +6,6 @@ as a structured JSON file.
 """
 
 import logging
-import os
 from dataclasses import dataclass
 
 import cua_bench as cb
@@ -34,7 +33,7 @@ class MetabaseDashboardConfig(GeneralTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return rf"{self.remote_output_dir}\dashboard_metrics.json"
+        return rf"{self.output_dir}\dashboard_metrics.json"
 
     @property
     def reference_file(self) -> str:
@@ -84,9 +83,7 @@ You are a business analyst building a BI dashboard in Metabase.
         return metadata
 
 
-config = MetabaseDashboardConfig(
-    REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"),
-)
+config = MetabaseDashboardConfig()
 
 
 @cb.tasks_config(split="train")

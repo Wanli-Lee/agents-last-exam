@@ -3,7 +3,6 @@
 import csv
 import io
 import logging
-import os
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import PureWindowsPath
@@ -18,7 +17,6 @@ _setup = BaseTaskSetup()
 
 logger = logging.getLogger(__name__)
 
-CANONICAL_REMOTE_ROOT = os.environ.get("REMOTE_ROOT_DIR", r"E:\agenthle")
 REQUIRED_BOX_HEADERS = [
     "case_id",
     "selected_reader",
@@ -47,14 +45,17 @@ def win_join(*parts: str) -> str:
 
 @dataclass
 class TaskConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = CANONICAL_REMOTE_ROOT
     DOMAIN_NAME: str = "health_medicine"
     TASK_NAME: str = "microdicom_nih_cxr_reader_adjudication"
     VARIANT_NAME: str = "base"
 
     @property
     def task_dir(self) -> str:
-        return win_join(self.REMOTE_ROOT_DIR, self.DOMAIN_NAME, self.TASK_NAME, self.VARIANT_NAME)
+        return win_join(self.data_root, self.DOMAIN_NAME, self.TASK_NAME, self.VARIANT_NAME)
+
+    @property
+    def output_dir(self) -> str:
+        return win_join(self.task_dir, self.OUTPUT_SUBDIR)
 
     @property
     def input_dir(self) -> str:
@@ -90,15 +91,15 @@ class TaskConfig(GeneralTaskConfig):
 
     @property
     def adjudicated_boxes_path(self) -> str:
-        return win_join(self.remote_output_dir, "adjudicated_boxes.tsv")
+        return win_join(self.output_dir, "adjudicated_boxes.tsv")
 
     @property
     def adjudication_log_path(self) -> str:
-        return win_join(self.remote_output_dir, "adjudication_log.tsv")
+        return win_join(self.output_dir, "adjudication_log.tsv")
 
     @property
     def final_impressions_path(self) -> str:
-        return win_join(self.remote_output_dir, "final_impressions.tsv")
+        return win_join(self.output_dir, "final_impressions.tsv")
 
     @property
     def reference_boxes_path(self) -> str:
@@ -127,7 +128,7 @@ Files and tools:
 - Reader B draft annotations: `{self.reader_b_path}`
 - Clinical notes directory: `{self.clinical_notes_dir}`
 - DICOM cases directory: `{self.dicom_cases_dir}`
-- Output directory: `{self.remote_output_dir}`
+- Output directory: `{self.output_dir}`
 
 What you must do:
 1. Read `adjudication_rules.md` and `case_manifest.tsv`.
@@ -136,7 +137,7 @@ What you must do:
 4. For each case in the manifest, open the listed DICOM file in MicroDicom.
 5. Compare the candidate reader boxes from `reader_a_annotations.tsv` and `reader_b_annotations.tsv` against the image.
 6. Choose the better-supported reader result for each case.
-7. Save exactly these UTF-8 tab-delimited files under `{self.remote_output_dir}`:
+7. Save exactly these UTF-8 tab-delimited files under `{self.output_dir}`:
    - `{self.adjudicated_boxes_path}`
    - `{self.adjudication_log_path}`
    - `{self.final_impressions_path}`

@@ -46,7 +46,7 @@ class TaskConfig(GeneralTaskConfig):
 
     @property
     def download_url(self) -> str:
-        return win_join(self.remote_output_dir, "downloads")
+        return win_join(self.output_dir, "downloads")
 
     @property
     def task_description(self) -> str:
@@ -65,7 +65,7 @@ Input Files:
    - Example line: `688001_某公司_2023年年报.pdf`
 
 Output File:
-1) {self.remote_output_dir}\final_dataset.xlsx
+1) {self.output_dir}\final_dataset.xlsx
    - One sheet.
    - One row per person.
    - Required columns (exact names):
@@ -127,7 +127,7 @@ async def start(task_cfg, session: cb.DesktopSession):
 
 @cb.evaluate_task(split="train")
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
-    outdir = task_cfg.metadata["remote_output_dir"]
+    outdir = task_cfg.metadata["output_dir"]
     refdir = task_cfg.metadata["reference_dir"]
     try:
         file_score = await verify_files_remote(session, outdir, refdir)

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import shlex
 import sys
 from pathlib import Path, PurePosixPath
@@ -53,7 +52,6 @@ DOMAIN_NAME = "health_medicine"
 TASK_NAME = "causal_ihdp_ite_estimation_6a_v1"
 TASK_ID = f"{DOMAIN_NAME}/{TASK_NAME}"
 VARIANT_NAME = "base"
-LINUX_REMOTE_ROOT = "/media/user/data/agenthle"
 EVAL_TMP_ROOT = f"/tmp/agenthle_eval/{TASK_NAME}"
 
 
@@ -81,9 +79,9 @@ def _shell_join(parts: list[str]) -> str:
     return " ".join(shlex.quote(part) for part in parts)
 
 
-def _is_fixture_or_admin_output(remote_output_dir: str, task_dir: str) -> bool:
+def _is_fixture_or_admin_output(output_dir: str, task_dir: str) -> bool:
     default_output_dir = _remote_join(task_dir, "output")
-    return remote_output_dir != default_output_dir
+    return output_dir != default_output_dir
 
 
 class CausalIHDPITEConfig(LinuxTaskConfig):
@@ -98,17 +96,6 @@ class CausalIHDPITEConfig(LinuxTaskConfig):
             TASK_NAME=TASK_NAME,
             VARIANT_NAME=VARIANT_NAME,
             OS_TYPE="linux",
-            REMOTE_ROOT_DIR=os.environ.get("REMOTE_ROOT_DIR", LINUX_REMOTE_ROOT),
-            REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"),
-        )
-
-    @property
-    def task_dir(self) -> str:
-        return _remote_join(
-            self.REMOTE_ROOT_DIR,
-            self.DOMAIN_NAME,
-            self.TASK_NAME,
-            self.VARIANT_NAME,
         )
 
     @property
@@ -124,12 +111,12 @@ class CausalIHDPITEConfig(LinuxTaskConfig):
         return _remote_join(self.task_dir, "output_test_neg")
 
     @property
-    def remote_output_dir(self) -> str:
-        if self.REMOTE_OUTPUT_DIR == "output_test_pos":
+    def output_dir(self) -> str:
+        if self.OUTPUT_SUBDIR == "output_test_pos":
             return self.output_test_pos_dir
-        if self.REMOTE_OUTPUT_DIR == "output_test_neg":
+        if self.OUTPUT_SUBDIR == "output_test_neg":
             return self.output_test_neg_dir
-        return _remote_join(self.task_dir, self.REMOTE_OUTPUT_DIR)
+        return _remote_join(self.task_dir, self.OUTPUT_SUBDIR)
 
     @property
     def task_brief_file(self) -> str:
@@ -177,15 +164,15 @@ class CausalIHDPITEConfig(LinuxTaskConfig):
 
     @property
     def predict_sh(self) -> str:
-        return _remote_join(self.remote_output_dir, "predict.sh")
+        return _remote_join(self.output_dir, "predict.sh")
 
     @property
     def output_csv(self) -> str:
-        return _remote_join(self.remote_output_dir, "output.csv")
+        return _remote_join(self.output_dir, "output.csv")
 
     @property
     def artifacts_dir(self) -> str:
-        return _remote_join(self.remote_output_dir, "artifacts")
+        return _remote_join(self.output_dir, "artifacts")
 
     @property
     def model_selection_csv(self) -> str:
@@ -217,7 +204,7 @@ class CausalIHDPITEConfig(LinuxTaskConfig):
 
     @property
     def eval_tmp_dir(self) -> str:
-        return _remote_join(EVAL_TMP_ROOT, self.REMOTE_OUTPUT_DIR.replace("/", "_"))
+        return _remote_join(EVAL_TMP_ROOT, self.OUTPUT_SUBDIR.replace("/", "_"))
 
     @property
     def eval_tmp_output_csv(self) -> str:
@@ -275,7 +262,7 @@ Rules:
                 "reference_dir": self.reference_dir,
                 "output_test_pos_dir": self.output_test_pos_dir,
                 "output_test_neg_dir": self.output_test_neg_dir,
-                "remote_output_dir": self.remote_output_dir,
+                "output_dir": self.output_dir,
                 "task_brief_file": self.task_brief_file,
                 "task_readme_file": self.task_readme_file,
                 "feature_schema_file": self.feature_schema_file,
@@ -359,7 +346,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
         logger.error("[%s] missing evaluation paths: %s", TASK_NAME, "; ".join(missing_eval_paths))
         return [0.0]
 
-    fixture_mode = _is_fixture_or_admin_output(meta["remote_output_dir"], meta["task_dir"])
+    fixture_mode = _is_fixture_or_admin_output(meta["output_dir"], meta["task_dir"])
     if fixture_mode:
         output_csv_path = meta["eval_tmp_output_csv"]
         artifacts_dir = _remote_join(meta["eval_tmp_dir"], "artifacts")

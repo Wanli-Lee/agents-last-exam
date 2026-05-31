@@ -112,7 +112,7 @@ class TaskConfig(GeneralTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return rf"{self.remote_output_dir}\tool_report.json"
+        return rf"{self.output_dir}\tool_report.json"
 
     @property
     def task_description(self) -> str:

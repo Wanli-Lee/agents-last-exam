@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import sys
 from decimal import Decimal, InvalidOperation
 from pathlib import Path

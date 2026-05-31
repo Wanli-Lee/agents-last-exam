@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -35,15 +34,7 @@ class CVRPTaskConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = VARIANT_NAME
-
-    def __init__(self, *, REMOTE_OUTPUT_DIR: str = ""):
-        super().__init__(
-            DOMAIN_NAME=DOMAIN_NAME,
-            TASK_NAME=TASK_NAME,
-            VARIANT_NAME=VARIANT_NAME,
-            OS_TYPE="linux",
-            REMOTE_OUTPUT_DIR=REMOTE_OUTPUT_DIR or os.environ.get("REMOTE_OUTPUT_DIR", "output"),
-        )
+    OS_TYPE: str = "linux"
 
     @property
     def problem_spec(self) -> str:
@@ -63,7 +54,7 @@ class CVRPTaskConfig(LinuxTaskConfig):
 
     @property
     def solutions_dir(self) -> str:
-        return f"{self.remote_output_dir}/solutions"
+        return f"{self.output_dir}/solutions"
 
     @property
     def task_description(self) -> str:
@@ -85,12 +76,12 @@ Build a reproducible CVRP-solving workflow and generate VRPLIB-format solutions 
 Write these required files:
 {required}
 
-You may also write helper scripts and logs anywhere under `{self.remote_output_dir}`.
+You may also write helper scripts and logs anywhere under `{self.output_dir}`.
 
 ## Rules
 - Read `{self.problem_spec}` first.
 - Do not modify files under `{self.input_dir}`.
-- Do not write outside `{self.remote_output_dir}`.
+- Do not write outside `{self.output_dir}`.
 - Use only the staged local inputs and software already available on this VM.
 """
 
@@ -155,9 +146,9 @@ async def evaluate(task_cfg, session: cb.DesktopSession):
             session, f'{meta["input_dir"]}/instances', local_input_instances
         )
         await _download_remote_tree(session, meta["reference_dir"], local_reference)
-        if await session.exists(f'{meta["remote_output_dir"]}/solutions'):
+        if await session.exists(f'{meta["output_dir"]}/solutions'):
             await _download_remote_tree(
-                session, f'{meta["remote_output_dir"]}/solutions', local_solutions
+                session, f'{meta["output_dir"]}/solutions', local_solutions
             )
 
         result = score_solution_dir(local_solutions, local_input_instances, local_reference)

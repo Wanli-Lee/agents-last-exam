@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import sys
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
@@ -35,7 +34,7 @@ except ModuleNotFoundError:  # pragma: no cover - local import fallback only
     )
 
 from tasks.common_setup import BaseTaskSetup
-from tasks.linux_runtime import DATA_ROOT, LinuxTaskConfig
+from tasks.linux_runtime import LinuxTaskConfig
 
 
 _setup = BaseTaskSetup()
@@ -52,7 +51,6 @@ DOMAIN_NAME = "health_medicine"
 TASK_NAME = "obermeyer_bias_reproduction"
 TASK_ID = f"{DOMAIN_NAME}/{TASK_NAME}"
 VARIANT_NAMES = ("base", "variant_1")
-LINUX_REMOTE_ROOT = "/media/user/data/agenthle"
 
 
 def _remote_join(*parts: str) -> str:
@@ -89,8 +87,6 @@ class ObermeyerBiasConfig(LinuxTaskConfig):
             TASK_NAME=TASK_NAME,
             VARIANT_NAME=variant_name,
             OS_TYPE="linux",
-            REMOTE_ROOT_DIR=os.environ.get("REMOTE_ROOT_DIR", LINUX_REMOTE_ROOT),
-            REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"),
         )
 
     @property
@@ -106,12 +102,12 @@ class ObermeyerBiasConfig(LinuxTaskConfig):
         return _remote_join(self.task_dir, "output_test_neg")
 
     @property
-    def remote_output_dir(self) -> str:
-        if self.REMOTE_OUTPUT_DIR == "output_test_pos":
+    def output_dir(self) -> str:
+        if self.OUTPUT_SUBDIR == "output_test_pos":
             return self.output_test_pos_dir
-        if self.REMOTE_OUTPUT_DIR == "output_test_neg":
+        if self.OUTPUT_SUBDIR == "output_test_neg":
             return self.output_test_neg_dir
-        return _remote_join(self.task_dir, self.REMOTE_OUTPUT_DIR)
+        return _remote_join(self.task_dir, self.OUTPUT_SUBDIR)
 
     @property
     def analysis_data_file(self) -> str:
@@ -139,15 +135,15 @@ class ObermeyerBiasConfig(LinuxTaskConfig):
 
     @property
     def predictions_output(self) -> str:
-        return _remote_join(self.remote_output_dir, "full_predictions.csv")
+        return _remote_join(self.output_dir, "full_predictions.csv")
 
     @property
     def baseline_report_output(self) -> str:
-        return _remote_join(self.remote_output_dir, "baseline_analysis_report.md")
+        return _remote_join(self.output_dir, "baseline_analysis_report.md")
 
     @property
     def revised_report_output(self) -> str:
-        return _remote_join(self.remote_output_dir, "revised_analysis_report.md")
+        return _remote_join(self.output_dir, "revised_analysis_report.md")
 
     @property
     def reference_metrics_file(self) -> str:
@@ -173,7 +169,7 @@ Your job is to:
 1. Audit the observed healthcare risk score using `risk_score_t` directly as the baseline ranking.
 2. Build a reproducible counterfactual revised ranking based on medical need, not by manually assigning scores by race.
 3. Show whether Black patients are sicker at similar baseline risk and whether White patients incur higher cost at similar health burden.
-4. Save exactly these files under `{self.remote_output_dir}`:
+4. Save exactly these files under `{self.output_dir}`:
    - `{self.predictions_output}`
    - `{self.baseline_report_output}`
    - `{self.revised_report_output}`
@@ -196,7 +192,7 @@ Your job is to:
                 "reference_dir": self.reference_dir,
                 "output_test_pos_dir": self.output_test_pos_dir,
                 "output_test_neg_dir": self.output_test_neg_dir,
-                "remote_output_dir": self.remote_output_dir,
+                "output_dir": self.output_dir,
                 "analysis_data_file": self.analysis_data_file,
                 "dummy_test_file": self.dummy_test_file,
                 "instructions_file": self.instructions_file,

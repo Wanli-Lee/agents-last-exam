@@ -2,7 +2,6 @@
 
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -62,7 +61,6 @@ class CrfSdtmMappingConfig(LinuxTaskConfig):
     def __init__(
         self,
         *,
-        REMOTE_OUTPUT_DIR: str,
         DOMAIN_NAME: str,
         TASK_NAME: str,
         VARIANT_NAME: str,
@@ -73,7 +71,6 @@ class CrfSdtmMappingConfig(LinuxTaskConfig):
         flag_column: str,
     ) -> None:
         super().__init__(
-            REMOTE_OUTPUT_DIR=REMOTE_OUTPUT_DIR,
             DOMAIN_NAME=DOMAIN_NAME,
             TASK_NAME=TASK_NAME,
             VARIANT_NAME=VARIANT_NAME,
@@ -102,7 +99,7 @@ class CrfSdtmMappingConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/{self.output_filename}"
+        return f"{self.output_dir}/{self.output_filename}"
 
     @property
     def reference_file(self) -> str:
@@ -143,7 +140,7 @@ The CSV must follow the column order and constraints in `{self.output_contract_f
 
 ## Constraints
 - Produce a mapping specification only, not subject-level records or XPT datasets.
-- Keep all generated files inside `{self.remote_output_dir}`.
+- Keep all generated files inside `{self.output_dir}`.
 - Do not modify files under `{self.input_dir}`.
 - Use the visible task files only; do not use external web sources.
 """
@@ -153,7 +150,6 @@ The CSV must follow the column order and constraints in `{self.output_contract_f
         metadata.update(
             {
                 "task_dir": self.task_dir,
-                "data_task_dir": self.data_task_dir,
                 "input_dir": self.input_dir,
                 "software_dir": self.software_dir,
                 "task_brief_file": self.task_brief_file,
@@ -179,7 +175,6 @@ The CSV must follow the column order and constraints in `{self.output_contract_f
 
 def _config_from_variant(spec: dict[str, str]) -> CrfSdtmMappingConfig:
     return CrfSdtmMappingConfig(
-        REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"),
         DOMAIN_NAME=DOMAIN_NAME,
         TASK_NAME=TASK_NAME,
         VARIANT_NAME=spec["variant"],

@@ -6,6 +6,7 @@ import json
 import logging
 import posixpath
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 import cua_bench as cb
@@ -32,11 +33,12 @@ def _normalize_output_dir_name(path: str) -> str:
     normalized = posixpath.normpath(path.replace("\\", "/").strip())
     if normalized not in CANONICAL_OUTPUT_DIR_NAMES:
         raise ValueError(
-            "REMOTE_OUTPUT_DIR must normalize to one of: output, output_test_pos, output_test_neg"
+            "OUTPUT_SUBDIR must normalize to one of: output, output_test_pos, output_test_neg"
         )
     return normalized
 
 
+@dataclass
 class TaskConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
@@ -44,15 +46,15 @@ class TaskConfig(LinuxTaskConfig):
 
     @property
     def output_dir_name(self) -> str:
-        return _normalize_output_dir_name(self.REMOTE_OUTPUT_DIR)
+        return _normalize_output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
-    def remote_output_dir(self) -> str:
+    def output_dir(self) -> str:
         return f"{self.task_dir}/{self.output_dir_name}"
 
     @property
     def output_files(self) -> dict[str, str]:
-        return {name: f"{self.remote_output_dir}/{name}" for name in REQUIRED_FILES}
+        return {name: f"{self.output_dir}/{name}" for name in REQUIRED_FILES}
 
     @property
     def task_brief_file(self) -> str:
@@ -130,7 +132,7 @@ What you must do:
    - `log2FoldChange < -1` and `padj < 0.05` for `downregulated`
    - otherwise `no significant`
 6. Read `{self.enrichment_config_file}` and run KEGG enrichment separately on the upregulated and downregulated gene sets with `gseapy`.
-7. Write exactly these files under `{self.remote_output_dir}`:
+7. Write exactly these files under `{self.output_dir}`:
    - `BRCA_deseq2_results.tsv`
    - `BRCA_upregulated_genes_kegg_enrichment.tsv`
    - `BRCA_downregulated_genes_kegg_enrichment.tsv`
@@ -145,7 +147,7 @@ Helpful notes:
   `uv venv .venv && uv pip install --python .venv/bin/python -r {self.requirements_file}`
 
 Do not modify files under `input/`.
-Do not write outputs anywhere except `{self.remote_output_dir}`.
+Do not write outputs anywhere except `{self.output_dir}`.
 Do not ask for confirmation. Execute directly.
 """
 
@@ -154,7 +156,6 @@ Do not ask for confirmation. Execute directly.
         metadata.update(
             {
                 "task_dir": self.task_dir,
-                "data_task_dir": self.data_task_dir,
                 "input_dir": self.input_dir,
                 "count_matrix_file": self.count_matrix_file,
                 "metadata_file": self.metadata_file,
@@ -176,7 +177,7 @@ Do not ask for confirmation. Execute directly.
         return metadata
 
 
-config = TaskConfig(DOMAIN_NAME=DOMAIN_NAME, TASK_NAME=TASK_NAME, VARIANT_NAME=VARIANT_NAME)
+config = TaskConfig()
 
 
 @cb.tasks_config(split="train")

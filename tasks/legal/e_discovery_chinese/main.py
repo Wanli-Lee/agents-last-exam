@@ -181,7 +181,7 @@ class TaskConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/证据目录.xlsx"
+        return f"{self.output_dir}/证据目录.xlsx"
 
     @property
     def task_description(self) -> str:
@@ -216,7 +216,7 @@ The workbook must contain an evidence-index table with columns for grouping,
 serial number, evidence name, evidence form/type, evidence source, page number,
 proof purpose, and remarks.
 
-Do not write outputs outside `{self.remote_output_dir}`.
+Do not write outputs outside `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict:
@@ -247,13 +247,13 @@ async def start(task_cfg, session: cb.DesktopSession):
 @cb.evaluate_task(split="train")
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     meta = task_cfg.metadata
-    eval_dir = f"/tmp/agenthle_eval/{meta['task_name']}"
+    eval_dir = f"/tmp/ale_eval/{meta['task_name']}"
     extract_script = f"{eval_dir}/score_evidence_index.py"
     try:
         await session.makedirs(eval_dir)
         await session.write_file(extract_script, EXTRACT_SCRIPT)
         result = await session.run_command(
-            f'python "{extract_script}" --output "{meta["remote_output_dir"]}"'
+            f'python "{extract_script}" --output "{meta["output_dir"]}"'
         )
         stdout = result.get("stdout", "")
         if result.get("return_code", 1) != 0:

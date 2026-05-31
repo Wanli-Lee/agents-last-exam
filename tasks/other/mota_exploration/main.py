@@ -11,8 +11,8 @@ from tasks.common_setup import BaseTaskSetup
 logger = logging.getLogger(__name__)
 
 @dataclass
+@dataclass
 class TaskConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = r"E:\agenthle"
     DOMAIN_NAME: str = "other"
 
     TASK_NAME: str = "mota_exploration"
@@ -33,7 +33,7 @@ You are doing the reference-capture pass for floors 1–3.
 Steps:
 1. Open `{self.game_url}` in Ruffle yourself — e.g. double-click the file in Explorer, or run `Start-Process '{self.game_url}'` in PowerShell. Wait for the title / loading screens and enter the actual game world.
 2. Play forward through floors 1 → 3 using normal movement and interaction. No cheats and no save-state hacks — this is what a porting engineer would do to surface each floor honestly.
-3. On arrival at each new floor, capture a full-window screenshot of the game and save it to "{self.remote_output_dir}\\$FLOOR_NUMBER$.png", where $FLOOR_NUMBER$ is the integer floor index (1.png, 2.png, 3.png).
+3. On arrival at each new floor, capture a full-window screenshot of the game and save it to "{self.output_dir}\\$FLOOR_NUMBER$.png", where $FLOOR_NUMBER$ is the integer floor index (1.png, 2.png, 3.png).
 
 Acceptance: one PNG per floor reached, named by floor number, depicting the correct floor — each capture will be diffed against a held-out reference frame of the same floor from the original build.
 """
@@ -94,14 +94,14 @@ async def query_milestone(
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     from tasks.utils.evaluation import evaluate_milestone_mode
 
-    remote_output_path = task_cfg.metadata["remote_output_dir"]
+    output_path = task_cfg.metadata["output_dir"]
     reference_path = task_cfg.metadata["reference_dir"]
     task_tag = task_cfg.metadata.get("variant_name", "unknown")
 
     try:
         final_score, _ = await evaluate_milestone_mode(
             session=session,
-            target_path=remote_output_path,
+            target_path=output_path,
             reference_path=reference_path,
             task_tag=task_tag,
             comparison_fn=query_milestone,

@@ -29,4 +29,4 @@ class TaskDataSpec:
     software_dir: str | None = None
     reference_dir: str | None = None
     reference_gcs_prefix: str | None = None
-    remote_output_dir: str | None = None
+    output_dir: str | None = None

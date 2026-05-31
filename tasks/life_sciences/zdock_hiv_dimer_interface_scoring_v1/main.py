@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -37,7 +36,7 @@ logger = logging.getLogger(__name__)
 def _normalize_output_dir_name(raw: str | None) -> str:
     value = (raw or "output").strip().strip("/")
     if not value or value in {".", ".."} or "/" in value or "\\" in value:
-        raise ValueError(f"REMOTE_OUTPUT_DIR must be a single directory name, got {raw!r}")
+        raise ValueError(f"OUTPUT_SUBDIR must be a single directory name, got {raw!r}")
     return value
 
 
@@ -46,10 +45,10 @@ class ZDockHivDimerConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = VARIANT_NAME
-    REMOTE_OUTPUT_DIR: str = os.environ.get("REMOTE_OUTPUT_DIR", "output")
 
     def __post_init__(self) -> None:
-        self.REMOTE_OUTPUT_DIR = _normalize_output_dir_name(self.REMOTE_OUTPUT_DIR)
+        # validate the configured output subdir name (allowed-set check)
+        _normalize_output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
     def native_complex_file(self) -> str:
@@ -69,7 +68,7 @@ class ZDockHivDimerConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/{OUTPUT_FILENAME}"
+        return f"{self.output_dir}/{OUTPUT_FILENAME}"
 
     @property
     def reference_file(self) -> str:
@@ -122,7 +121,7 @@ columns with exact spelling:
 - `Final Rank`
 
 Do not modify files under `{self.input_dir}`. Keep all generated files inside
-`{self.remote_output_dir}`.
+`{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict[str, Any]:
@@ -146,7 +145,7 @@ config = ZDockHivDimerConfig()
 
 @cb.tasks_config(split="train")
 def load():
-    cfg = ZDockHivDimerConfig(REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"))
+    cfg = ZDockHivDimerConfig()
     return [
         cb.Task(
             description=cfg.task_description,

@@ -120,13 +120,13 @@ time signature = 4/4, duration = 1 bar per chord.
 You are free to choose whichever synthesizer best suits the sound.
 5. Input the chord progression into the DAW piano roll at 120 BPM, 4/4 time, \
 with each chord lasting exactly 1 bar. Use the exact note names specified in the JSON.
-6. Render/export the result as: {self.remote_output_dir}\\{RENDERED_CHORDS}
+6. Render/export the result as: {self.output_dir}\\{RENDERED_CHORDS}
 7. Take an "overview" screenshot of your DAW project (arrangement view with the \
 tracks and clips you used, piano roll with notes entered, or the synthesizer plugin \
 UI with its configured parameters) and save as: \
-{self.remote_output_dir}\\{OVERVIEW_SCREENSHOT}
+{self.output_dir}\\{OVERVIEW_SCREENSHOT}
 
-## Output files (saved to {self.remote_output_dir}):
+## Output files (saved to {self.output_dir}):
 - {RENDERED_CHORDS}: The chord progression rendered with your recreated patch (stereo WAV).
 - {OVERVIEW_SCREENSHOT}: Screenshot of your DAW project or the synthesizer plugin UI.
 
@@ -186,7 +186,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     try:
         meta = task_cfg.metadata
         tag = meta["variant_name"]
-        output_dir = meta["remote_output_dir"]
+        output_dir = meta["output_dir"]
         ground_truth_path = meta["ground_truth_path"]
 
         if not await session.exists(output_dir):

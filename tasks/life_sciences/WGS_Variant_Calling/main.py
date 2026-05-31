@@ -5,6 +5,7 @@ import io
 import logging
 import posixpath
 import re
+from dataclasses import dataclass
 from typing import Optional
 
 import cua_bench as cb
@@ -21,13 +22,15 @@ def _canonical_output_dir_name(path: str) -> str:
     normalized = posixpath.normpath(path.replace("\\", "/"))
     if normalized not in CANONICAL_OUTPUT_DIR_NAMES:
         raise ValueError(
-            f"REMOTE_OUTPUT_DIR must normalize to one of: {CANONICAL_OUTPUT_DIR_NAMES}"
+            f"OUTPUT_SUBDIR must normalize to one of: {CANONICAL_OUTPUT_DIR_NAMES}"
         )
     return normalized
 
 
+@dataclass
 class TaskConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = "life_sciences"
+    TASK_NAME: str = "WGS_Variant_Calling"
     VARIANT_NAME: str = "base"
     CONDA_ENV: str = "wf1-env"
 
@@ -51,11 +54,11 @@ class TaskConfig(LinuxTaskConfig):
 
     @property
     def output_dir_name(self) -> str:
-        return _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
+        return _canonical_output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
-    def remote_output_dir(self) -> str:
-        return f"{self.data_task_dir}/{self.output_dir_name}"
+    def output_dir(self) -> str:
+        return f"{self.task_dir}/{self.output_dir_name}"
 
     @property
     def task_description(self) -> str:
@@ -77,7 +80,7 @@ conda environment: `source "{MINIFORGE_ROOT}/etc/profile.d/conda.sh" && conda ac
 - conda environment `{self.CONDA_ENV}` is preinstalled with bwa, samtools, bcftools, FastQC, MultiQC
 
 ## Required Outputs
-Save all outputs under `{self.remote_output_dir}`:
+Save all outputs under `{self.output_dir}`:
 - `{self.FASTQC_R1_FILE}` — FastQC report for mate 1
 - `{self.FASTQC_R2_FILE}` — FastQC report for mate 2
 - `{self.MULTIQC_FILE}` — MultiQC aggregate report
@@ -110,7 +113,7 @@ Do not ask for confirmation. Execute directly.
         return metadata
 
 
-config = TaskConfig(TASK_NAME="WGS_Variant_Calling")
+config = TaskConfig()
 
 
 @cb.tasks_config(split="train")
@@ -200,7 +203,7 @@ def parse_rtg_summary(summary_text: str) -> Optional[dict]:
 
 @cb.evaluate_task(split="train")
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
-    output_dir = task_cfg.metadata["remote_output_dir"]
+    output_dir = task_cfg.metadata["output_dir"]
     score = 0.0
 
     try:

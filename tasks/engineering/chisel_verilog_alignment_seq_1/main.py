@@ -37,9 +37,7 @@ class ChiselAlignmentConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        if self.REMOTE_OUTPUT_DIR == "output":
-            return f"{self.workdir}/output/answer.json"
-        return f"{self.remote_output_dir}/answer.json"
+        return f"{self.workdir}/output/answer.json"
 
     @property
     def reference_file(self) -> str:

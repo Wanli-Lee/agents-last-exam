@@ -60,7 +60,7 @@ class ClusteredCyclicCodeCircuitLevelSimulationConfig(LinuxTaskConfig):
 
     @property
     def output_csv(self) -> str:
-        return f"{self.remote_output_dir}/{OUTPUT_CSV_NAME}"
+        return f"{self.output_dir}/{OUTPUT_CSV_NAME}"
 
     @property
     def reference_csv(self) -> str:
@@ -112,12 +112,11 @@ Write the final CSV here:
 
 
 def _cfg_for_variant(
-    spec: tuple[str, str], remote_output_dir: str | None = None
+    spec: tuple[str, str],
 ) -> ClusteredCyclicCodeCircuitLevelSimulationConfig:
-    kwargs: dict[str, Any] = {"VARIANT_NAME": spec[0], "VARIANT_LABEL": spec[1]}
-    if remote_output_dir is not None:
-        kwargs["REMOTE_OUTPUT_DIR"] = remote_output_dir
-    return ClusteredCyclicCodeCircuitLevelSimulationConfig(**kwargs)
+    return ClusteredCyclicCodeCircuitLevelSimulationConfig(
+        VARIANT_NAME=spec[0], VARIANT_LABEL=spec[1]
+    )
 
 
 @cb.tasks_config(split="train")

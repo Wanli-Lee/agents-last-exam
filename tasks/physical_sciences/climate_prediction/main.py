@@ -38,11 +38,11 @@ class ClimatePredictionConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/processed/test_predictions.npy"
+        return f"{self.output_dir}/processed/test_predictions.npy"
 
     @property
     def csv_file(self) -> str:
-        return f"{self.remote_output_dir}/submissions/kaggle_submission.csv"
+        return f"{self.output_dir}/submissions/kaggle_submission.csv"
 
     @property
     def task_description(self) -> str:
@@ -63,7 +63,7 @@ the held-out SSP245 test window.
 7. Rename `latitude`/`longitude` dimensions to `y`/`x` for spatial inputs.
 8. Fit normalization on the training split only.
 9. Train any benchmark-safe open-source model or baseline.
-10. Write the required output files under `{self.remote_output_dir}/` exactly as described \
+10. Write the required output files under `{self.output_dir}/` exactly as described \
 by `{self.input_dir}/output_contract.json`.
 
 ## Input Files
@@ -81,7 +81,7 @@ by `{self.input_dir}/output_contract.json`.
 
 ## Output
 
-Save all required files under `{self.remote_output_dir}/`:
+Save all required files under `{self.output_dir}/`:
 - `processed/train_inputs.npy`, `processed/train_outputs.npy`, `processed/test_inputs.npy`
 - `processed/metadata.json`, `processed/test_predictions.npy`
 - `submissions/kaggle_submission.csv`
@@ -127,7 +127,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     task_dir = meta["task_dir"]
     input_dir = meta["input_dir"]
     reference_dir = meta["reference_dir"]
-    remote_output_dir = meta["remote_output_dir"]
+    output_dir = meta["output_dir"]
 
     await session.run_command(
         f'cd "{task_dir}" && bash software/bootstrap_runtime.sh',
@@ -143,7 +143,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     result = await session.run_command(
         f'cd "{task_dir}" && bash software/python_with_task_deps.sh '
         f'"{EVAL_TMP_DIR}/verify_climate.py" '
-        f'--output-dir "{remote_output_dir}" '
+        f'--output-dir "{output_dir}" '
         f'--reference-dir "{reference_dir}" '
         f'--input-dir "{input_dir}"',
         check=False,

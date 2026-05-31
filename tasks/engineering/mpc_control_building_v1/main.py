@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-import os
+from dataclasses import dataclass
 from pathlib import Path
 
 import cua_bench as cb
@@ -28,15 +28,12 @@ def _read_script(name: str) -> str:
     return (SCRIPTS_DIR / name).read_text(encoding="utf-8")
 
 
+@dataclass
 class MPCControlBuildingConfig(LinuxTaskConfig):
-    def __init__(self, *, REMOTE_OUTPUT_DIR: str | None = None) -> None:
-        super().__init__(
-            DOMAIN_NAME=DOMAIN_NAME,
-            TASK_NAME=TASK_NAME,
-            VARIANT_NAME=VARIANT_NAME,
-            OS_TYPE="linux",
-            REMOTE_OUTPUT_DIR=REMOTE_OUTPUT_DIR or os.environ.get("REMOTE_OUTPUT_DIR", "output"),
-        )
+    DOMAIN_NAME: str = DOMAIN_NAME
+    TASK_NAME: str = TASK_NAME
+    VARIANT_NAME: str = VARIANT_NAME
+    OS_TYPE: str = "linux"
 
     @property
     def task_description(self) -> str:
@@ -87,7 +84,7 @@ The time-of-use tariff is:
 
 ## Required Output
 
-Write these artifacts under `{self.remote_output_dir}`:
+Write these artifacts under `{self.output_dir}`:
 
 1. `baseline_data.csv`: 15-minute baseline time series for July 1-July 28.
 2. `mpc_energy_saving_data.csv`: 15-minute closed-loop time series for the
@@ -157,7 +154,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     result = await session.run_command(
         f'UV_CACHE_DIR=/tmp/uv-cache uv run --with pandas --with numpy '
         f'python "{EVAL_TMP_DIR}/verify_outputs.py" '
-        f'--output-dir "{meta["remote_output_dir"]}" '
+        f'--output-dir "{meta["output_dir"]}" '
         f'--input-dir "{meta["input_dir"]}" '
         f'--reference-dir "{meta["reference_dir"]}"'
     )

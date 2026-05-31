@@ -69,7 +69,7 @@ class MolecularStructurePlausibilityConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/problematic_structures.txt"
+        return f"{self.output_dir}/problematic_structures.txt"
 
     @property
     def reference_file(self) -> str:

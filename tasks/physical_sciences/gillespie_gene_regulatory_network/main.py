@@ -45,19 +45,19 @@ class GillespieGeneRegulatoryNetworkConfig(LinuxTaskConfig):
 
     @property
     def tier1_output_file(self) -> str:
-        return f"{self.remote_output_dir}/tier1_results.json"
+        return f"{self.output_dir}/tier1_results.json"
 
     @property
     def tier2_output_file(self) -> str:
-        return f"{self.remote_output_dir}/tier2_results.json"
+        return f"{self.output_dir}/tier2_results.json"
 
     @property
     def tier3_output_file(self) -> str:
-        return f"{self.remote_output_dir}/tier3_results.json"
+        return f"{self.output_dir}/tier3_results.json"
 
     @property
     def solver_output_file(self) -> str:
-        return f"{self.remote_output_dir}/gillespie_solver.py"
+        return f"{self.output_dir}/gillespie_solver.py"
 
     @property
     def task_description(self) -> str:
@@ -89,7 +89,7 @@ specification is in `{self.problem_spec_file}`.
    - Do not use SciPy, GillesPy2, BioSimulator, StochPy, COPASI, StochKit, or
      any dedicated stochastic simulation package.
 
-4. Save all final artifacts under `{self.remote_output_dir}`:
+4. Save all final artifacts under `{self.output_dir}`:
    - `{self.tier1_output_file}`
    - `{self.tier2_output_file}`
    - `{self.tier3_output_file}`
@@ -103,11 +103,11 @@ specification is in `{self.problem_spec_file}`.
 - Probabilities and basin fractions must be finite values in `[0, 1]` and should
   sum to one where the spec defines a partition.
 - Use the exact Tier 3 alpha grid and comparison points from the spec.
-- Overwrite stale files in `{self.remote_output_dir}` if they already exist.
+- Overwrite stale files in `{self.output_dir}` if they already exist.
 
 ## Boundaries
 - Do not modify anything under `{self.input_dir}`.
-- Write only under `{self.remote_output_dir}`.
+- Write only under `{self.output_dir}`.
 """
 
     def to_metadata(self) -> Dict[str, Any]:
@@ -170,10 +170,10 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
         local_ref.mkdir()
 
         remote_to_local = [
-            (f'{meta["remote_output_dir"]}/tier1_results.json', local_out / "tier1_results.json"),
-            (f'{meta["remote_output_dir"]}/tier2_results.json', local_out / "tier2_results.json"),
-            (f'{meta["remote_output_dir"]}/tier3_results.json', local_out / "tier3_results.json"),
-            (f'{meta["remote_output_dir"]}/gillespie_solver.py', local_out / "gillespie_solver.py"),
+            (f'{meta["output_dir"]}/tier1_results.json', local_out / "tier1_results.json"),
+            (f'{meta["output_dir"]}/tier2_results.json', local_out / "tier2_results.json"),
+            (f'{meta["output_dir"]}/tier3_results.json', local_out / "tier3_results.json"),
+            (f'{meta["output_dir"]}/gillespie_solver.py', local_out / "gillespie_solver.py"),
             (f'{meta["reference_dir"]}/tier1_results.json', local_ref / "tier1_results.json"),
             (f'{meta["reference_dir"]}/tier2_results.json', local_ref / "tier2_results.json"),
         ]

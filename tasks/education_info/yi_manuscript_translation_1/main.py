@@ -35,8 +35,8 @@ VARIANT_NAME = "base"
 ALLOWED_OUTPUT_DIRS = {"output", "output_test_pos", "output_test_neg"}
 
 
-def _output_dir_name(remote_output_dir: str) -> str:
-    return remote_output_dir.strip().strip("\\/") or "output"
+def _output_dir_name(output_subdir: str) -> str:
+    return output_subdir.strip().strip("\\/") or "output"
 
 
 @dataclass
@@ -52,10 +52,10 @@ class TaskConfig(GeneralTaskConfig):
 
     @property
     def output_dir_name(self) -> str:
-        return _output_dir_name(self.REMOTE_OUTPUT_DIR)
+        return _output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
-    def remote_output_dir(self) -> str:
+    def output_dir(self) -> str:
         return rf"{self.task_dir}\{self.output_dir_name}"
 
     @property
@@ -77,8 +77,8 @@ class TaskConfig(GeneralTaskConfig):
     @property
     def output_files(self) -> dict[str, str]:
         return {
-            "bounding_box": rf"{self.remote_output_dir}\bounding_box.json",
-            "report": rf"{self.remote_output_dir}\report.txt",
+            "bounding_box": rf"{self.output_dir}\bounding_box.json",
+            "report": rf"{self.output_dir}\report.txt",
         }
 
     @property

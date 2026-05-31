@@ -8,7 +8,6 @@ match the reference in scientific content and visual structure.
 import hashlib
 import json
 import logging
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -56,11 +55,11 @@ class TaskConfig(GeneralTaskConfig):
 
     @property
     def output_pdf(self) -> str:
-        return rf"{self.remote_output_dir}\schematic_reproduce.pdf"
+        return rf"{self.output_dir}\schematic_reproduce.pdf"
 
     @property
     def output_ai(self) -> str:
-        return rf"{self.remote_output_dir}\schematic_reproduce.ai"
+        return rf"{self.output_dir}\schematic_reproduce.ai"
 
     @property
     def reference_expert_pdf(self) -> str:
@@ -103,10 +102,10 @@ depict a freely-moving electrophysiology recording setup with these key elements
 5. Apply consistent styling: appropriate line weights, colors, and fonts.
 
 6. Save the final editable Illustrator file to:
-   `{self.remote_output_dir}\\schematic_reproduce.ai`
+   `{self.output_dir}\\schematic_reproduce.ai`
 
 7. Export the final figure as a high-resolution PDF to:
-   `{self.remote_output_dir}\\schematic_reproduce.pdf`
+   `{self.output_dir}\\schematic_reproduce.pdf`
 
 ## Important Notes
 - Do NOT simply copy or paste the reference PDF into the output.

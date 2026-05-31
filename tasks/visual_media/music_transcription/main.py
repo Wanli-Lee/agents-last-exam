@@ -442,12 +442,12 @@ Steps:
 7. Format the score layout professionally (proper spacing, alignment, readable note density).
 8. Configure playback: assign each instrument to the correct General MIDI (GM) program number as specified in task_brief.json.
 9. Export outputs:
-   - Export a PDF of the full score. Save it as {self.remote_output_dir}\\{TRANSCRIPTION_PDF}
-   - Export MIDI: save as {self.remote_output_dir}\\{TRANSCRIPTION_MIDI}
+   - Export a PDF of the full score. Save it as {self.output_dir}\\{TRANSCRIPTION_PDF}
+   - Export MIDI: save as {self.output_dir}\\{TRANSCRIPTION_MIDI}
 10. Take ONE final screenshot showing the notation software with the score visible (showing some instrument staves):
-    save_milestone_screenshot(path="{self.remote_output_dir}\\{OVERVIEW_SCREENSHOT}", description="Overview of the transcribed score")
+    save_milestone_screenshot(path="{self.output_dir}\\{OVERVIEW_SCREENSHOT}", description="Overview of the transcribed score")
 
-Output files (all saved to {self.remote_output_dir}):
+Output files (all saved to {self.output_dir}):
 - {TRANSCRIPTION_PDF}: Exported PDF of the complete score with all parts.
 - {TRANSCRIPTION_MIDI}: Exported MIDI file. Each track must have correct MIDI Program Change messages matching the GM program numbers in task_brief.json.
 - {OVERVIEW_SCREENSHOT}: Screenshot of the notation software showing the transcribed score with instrument staves visible.
@@ -517,7 +517,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     try:
         meta = task_cfg.metadata
         tag = meta["variant_name"]
-        output_dir = meta["remote_output_dir"]
+        output_dir = meta["output_dir"]
         task_brief_path = meta["task_brief_path"]
         reference_midi_path = meta["reference_midi_path"]
         reference_score_pdf_path = meta["reference_score_pdf_path"]

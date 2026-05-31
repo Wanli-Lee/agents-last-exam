@@ -2,7 +2,6 @@
 
 import json
 import logging
-import os
 import shlex
 import sys
 from pathlib import Path, PurePosixPath
@@ -33,7 +32,7 @@ except ModuleNotFoundError:  # pragma: no cover - local fallback only
     )
 
 from tasks.common_setup import BaseTaskSetup
-from tasks.linux_runtime import DATA_ROOT, LinuxTaskConfig
+from tasks.linux_runtime import LinuxTaskConfig
 
 
 _setup = BaseTaskSetup()
@@ -50,7 +49,6 @@ DOMAIN_NAME = "health_medicine"
 TASK_NAME = "simglucose_safe_basal_control_instance_1"
 TASK_ID = f"{DOMAIN_NAME}/{TASK_NAME}"
 VARIANT_NAME = "base"
-LINUX_REMOTE_ROOT = "/media/user/data/agenthle"
 EVAL_TMP_DIR = f"/tmp/agenthle_eval/{TASK_NAME}"
 
 
@@ -124,8 +122,6 @@ class SimGlucoseSafeBasalControlConfig(LinuxTaskConfig):
             TASK_NAME=TASK_NAME,
             VARIANT_NAME=VARIANT_NAME,
             OS_TYPE="linux",
-            REMOTE_ROOT_DIR=os.environ.get("REMOTE_ROOT_DIR", LINUX_REMOTE_ROOT),
-            REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"),
         )
 
     @property
@@ -146,7 +142,7 @@ class SimGlucoseSafeBasalControlConfig(LinuxTaskConfig):
 
     @property
     def submission_dir(self) -> str:
-        return _remote_join(self.remote_output_dir, "submission")
+        return _remote_join(self.output_dir, "submission")
 
     @property
     def controller_output(self) -> str:
@@ -190,7 +186,7 @@ class SimGlucoseSafeBasalControlConfig(LinuxTaskConfig):
 
     @property
     def hidden_summary_path(self) -> str:
-        return _remote_join(EVAL_TMP_DIR, f"{self.REMOTE_OUTPUT_DIR}_hidden_summary.json")
+        return _remote_join(EVAL_TMP_DIR, f"{self.OUTPUT_SUBDIR}_hidden_summary.json")
 
     @property
     def eval_runtime_dir(self) -> str:
@@ -198,11 +194,11 @@ class SimGlucoseSafeBasalControlConfig(LinuxTaskConfig):
 
     @property
     def eval_status_path(self) -> str:
-        return _remote_join(EVAL_TMP_DIR, f"{self.REMOTE_OUTPUT_DIR}_hidden_eval.status")
+        return _remote_join(EVAL_TMP_DIR, f"{self.OUTPUT_SUBDIR}_hidden_eval.status")
 
     @property
     def eval_log_path(self) -> str:
-        return _remote_join(EVAL_TMP_DIR, f"{self.REMOTE_OUTPUT_DIR}_hidden_eval.log")
+        return _remote_join(EVAL_TMP_DIR, f"{self.OUTPUT_SUBDIR}_hidden_eval.log")
 
     @property
     def task_description(self) -> str:
@@ -249,7 +245,7 @@ Rules:
                 "software_dir": self.software_dir,
                 "output_test_pos_dir": self.output_test_pos_dir,
                 "output_test_neg_dir": self.output_test_neg_dir,
-                "remote_output_dir": self.remote_output_dir,
+                "output_dir": self.output_dir,
                 "submission_dir": self.submission_dir,
                 "controller_output": self.controller_output,
                 "metadata_output": self.metadata_output,
@@ -316,19 +312,19 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     metadata_output = meta["metadata_output"]
 
     if not await session.exists(submission_dir):
-        if meta["remote_output_dir"].endswith("/output"):
+        if meta["output_dir"].endswith("/output"):
             logger.info("submission directory not present yet under default output path: %s", submission_dir)
         else:
             logger.error("submission directory missing: %s", submission_dir)
         return [0.0]
     if not await session.exists(controller_output):
-        if meta["remote_output_dir"].endswith("/output"):
+        if meta["output_dir"].endswith("/output"):
             logger.info("controller.py not present yet under default output path: %s", controller_output)
         else:
             logger.error("controller.py missing: %s", controller_output)
         return [0.0]
     if not await session.exists(metadata_output):
-        if meta["remote_output_dir"].endswith("/output"):
+        if meta["output_dir"].endswith("/output"):
             logger.info("metadata.json not present yet under default output path: %s", metadata_output)
         else:
             logger.error("metadata.json missing: %s", metadata_output)

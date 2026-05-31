@@ -32,45 +32,27 @@ import sys
 import traceback
 import xml.etree.ElementTree as ET
 from collections import deque
-from pathlib import Path
 
 # Import base evaluator components
 from evaluate import (
     BPMN_NS,
-    FLOWABLE_NS,
     ORIGINAL_ELEMENTS,
-    CLOSED_LOOP_TARGETS,
-    DECISION_GATEWAY_TYPES,
-    ORIGINAL_OUTPUT_PROPERTIES,
-    ORIGINAL_ROLE_ASSIGNMENTS,
-    AUTHORITY_LEVELS,
-    ROLE_AUTHORITY,
-    CANDIDATE_GROUP_AUTHORITY,
     BPMNGraph,
     discover_disruption_chain,
-    check_structural as check_structural_L1,
-    check_anti_gaming as check_anti_gaming_L1,
-    check_compliance as check_compliance_base,
     check_test_results,
-    check_data_flow as check_data_flow_L1,
-    check_role_data_coupling as check_role_data_coupling_L1,
     _all_predecessors_bfs,
     _snake_to_camel,
-    _get_authority_level,
 )
 
 # Import L2 evaluator components
 from evaluate_L2 import (
     check_structural_L2,
     check_anti_gaming_L2,
-    check_compliance_L2,
     check_data_flow_L2,
     check_role_data_coupling_L2,
     discover_L2_chain,
     REQUIRED_MODIFICATIONS_L2,
     REQUIRED_RULES_L2,
-    ROLE_AUTHORITY_L2,
-    CANDIDATE_GROUP_AUTHORITY_L2,
 )
 
 # ============================================================
@@ -1525,7 +1507,7 @@ def evaluate_L3(args) -> dict:
     report["weighted_score"] = round(weighted_score, 4)
 
     print(f"\n  OVERALL: {'PASS' if all_sections_pass else 'FAIL'}")
-    print(f"\n  Weighted section scores:")
+    print("\n  Weighted section scores:")
     for k in _SECTION_WEIGHTS:
         w = _SECTION_WEIGHTS[k]
         s = section_scores.get(k, 0.0)

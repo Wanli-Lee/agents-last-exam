@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import posixpath
+from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -45,8 +45,7 @@ DOMAIN_NAME = "education_info"
 TASK_NAME = "moodle_gradebook_closeout_reconciliation"
 TASK_ID = f"{DOMAIN_NAME}/{TASK_NAME}"
 VARIANT_NAME = "base"
-VISIBLE_ROOT = f"/media/user/data/agenthle/{TASK_ID}/{VARIANT_NAME}"
-EVAL_TMP_DIR = f"/tmp/agenthle_eval/{TASK_NAME}"
+EVAL_TMP_DIR = f"/tmp/ale_eval/{TASK_NAME}"
 SCRIPTS_DIR = Path(__file__).resolve().parent / "scripts"
 ALLOWED_OUTPUT_DIRS = {"output", "output_test_pos", "output_test_neg"}
 
@@ -82,34 +81,21 @@ def _canonical_output_dir_name(path: str) -> str:
     normalized = posixpath.normpath(path.replace("\\", "/"))
     if normalized not in ALLOWED_OUTPUT_DIRS:
         raise ValueError(
-            "REMOTE_OUTPUT_DIR must normalize to one of: output, output_test_pos, output_test_neg"
+            "OUTPUT_SUBDIR must normalize to one of: output, output_test_pos, output_test_neg"
         )
     return normalized
 
 
+@dataclass
 class MoodleGradebookCloseoutConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = VARIANT_NAME
     OS_TYPE: str = "linux"
 
-    def __init__(self, remote_output_dir: str | None = None) -> None:
-        super().__init__(
-            DOMAIN_NAME=DOMAIN_NAME,
-            TASK_NAME=TASK_NAME,
-            VARIANT_NAME=VARIANT_NAME,
-            OS_TYPE="linux",
-            REMOTE_ROOT_DIR=os.environ.get("REMOTE_ROOT_DIR", "/media/user/data/agenthle"),
-            REMOTE_OUTPUT_DIR=remote_output_dir or os.environ.get("REMOTE_OUTPUT_DIR", "output"),
-        )
-
     @property
     def output_dir_name(self) -> str:
-        return _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
-
-    @property
-    def reference_dir(self) -> str:
-        return super().reference_dir
+        return _canonical_output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
     def output_test_pos_dir(self) -> str:
@@ -120,7 +106,7 @@ class MoodleGradebookCloseoutConfig(LinuxTaskConfig):
         return f"{self.task_dir}/output_test_neg"
 
     @property
-    def remote_output_dir(self) -> str:
+    def output_dir(self) -> str:
         if self.output_dir_name == "output_test_pos":
             return self.output_test_pos_dir
         if self.output_dir_name == "output_test_neg":
@@ -189,22 +175,22 @@ You are working on Linux on an offline Moodle gradebook closeout task.
 1. Read `{self.input_task_prompt}` and the starter materials under `{self.starter_project_dir}`.
 2. Repair the broken Moodle-style backup in `{self.starter_backup}` by changing only the benchmark-designated editable backup files.
 3. Rebuild the registrar and OneRoster outputs using the staged helper tools.
-4. Write the required deliverables under `{self.remote_output_dir}`.
+4. Write the required deliverables under `{self.output_dir}`.
 
 ## Final Deliverables
-- `{self.remote_output_dir}/corrected_course.mbz`
-- `{self.remote_output_dir}/final_grade_export.csv`
-- `{self.remote_output_dir}/final_grade_export.xml`
-- `{self.remote_output_dir}/audit_report.csv`
-- `{self.remote_output_dir}/audit_report.json`
-- `{self.remote_output_dir}/exception_log.csv`
-- `{self.remote_output_dir}/decisions.md`
-- `{self.remote_output_dir}/oneroster_package/manifest.csv`
-- `{self.remote_output_dir}/oneroster_package/users.csv`
-- `{self.remote_output_dir}/oneroster_package/classes.csv`
-- `{self.remote_output_dir}/oneroster_package/enrollments.csv`
-- `{self.remote_output_dir}/oneroster_package/lineItems.csv`
-- `{self.remote_output_dir}/oneroster_package/results.csv`
+- `{self.output_dir}/corrected_course.mbz`
+- `{self.output_dir}/final_grade_export.csv`
+- `{self.output_dir}/final_grade_export.xml`
+- `{self.output_dir}/audit_report.csv`
+- `{self.output_dir}/audit_report.json`
+- `{self.output_dir}/exception_log.csv`
+- `{self.output_dir}/decisions.md`
+- `{self.output_dir}/oneroster_package/manifest.csv`
+- `{self.output_dir}/oneroster_package/users.csv`
+- `{self.output_dir}/oneroster_package/classes.csv`
+- `{self.output_dir}/oneroster_package/enrollments.csv`
+- `{self.output_dir}/oneroster_package/lineItems.csv`
+- `{self.output_dir}/oneroster_package/results.csv`
 
 Use `{self.python_wrapper}` if you want the pinned Python runtime for the helper scripts.
 Do not modify files under `{self.input_dir}`.
@@ -239,16 +225,12 @@ Do not rely on files outside the visible task root listed above during solve tim
         return metadata
 
 
-config = MoodleGradebookCloseoutConfig(
-    remote_output_dir=os.environ.get("REMOTE_OUTPUT_DIR", "output"),
-)
+config = MoodleGradebookCloseoutConfig()
 
 
 @cb.tasks_config(split="train")
 def load():
-    cfg = MoodleGradebookCloseoutConfig(
-        remote_output_dir=os.environ.get("REMOTE_OUTPUT_DIR", "output")
-    )
+    cfg = MoodleGradebookCloseoutConfig()
     return [
         cb.Task(
             description=cfg.task_description,
@@ -301,7 +283,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
             f'UV_PROJECT_ENVIRONMENT="{meta["eval_tmp_dir"]}/runtime_{tag}/.venv" '
             f'uv run --isolated --no-project --with pandas==2.2.3 --python "/usr/bin/python" '
             f'python "{score_script}" '
-            f'--submission "{meta["remote_output_dir"]}" '
+            f'--submission "{meta["output_dir"]}" '
             f'--ground-truth "{meta["reference_dir"]}"'
         )
         result = await session.run_command(command, check=False)

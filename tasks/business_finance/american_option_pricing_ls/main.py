@@ -37,7 +37,7 @@ def _canonical_output_dir_name(path: str) -> str:
     normalized = posixpath.normpath(path.replace("\\", "/"))
     if normalized not in CANONICAL_OUTPUT_DIRS:
         raise ValueError(
-            f"REMOTE_OUTPUT_DIR must normalize to one of {sorted(CANONICAL_OUTPUT_DIRS)}"
+            f"OUTPUT_SUBDIR must normalize to one of {sorted(CANONICAL_OUTPUT_DIRS)}"
         )
     return normalized
 
@@ -63,10 +63,10 @@ class TaskConfig(LinuxTaskConfig):
 
     @property
     def output_dir_name(self) -> str:
-        return _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
+        return _canonical_output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
-    def remote_output_dir(self) -> str:
+    def output_dir(self) -> str:
         return f"{self.task_dir}/{self.output_dir_name}"
 
     @property
@@ -96,8 +96,8 @@ class TaskConfig(LinuxTaskConfig):
     @property
     def output_files(self) -> dict[str, str]:
         return {
-            "results.json": f"{self.remote_output_dir}/results.json",
-            "exercise_boundary_tier2.npy": f"{self.remote_output_dir}/exercise_boundary_tier2.npy",
+            "results.json": f"{self.output_dir}/results.json",
+            "exercise_boundary_tier2.npy": f"{self.output_dir}/exercise_boundary_tier2.npy",
         }
 
     @property
@@ -124,10 +124,10 @@ Recommended workflow:
 1. Change into `{self.task_dir}`
 2. Read `{self.problem_spec_file}` in full before coding
 3. Use `"{self.python_wrapper}" your_script.py` or `"{self.python_wrapper}" -c "..."` to run Python with the staged NumPy/SciPy runtime
-4. Implement your solver under `{self.remote_output_dir}`
-5. Write every required artifact under `{self.remote_output_dir}`
+4. Implement your solver under `{self.output_dir}`
+5. Write every required artifact under `{self.output_dir}`
 
-Required outputs under `{self.remote_output_dir}`:
+Required outputs under `{self.output_dir}`:
 - `results.json`
 - `exercise_boundary_tier2.npy`
 
@@ -137,7 +137,7 @@ Requirements:
 - Follow the fixed seeds, path counts, regression design, and output schema from `{self.problem_spec_file}`.
 - Tier 1 and Tier 2 are required for any passing score; Tier 3 is required for full credit.
 - If Tier 3 is incomplete, keep Tier 1 / Tier 2 outputs truthful rather than fabricating Tier 3 metrics.
-- Do not modify files outside `{self.remote_output_dir}`.
+- Do not modify files outside `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict:

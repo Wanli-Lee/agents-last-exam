@@ -525,7 +525,7 @@ class ResearcherKeynoteTaskConfig(GeneralTaskConfig):
 
     @property
     def output_submission_dir(self) -> str:
-        return rf"{self.remote_output_dir}\submission"
+        return rf"{self.output_dir}\submission"
 
     @property
     def output_pptx(self) -> str:
@@ -533,7 +533,7 @@ class ResearcherKeynoteTaskConfig(GeneralTaskConfig):
 
     @property
     def libreoffice_smoke_dir(self) -> str:
-        return rf"{self.remote_output_dir}\libreoffice_smoke"
+        return rf"{self.output_dir}\libreoffice_smoke"
 
     @property
     def libreoffice_smoke_pdf(self) -> str:

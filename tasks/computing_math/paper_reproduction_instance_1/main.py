@@ -2,7 +2,6 @@
 
 import json
 import logging
-import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,7 +43,6 @@ DATASET_PROBE_NAMES = {
 }
 
 DATASET_SEARCH_ROOTS = (
-    "/media/user/data/agenthle/computing_math/paper_reproduction_instance_1/base",
     "/media/user/data",
     "/home/user",
     "/tmp",
@@ -58,20 +56,11 @@ class PaperReproductionConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = VARIANT_NAME
-
-    def __init__(self, *, REMOTE_OUTPUT_DIR: str = ""):
-        super().__init__(
-            DOMAIN_NAME=DOMAIN_NAME,
-            TASK_NAME=TASK_NAME,
-            VARIANT_NAME=VARIANT_NAME,
-            OS_TYPE="linux",
-            REMOTE_OUTPUT_DIR=REMOTE_OUTPUT_DIR
-            or os.environ.get("REMOTE_OUTPUT_DIR", "output"),
-        )
+    OS_TYPE: str = "linux"
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/{OUTPUT_FILENAME}"
+        return f"{self.output_dir}/{OUTPUT_FILENAME}"
 
     @property
     def reference_file(self) -> str:
@@ -152,7 +141,7 @@ Taxonomies" (arXiv:2407.16067).
 
 ## Rules
 
-- Write only under `{self.remote_output_dir}/`.
+- Write only under `{self.output_dir}/`.
 - Do not modify anything under `{self.input_dir}/`.
 - `results.json` must be valid UTF-8 JSON.
 """

@@ -55,7 +55,7 @@ class LegalMAConsistencyAuditConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/audit_report.md"
+        return f"{self.output_dir}/audit_report.md"
 
     @property
     def gold_findings_file(self) -> str:

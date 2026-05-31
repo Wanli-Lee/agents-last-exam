@@ -168,9 +168,6 @@ def _remote_child(base: str, *parts: str) -> str:
 
 @dataclass
 class SkeletalAnimationTaskConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = os.environ.get(
-        "BLENDER_PACKAGE_REMOTE_ROOT", os.environ.get("REMOTE_ROOT_DIR", r"E:\agenthle")
-    )
     DOMAIN_NAME: str = "visual_media"
 
     TASK_NAME: str = "skeletal_animation_reproduction"
@@ -190,7 +187,7 @@ class SkeletalAnimationTaskConfig(GeneralTaskConfig):
 
     @property
     def task_dir(self) -> str:
-        return _remote_child(self.REMOTE_ROOT_DIR, self.DOMAIN_NAME, self.REMOTE_TASK_DIR_NAME)
+        return _remote_child(self.data_root, self.DOMAIN_NAME, self.REMOTE_TASK_DIR_NAME)
 
     @property
     def input_obj(self) -> str:
@@ -210,7 +207,7 @@ class SkeletalAnimationTaskConfig(GeneralTaskConfig):
 
     @property
     def output_submission_dir(self) -> str:
-        return rf"{self.remote_output_dir}\submission"
+        return rf"{self.output_dir}\submission"
 
     @property
     def output_blend(self) -> str:

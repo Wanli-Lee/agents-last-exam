@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -62,7 +62,7 @@ def _canonical_output_dir_name(path: str) -> str:
     normalized = path.replace("\\", "/").strip("/")
     if normalized not in ALLOWED_OUTPUT_DIRS:
         raise ValueError(
-            "REMOTE_OUTPUT_DIR must be one of: " + ", ".join(sorted(ALLOWED_OUTPUT_DIRS))
+            "OUTPUT_SUBDIR must be one of: " + ", ".join(sorted(ALLOWED_OUTPUT_DIRS))
         )
     return normalized
 
@@ -86,15 +86,12 @@ async def _run_command(
         return await session.run_command(command, check=check)
 
 
+@dataclass
 class CellTranslocationConfig(LinuxTaskConfig):
-    def __init__(self, remote_output_dir: str = "output") -> None:
-        super().__init__(
-            DOMAIN_NAME=DOMAIN_NAME,
-            TASK_NAME=TASK_NAME,
-            VARIANT_NAME=VARIANT_NAME,
-            OS_TYPE="linux",
-            REMOTE_OUTPUT_DIR=remote_output_dir,
-        )
+    DOMAIN_NAME: str = DOMAIN_NAME
+    TASK_NAME: str = TASK_NAME
+    VARIANT_NAME: str = VARIANT_NAME
+    OS_TYPE: str = "linux"
 
     @property
     def images_dir(self) -> str:
@@ -125,20 +122,20 @@ class CellTranslocationConfig(LinuxTaskConfig):
         return f"{self.software_dir}/python_cell_translocation.sh"
 
     @property
-    def remote_output_dir(self) -> str:
-        output_dir_name = _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
+    def output_dir(self) -> str:
+        output_dir_name = _canonical_output_dir_name(self.OUTPUT_SUBDIR)
         return f"{self.task_dir}/{output_dir_name}"
 
     @property
     def answer_output(self) -> str:
-        return f"{self.remote_output_dir}/answer.json"
+        return f"{self.output_dir}/answer.json"
 
     @property
     def answer_reference(self) -> str:
         return f"{self.reference_dir}/answer.json"
 
     def output_csv_path(self, name: str) -> str:
-        return f"{self.remote_output_dir}/{name}"
+        return f"{self.output_dir}/{name}"
 
     def reference_csv_path(self, name: str) -> str:
         return f"{self.reference_dir}/{name}"
@@ -166,7 +163,7 @@ Your task:
 2. Segment nuclei from the DNA channel and derive cell/cytoplasm compartments.
 3. Measure GFP intensity, channel correlation, location, and ratio-style features for the relevant objects.
 4. Use the dose/control metadata to classify positive translocation and identify the minimum effective dose.
-5. Save exactly these files under `{self.remote_output_dir}`:
+5. Save exactly these files under `{self.output_dir}`:
    - `Cells.csv`
    - `Cytoplasm.csv`
    - `Nuclei.csv`
@@ -174,7 +171,7 @@ Your task:
 
 `answer.json` must be a JSON object with numeric keys `minimum_dose` and `positive_percentage`.
 
-Do not modify files under `input/`. Write final results only under `{self.remote_output_dir}`.
+Do not modify files under `input/`. Write final results only under `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict[str, Any]:
@@ -193,14 +190,14 @@ Do not modify files under `input/`. Write final results only under `{self.remote
                 "answer_reference": self.answer_reference,
                 "output_csvs": {name: self.output_csv_path(name) for name in CSV_NAMES},
                 "reference_csvs": {name: self.reference_csv_path(name) for name in CSV_NAMES},
-                "output_dir_name": _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR),
+                "output_dir_name": _canonical_output_dir_name(self.OUTPUT_SUBDIR),
                 "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/",
             }
         )
         return metadata
 
 
-config = CellTranslocationConfig(remote_output_dir=os.environ.get("REMOTE_OUTPUT_DIR", "output"))
+config = CellTranslocationConfig()
 
 
 @cb.tasks_config(split="train")

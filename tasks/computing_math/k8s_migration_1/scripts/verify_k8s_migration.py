@@ -544,7 +544,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", required=True, help="agent's output/ root")
     parser.add_argument(
         "--eval-tmp-dir",
-        default="/media/user/data/agenthle/computing_math/k8s_migration_1/base/eval_data/_eval_tmp",
+        required=True,
         help="evaluator scratch/cache (e.g. bootstrap helm binary)",
     )
     parser.add_argument("--helm-version", default=HELM_VERSION_DEFAULT)

@@ -4,7 +4,6 @@ import asyncio
 import io
 import json
 import logging
-import os
 import subprocess
 import tempfile
 from dataclasses import dataclass
@@ -122,7 +121,6 @@ def _check_host_verifier_runtime() -> None:
 
 @dataclass
 class PosterTaskConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = os.environ.get("REMOTE_ROOT_DIR", r"E:\agenthle")
     DOMAIN_NAME: str = "visual_media"
 
     TASK_NAME: str = "poster"
@@ -146,7 +144,7 @@ class PosterTaskConfig(GeneralTaskConfig):
 
     @property
     def output_poster(self) -> str:
-        return rf"{self.remote_output_dir}\edited_poster.png"
+        return rf"{self.output_dir}\edited_poster.png"
 
     @property
     def reference_poster(self) -> str:

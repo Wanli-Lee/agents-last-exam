@@ -25,9 +25,6 @@ logger = logging.getLogger(__name__)
 THIS_DIR = Path(__file__).resolve().parent
 REMOTE_HARD_EVAL_SCRIPT = THIS_DIR / "scripts" / "remote_hard_eval.py"
 
-REMOTE_DESKTOP_ROOT = (
-    os.environ.get("SFX_REMOTE_ROOT_DIR") or os.environ.get("MG_REMOTE_ROOT_DIR") or r"E:\agenthle"
-)
 REMOTE_TEMP_ROOT = os.environ.get(
     "CHROMA_REMOTE_EVAL_ROOT",
     r"C:\Users\User\AppData\Local\Temp\agenthle_eval\chroma",
@@ -105,7 +102,6 @@ VARIANT_MAP = {spec.task_tag: spec for spec in VARIANTS}
 
 @dataclass
 class ChromaTaskConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = REMOTE_DESKTOP_ROOT
     DOMAIN_NAME: str = "visual_media"
 
     TASK_NAME: str = "chroma_key_from_reference"
@@ -143,7 +139,7 @@ class ChromaTaskConfig(GeneralTaskConfig):
 
     @property
     def remote_output_video(self) -> str:
-        return rf"{self.remote_output_dir}\{self.OUTPUT_VIDEO_NAME}"
+        return rf"{self.output_dir}\{self.OUTPUT_VIDEO_NAME}"
 
     @property
     def task_description(self) -> str:

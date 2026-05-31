@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import shlex
 import sys
 from dataclasses import dataclass
@@ -96,15 +95,6 @@ class TaskConfig(LinuxTaskConfig):
     VARIANT_NAME: str = "base"
     OS_TYPE: str = "linux"
 
-    def __init__(self) -> None:
-        super().__init__(
-            DOMAIN_NAME=self.DOMAIN_NAME,
-            TASK_NAME=self.TASK_NAME,
-            VARIANT_NAME=self.VARIANT_NAME,
-            OS_TYPE=self.OS_TYPE,
-            REMOTE_ROOT_DIR=os.environ.get("REMOTE_ROOT_DIR", "/media/user/data/agenthle"),
-        )
-
     @property
     def output_test_pos_dir(self) -> str:
         return f"{self.task_dir}/output_test_pos"
@@ -119,7 +109,7 @@ class TaskConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/results.json"
+        return f"{self.output_dir}/results.json"
 
     @property
     def visible_output_file(self) -> str:
@@ -180,7 +170,7 @@ Write exactly one JSON file at `{self.visible_output_file}` with this shape:
                 "output_test_pos_dir": self.output_test_pos_dir,
                 "output_test_neg_dir": self.output_test_neg_dir,
                 "visible_output_dir": self.visible_output_dir,
-                "remote_output_dir": self.remote_output_dir,
+                "output_dir": self.output_dir,
                 "output_file": self.output_file,
                 "visible_output_file": self.visible_output_file,
                 "canonical_gcs_root": "gs://ale-data-all/business_finance/internal_employee_agent_instance_1/base/",

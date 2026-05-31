@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import shlex
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from typing import Any
@@ -45,7 +45,6 @@ DOMAIN_NAME = "business_finance"
 TASK_NAME = "digital_marketing_ab_test_analysis_1"
 TASK_ID = f"{DOMAIN_NAME}/{TASK_NAME}"
 VARIANT_NAME = "base"
-LINUX_REMOTE_ROOT = "/media/user/data/agenthle"
 EVAL_TMP_DIR = f"/tmp/agenthle_eval/{TASK_NAME}"
 
 
@@ -75,21 +74,12 @@ def _parse_json_stdout(raw: str) -> dict[str, Any]:
     raise ValueError(f"unable to parse verifier JSON: {text[:1000]}")
 
 
+@dataclass
 class DigitalMarketingABTestConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = VARIANT_NAME
     OS_TYPE: str = "linux"
-
-    def __init__(self) -> None:
-        super().__init__(
-            DOMAIN_NAME=DOMAIN_NAME,
-            TASK_NAME=TASK_NAME,
-            VARIANT_NAME=VARIANT_NAME,
-            OS_TYPE="linux",
-            REMOTE_ROOT_DIR=os.environ.get("REMOTE_ROOT_DIR", LINUX_REMOTE_ROOT),
-            REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"),
-        )
 
     @property
     def output_test_pos_dir(self) -> str:
@@ -118,7 +108,7 @@ Visible task files:
 - `{self.input_dir}/runtime_env/pyproject.toml`
 - `{self.input_dir}/runtime_env/uv.lock`
 
-Write exactly these outputs under `{self.remote_output_dir}`:
+Write exactly these outputs under `{self.output_dir}`:
 
 1. `randomization_assignment.csv` — CSV with columns `metric,value`.
    Required rows (one per metric): `n_control`, `n_treatment`, `ratio`
@@ -158,7 +148,7 @@ Write exactly these outputs under `{self.remote_output_dir}`:
                 "software_dir": self.software_dir,
                 "output_test_pos_dir": self.output_test_pos_dir,
                 "output_test_neg_dir": self.output_test_neg_dir,
-                "remote_output_dir": self.remote_output_dir,
+                "output_dir": self.output_dir,
                 "runtime_env_dir": self.runtime_env_dir,
                 "canonical_gcs_root": "gs://ale-data-all/business_finance/digital_marketing_ab_test_analysis_1/base/",
             }
@@ -205,7 +195,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
             "--reference-dir",
             shlex.quote(meta["reference_dir"]),
             "--output-dir",
-            shlex.quote(meta["remote_output_dir"]),
+            shlex.quote(meta["output_dir"]),
         ]
     )
     result = await _run_command(session, cmd, check=False)

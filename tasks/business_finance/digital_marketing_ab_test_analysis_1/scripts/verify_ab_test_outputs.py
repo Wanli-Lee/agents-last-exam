@@ -4,7 +4,6 @@ import argparse
 import csv
 import json
 import math
-import re
 from pathlib import Path
 from statistics import NormalDist
 

@@ -6,6 +6,7 @@ import json
 import logging
 import posixpath
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 import cua_bench as cb
@@ -32,11 +33,12 @@ def _canonical_output_dir_name(path: str) -> str:
     normalized = posixpath.normpath(path.replace("\\", "/"))
     if normalized not in CANONICAL_OUTPUT_DIR_NAMES:
         raise ValueError(
-            "REMOTE_OUTPUT_DIR must normalize to one of: output, output_test_pos, output_test_neg"
+            "OUTPUT_SUBDIR must normalize to one of: output, output_test_pos, output_test_neg"
         )
     return normalized
 
 
+@dataclass
 class TaskConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
@@ -44,15 +46,15 @@ class TaskConfig(LinuxTaskConfig):
 
     @property
     def output_dir_name(self) -> str:
-        return _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
+        return _canonical_output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
-    def remote_output_dir(self) -> str:
+    def output_dir(self) -> str:
         return f"{self.task_dir}/{self.output_dir_name}"
 
     @property
     def output_files(self) -> dict[str, str]:
-        return {name: f"{self.remote_output_dir}/{name}" for name in REQUIRED_FILES}
+        return {name: f"{self.output_dir}/{name}" for name in REQUIRED_FILES}
 
     @property
     def runtime_env_dir(self) -> str:
@@ -105,7 +107,7 @@ Analysis requirements:
 9. Benchmark significant DEGs against `{self.truth_file}`.
 
 Required output directory:
-- Write every deliverable under `{self.remote_output_dir}`
+- Write every deliverable under `{self.output_dir}`
 
 Required output files:
 - `sample_summary.txt`
@@ -125,7 +127,6 @@ Do not ask for confirmation. Execute directly.
         metadata.update(
             {
                 "task_dir": self.task_dir,
-                "data_task_dir": self.data_task_dir,
                 "input_dir": self.input_dir,
                 "runtime_env_dir": self.runtime_env_dir,
                 "output_dir_name": self.output_dir_name,
@@ -138,7 +139,7 @@ Do not ask for confirmation. Execute directly.
         return metadata
 
 
-config = TaskConfig(DOMAIN_NAME=DOMAIN_NAME, TASK_NAME=TASK_NAME, VARIANT_NAME=VARIANT_NAME)
+config = TaskConfig()
 
 
 @cb.tasks_config(split="train")

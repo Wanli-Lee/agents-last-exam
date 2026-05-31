@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import shlex
 import sys
 from pathlib import Path, PurePosixPath
@@ -36,7 +35,7 @@ except ModuleNotFoundError:  # pragma: no cover - local import fallback only
     )
 
 from tasks.common_setup import BaseTaskSetup
-from tasks.linux_runtime import DATA_ROOT, LinuxTaskConfig
+from tasks.linux_runtime import LinuxTaskConfig
 
 
 _setup = BaseTaskSetup()
@@ -81,8 +80,8 @@ def _shell_join(parts: list[str]) -> str:
     return " ".join(shlex.quote(part) for part in parts)
 
 
-def _output_dir_name(remote_output_dir: str) -> str:
-    return PurePosixPath(remote_output_dir).name
+def _output_dir_name(output_path: str) -> str:
+    return PurePosixPath(output_path).name
 
 
 def _is_fixture_dir_name(output_dir_name: str) -> bool:
@@ -162,8 +161,6 @@ class LtmleTargetedBootstrapConfig(LinuxTaskConfig):
             TASK_NAME=TASK_NAME,
             VARIANT_NAME=variant_name,
             OS_TYPE="linux",
-            REMOTE_ROOT_DIR=os.environ.get("REMOTE_ROOT_DIR", DATA_ROOT),
-            REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"),
         )
 
     @property
@@ -216,15 +213,15 @@ class LtmleTargetedBootstrapConfig(LinuxTaskConfig):
 
     @property
     def output_summary_file(self) -> str:
-        return f"{self.remote_output_dir}/summary.csv"
+        return f"{self.output_dir}/summary.csv"
 
     @property
     def output_report_file(self) -> str:
-        return f"{self.remote_output_dir}/report.pdf"
+        return f"{self.output_dir}/report.pdf"
 
     @property
     def output_dir_name(self) -> str:
-        return _output_dir_name(self.remote_output_dir)
+        return _output_dir_name(self.output_dir)
 
     @property
     def software_rscript(self) -> str:
@@ -362,7 +359,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     required_candidate_paths = [
         meta["output_summary_file"],
         meta["output_report_file"],
-        *(f'{meta["remote_output_dir"]}/{name}' for name in meta["required_scripts"]),
+        *(f'{meta["output_dir"]}/{name}' for name in meta["required_scripts"]),
     ]
     missing_candidate = [path for path in required_candidate_paths if not await session.exists(path)]
     if missing_candidate:
@@ -372,7 +369,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     contract = json.loads(_as_text(await session.read_file(meta["evaluation_contract_file"])))
 
     script_bodies = {
-        script_name: _as_text(await session.read_file(f'{meta["remote_output_dir"]}/{script_name}'))
+        script_name: _as_text(await session.read_file(f'{meta["output_dir"]}/{script_name}'))
         for script_name in meta["required_scripts"]
     }
     empty_scripts = [name for name, text in script_bodies.items() if not text.strip()]
@@ -430,7 +427,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
             "python",
             verify_script_path,
             "--candidate-dir",
-            meta["remote_output_dir"],
+            meta["output_dir"],
             "--input-dir",
             meta["input_dir"],
             "--reference-dir",

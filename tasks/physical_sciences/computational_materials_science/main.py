@@ -12,7 +12,7 @@ if __name__ not in sys.modules:
 import cua_bench as cb
 
 from tasks.common_setup import BaseTaskSetup
-from tasks.linux_runtime import DATA_ROOT, LinuxTaskConfig
+from tasks.linux_runtime import LinuxTaskConfig
 from tasks.physical_sciences._shared.materials_science._common import (
     MOSE2_BSE_ABSORPTION_SOC_SPEC,
     SILICON_BSE_ABSORPTION_SPEC,
@@ -76,35 +76,35 @@ You may also use Python, shell utilities, and editors available on the VM.
 
 ## What You Must Do
 1. Create the missing Quantum ESPRESSO and BerkeleyGW input decks from scratch for each subcase.
-2. Run the silicon GW workflow and save its required outputs under `{self.remote_output_dir}/silicon`.
-3. Run the silicon GW+BSE workflow and save its required outputs under `{self.remote_output_dir}/silicon-BSE`.
-4. Run the SOC-enabled monolayer MoSe2 GW+BSE workflow and save its required outputs under `{self.remote_output_dir}/MoSe2-BSE`.
+2. Run the silicon GW workflow and save its required outputs under `{self.output_dir}/silicon`.
+3. Run the silicon GW+BSE workflow and save its required outputs under `{self.output_dir}/silicon-BSE`.
+4. Run the SOC-enabled monolayer MoSe2 GW+BSE workflow and save its required outputs under `{self.output_dir}/MoSe2-BSE`.
 
 ## Required Output Files
 
 ### silicon
-- `{self.remote_output_dir}/silicon/bandstructure.dat`
-- `{self.remote_output_dir}/silicon/eqp.dat`
-- `{self.remote_output_dir}/silicon/bandstructure_inteqp.png`
+- `{self.output_dir}/silicon/bandstructure.dat`
+- `{self.output_dir}/silicon/eqp.dat`
+- `{self.output_dir}/silicon/bandstructure_inteqp.png`
 
 ### silicon-BSE
-- `{self.remote_output_dir}/silicon-BSE/bandstructure.dat`
-- `{self.remote_output_dir}/silicon-BSE/eqp.dat`
-- `{self.remote_output_dir}/silicon-BSE/eqp_q.dat`
-- `{self.remote_output_dir}/silicon-BSE/absorption_eh.dat`
-- `{self.remote_output_dir}/silicon-BSE/absorption_noeh.dat`
-- `{self.remote_output_dir}/silicon-BSE/eigenvalues.dat`
-- `{self.remote_output_dir}/silicon-BSE/eigenvalues_noeh.dat`
-- `{self.remote_output_dir}/silicon-BSE/bandstructure_inteqp.png`
-- `{self.remote_output_dir}/silicon-BSE/absorption.png`
+- `{self.output_dir}/silicon-BSE/bandstructure.dat`
+- `{self.output_dir}/silicon-BSE/eqp.dat`
+- `{self.output_dir}/silicon-BSE/eqp_q.dat`
+- `{self.output_dir}/silicon-BSE/absorption_eh.dat`
+- `{self.output_dir}/silicon-BSE/absorption_noeh.dat`
+- `{self.output_dir}/silicon-BSE/eigenvalues.dat`
+- `{self.output_dir}/silicon-BSE/eigenvalues_noeh.dat`
+- `{self.output_dir}/silicon-BSE/bandstructure_inteqp.png`
+- `{self.output_dir}/silicon-BSE/absorption.png`
 
 ### MoSe2-BSE
-- `{self.remote_output_dir}/MoSe2-BSE/MoSe2_bands.dat.gnu`
-- `{self.remote_output_dir}/MoSe2-BSE/MoSe2_bands.png`
-- `{self.remote_output_dir}/MoSe2-BSE/absorption_eh.dat`
-- `{self.remote_output_dir}/MoSe2-BSE/exciton_absorption_spectra_avg.png`
+- `{self.output_dir}/MoSe2-BSE/MoSe2_bands.dat.gnu`
+- `{self.output_dir}/MoSe2-BSE/MoSe2_bands.png`
+- `{self.output_dir}/MoSe2-BSE/absorption_eh.dat`
+- `{self.output_dir}/MoSe2-BSE/exciton_absorption_spectra_avg.png`
 
-Do not write outputs outside `{self.remote_output_dir}`.
+Do not write outputs outside `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict:
@@ -116,7 +116,7 @@ Do not write outputs outside `{self.remote_output_dir}`.
                 "reference_dir": self.reference_dir,
                 "software_dir": self.software_dir,
                 "software_launcher": self.software_launcher,
-                "remote_output_dir": self.remote_output_dir,
+                "output_dir": self.output_dir,
                 "subcases": list(SUBCASE_SPECS),
             }
         )
@@ -149,7 +149,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     for subcase, spec in SUBCASE_SPECS.items():
         result = await evaluate_remote_output_dir(
             session,
-            output_dir=f'{task_cfg.metadata["remote_output_dir"]}/{subcase}',
+            output_dir=f'{task_cfg.metadata["output_dir"]}/{subcase}',
             reference_dir=f'{task_cfg.metadata["reference_dir"]}/{subcase}',
             spec=spec,
         )

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -72,7 +71,6 @@ class HangzhouMetroConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = "transport_safety"
     TASK_NAME: str = "abm_hangzhou_metro"
     VARIANT_NAME: str = "base"
-    REMOTE_OUTPUT_DIR: str = os.environ.get("REMOTE_OUTPUT_DIR", "output")
 
     @property
     def task_prompt_file(self) -> str:
@@ -116,19 +114,19 @@ class HangzhouMetroConfig(LinuxTaskConfig):
 
     @property
     def candidate_csv(self) -> str:
-        return f"{self.remote_output_dir}/passenger_records.csv"
+        return f"{self.output_dir}/passenger_records.csv"
 
     @property
     def candidate_report(self) -> str:
-        return f"{self.remote_output_dir}/validation_report.txt"
+        return f"{self.output_dir}/validation_report.txt"
 
     @property
     def candidate_scatter(self) -> str:
-        return f"{self.remote_output_dir}/scatter_plot.png"
+        return f"{self.output_dir}/scatter_plot.png"
 
     @property
     def runtime_state_dir(self) -> str:
-        return f"{self.remote_output_dir}/.runtime_state"
+        return f"{self.output_dir}/.runtime_state"
 
     @property
     def reference_csv(self) -> str:
@@ -162,7 +160,7 @@ Visible task files:
 What you must do:
 1. Read `{self.task_prompt_file}` and `{self.output_contract_file}`.
 2. Build a metro simulation workflow from the staged AFC, GIS, and network-configuration files.
-3. Write the final required deliverables under `{self.remote_output_dir}`:
+3. Write the final required deliverables under `{self.output_dir}`:
    - `{self.candidate_csv}`
    - `{self.candidate_report}`
 4. You may also write `{self.candidate_scatter}` if you want an optional plot artifact.

@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import shlex
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
 import cua_bench as cb
 
 from tasks.common_setup import BaseTaskSetup
-from tasks.linux_runtime import DATA_ROOT, LinuxTaskConfig
+from tasks.linux_runtime import LinuxTaskConfig
 
 
 _setup = BaseTaskSetup()
@@ -84,20 +84,12 @@ def _parse_json_stdout(raw: str) -> dict[str, Any]:
     raise ValueError(f"unable to parse verifier JSON from stdout: {text[:500]}")
 
 
+@dataclass
 class PowerFeederReliabilityConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = VARIANT_NAME
     OS_TYPE: str = "linux"
-
-    def __init__(self) -> None:
-        super().__init__(
-            DOMAIN_NAME=DOMAIN_NAME,
-            TASK_NAME=TASK_NAME,
-            VARIANT_NAME=VARIANT_NAME,
-            OS_TYPE="linux",
-            REMOTE_ROOT_DIR=os.environ.get("REMOTE_ROOT_DIR", "/media/user/data/agenthle"),
-        )
 
     @property
     def output_test_pos_dir(self) -> str:
@@ -109,7 +101,7 @@ class PowerFeederReliabilityConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/{OUTPUT_FILENAME}"
+        return f"{self.output_dir}/{OUTPUT_FILENAME}"
 
     @property
     def input_xml(self) -> str:
@@ -161,7 +153,7 @@ Compute the feeder reliability indices and the section-level contribution tables
 - Required top-level keys:
   `feeder, N_T, SAIFI_F, SAIDI_F_h, SAIDI_F_min, SAIFI_D, SAIDI_D_h, SAIDI_D_min, SAIFI_S, SAIDI_S_h, SAIDI_S_min, SAIFI, SAIDI_h, SAIDI_min, CAIDI_h, CAIDI_min, ASAI, fault_rows, device_fault_rows, scheduled_rows`
 - Keep the section tables in the JSON output.
-- Do not write any extra files into `{self.remote_output_dir}`.
+- Do not write any extra files into `{self.output_dir}`.
 
 ## Practical Note
 The task is designed for Python-based network analysis and data processing. If you need additional Python packages, install them from the staged manifests under `input/` using `uv`.
@@ -178,7 +170,7 @@ The task is designed for Python-based network analysis and data processing. If y
                 "reference_dir": self.reference_dir,
                 "output_test_pos_dir": self.output_test_pos_dir,
                 "output_test_neg_dir": self.output_test_neg_dir,
-                "remote_output_dir": self.remote_output_dir,
+                "output_dir": self.output_dir,
                 "output_file": self.output_file,
                 "input_xml": self.input_xml,
                 "input_svg": self.input_svg,

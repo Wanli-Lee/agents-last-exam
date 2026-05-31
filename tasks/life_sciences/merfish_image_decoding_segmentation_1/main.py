@@ -44,7 +44,7 @@ def _canonical_output_dir_name(path: str) -> str:
     normalized = posixpath.normpath(path.replace("\\", "/"))
     if normalized not in CANONICAL_OUTPUT_DIR_NAMES:
         raise ValueError(
-            "REMOTE_OUTPUT_DIR must normalize to one of: output, output_test_pos, output_test_neg"
+            "OUTPUT_SUBDIR must normalize to one of: output, output_test_pos, output_test_neg"
         )
     return normalized
 
@@ -57,10 +57,10 @@ class MerfishTaskConfig(LinuxTaskConfig):
 
     @property
     def output_dir_name(self) -> str:
-        return _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
+        return _canonical_output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
-    def remote_output_dir(self) -> str:
+    def output_dir(self) -> str:
         return f"{self.task_dir}/{self.output_dir_name}"
 
     @property
@@ -89,19 +89,19 @@ class MerfishTaskConfig(LinuxTaskConfig):
 
     @property
     def decoded_file(self) -> str:
-        return f"{self.remote_output_dir}/decoded_transcripts.csv"
+        return f"{self.output_dir}/decoded_transcripts.csv"
 
     @property
     def segmentation_file(self) -> str:
-        return f"{self.remote_output_dir}/segmentation.tiff"
+        return f"{self.output_dir}/segmentation.tiff"
 
     @property
     def cell_by_gene_file(self) -> str:
-        return f"{self.remote_output_dir}/cell_by_gene.csv"
+        return f"{self.output_dir}/cell_by_gene.csv"
 
     @property
     def metrics_file(self) -> str:
-        return f"{self.remote_output_dir}/quality_metrics.json"
+        return f"{self.output_dir}/quality_metrics.json"
 
     @property
     def reference_file(self) -> str:
@@ -136,7 +136,7 @@ Inputs (all under `{self.input_dir}`; treat as read-only):
   `runtime_env/python-version` pin the Python 3.11 environment that
   starfish 0.3.4 and Cellpose 3.1.1 need. The canonical agent-facing entry
   point `{self.python_entrypoint}` behaves like a Python interpreter, keeps
-  its `uv` cache and resolved environment under `{self.remote_output_dir}`,
+  its `uv` cache and resolved environment under `{self.output_dir}`,
   and uses `{self.runtime_pyproject}` (with the staged `uv.lock`) as the
   frozen runtime manifest. You can invoke it directly
   (`{self.python_entrypoint} your_script.py`) or materialize the env
@@ -160,7 +160,7 @@ Recommended workflow:
 7. Build the cell-by-gene count matrix for the 130 real genes (exclude
    blanks) and compute the quality metrics listed in `output_contract.json`.
 
-Outputs must go into `{self.remote_output_dir}`:
+Outputs must go into `{self.output_dir}`:
 - `decoded_transcripts.csv` with columns `gene, x, y, is_exact, total_magnitude`.
 - `segmentation.tiff` - 2048x2048 `uint16` labeled mask (background=0).
 - `cell_by_gene.csv` - leading `cell_id` column followed by the 130 real genes

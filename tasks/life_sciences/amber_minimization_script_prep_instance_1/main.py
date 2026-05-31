@@ -11,7 +11,7 @@ from tasks.common_setup import BaseTaskSetup
 from tasks.life_sciences.amber_minimization_script_prep_instance_1.scripts.verify_submission import (
     evaluate_output_bundle,
 )
-from tasks.linux_runtime import DATA_ROOT, LinuxTaskConfig
+from tasks.linux_runtime import LinuxTaskConfig
 
 _setup = BaseTaskSetup()
 
@@ -48,7 +48,7 @@ Available environment:
 
 Your task:
 1. Inspect `complex_structure.pdb`
-2. Create exactly these three files under `{self.remote_output_dir}`:
+2. Create exactly these three files under `{self.output_dir}`:
    - `leap.in`
    - `step2_implicit.mini.mdin`
    - `submit_min.sh`
@@ -67,23 +67,16 @@ Requirements:
         metadata.update(
             {
                 "task_dir": self.task_dir,
-                "data_task_dir": self.data_task_dir,
                 "input_dir": self.input_dir,
                 "reference_dir": self.reference_dir,
                 "software_dir": self.software_dir,
-                "remote_output_dir": self.remote_output_dir,
                 "system_basename": SYSTEM_BASENAME,
             }
         )
         return metadata
 
 
-config = AmberMinimizationTaskConfig(
-    DOMAIN_NAME=DOMAIN_NAME,
-    TASK_NAME=TASK_NAME,
-    VARIANT_NAME=VARIANT_NAME,
-    OS_TYPE="linux",
-)
+config = AmberMinimizationTaskConfig()
 
 
 @cb.tasks_config(split="train")
@@ -130,7 +123,7 @@ async def _list_output_files(session: cb.DesktopSession, output_dir: str) -> lis
 @cb.evaluate_task(split="train")
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     meta = task_cfg.metadata
-    output_dir = meta["remote_output_dir"]
+    output_dir = meta["output_dir"]
     files = await _list_output_files(session, output_dir)
 
     bundle: dict[str, str] = {}

@@ -122,7 +122,7 @@ class FF5PublicReconstructionConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/{self.OUTPUT_FILENAME}"
+        return f"{self.output_dir}/{self.OUTPUT_FILENAME}"
 
     @property
     def reference_file(self) -> str:
@@ -167,7 +167,7 @@ Output requirements:
 Constraints:
 1. Follow the allowlist and workflow restrictions in `agent_prompt.md` and `manifest.json`.
 2. If you install Python dependencies, use the staged runtime manifest rather than modifying benchmark-owned evaluator state.
-3. Write only your task output under `{self.remote_output_dir}`.
+3. Write only your task output under `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict[str, Any]:

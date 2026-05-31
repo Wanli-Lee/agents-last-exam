@@ -38,7 +38,7 @@ from tasks.life_sciences.protein_function_annotation_instance_1.scripts.score_ou
     ScoreReport,
     score_output_payloads,
 )
-from tasks.linux_runtime import DATA_ROOT, LinuxTaskConfig
+from tasks.linux_runtime import LinuxTaskConfig
 
 _setup = BaseTaskSetup()
 
@@ -81,6 +81,10 @@ class ProteinFunctionAnnotationConfig(LinuxTaskConfig):
     OS_TYPE: str = "linux"
 
     @property
+    def data_task_dir(self) -> str:
+        return self.task_dir
+
+    @property
     def visible_output_dir(self) -> str:
         return f"{self.task_dir}/output"
 
@@ -114,15 +118,15 @@ class ProteinFunctionAnnotationConfig(LinuxTaskConfig):
 
     @property
     def interpro_domains_output(self) -> str:
-        return _remote_join(self.remote_output_dir, "interpro_domains.tsv")
+        return _remote_join(self.output_dir, "interpro_domains.tsv")
 
     @property
     def go_terms_output(self) -> str:
-        return _remote_join(self.remote_output_dir, "go_terms.tsv")
+        return _remote_join(self.output_dir, "go_terms.tsv")
 
     @property
     def summary_output(self) -> str:
-        return _remote_join(self.remote_output_dir, "functional_summary.txt")
+        return _remote_join(self.output_dir, "functional_summary.txt")
 
     @property
     def reference_interpro_domains(self) -> str:
@@ -184,15 +188,14 @@ You are working on a Linux VM to annotate one staged protein with InterProScan.
                 "variant_name": self.VARIANT_NAME,
                 "workspace_dir": self.task_dir,
                 "task_dir": self.task_dir,
-                "data_task_dir": self.data_task_dir,
                 "input_dir": self.input_dir,
                 "software_dir": self.software_dir,
                 "visible_output_dir": self.visible_output_dir,
                 "reference_dir": self.reference_dir,
                 "output_test_pos_dir": self.output_test_pos_dir,
                 "output_test_neg_dir": self.output_test_neg_dir,
-                "remote_output_dir": self.remote_output_dir,
-                "remote_output_name": self.REMOTE_OUTPUT_DIR,
+                "output_dir": self.output_dir,
+                "remote_output_name": self.OUTPUT_SUBDIR,
                 "input_fasta": self.input_fasta,
                 "organism_file": self.organism_file,
                 "interproscan_wrapper": self.interproscan_wrapper,
@@ -261,7 +264,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
         logger.error("missing agent outputs: %s", missing)
         return [0.0]
     try:
-        output_files = set(await _list_output_files(session, meta["remote_output_dir"]))
+        output_files = set(await _list_output_files(session, meta["output_dir"]))
     except Exception as exc:
         logger.exception("failed to inspect output directory: %s", exc)
         return [0.0]

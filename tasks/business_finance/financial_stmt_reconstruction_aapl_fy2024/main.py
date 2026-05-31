@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-import sys
+from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -35,7 +34,7 @@ except ModuleNotFoundError:  # pragma: no cover - local import fallback only
     )
 
 from tasks.common_setup import BaseTaskSetup
-from tasks.linux_runtime import DATA_ROOT, LinuxTaskConfig
+from tasks.linux_runtime import LinuxTaskConfig
 
 _setup = BaseTaskSetup()
 
@@ -55,52 +54,28 @@ SCORE_SCRIPT = (SCRIPTS_DIR / "score_outputs.py").read_text(encoding="utf-8")
 def _normalize_output_dir_name(raw: str) -> str:
     normalized = raw.replace("\\", "/").strip("/")
     if not normalized or "/" in normalized:
-        raise ValueError(f"REMOTE_OUTPUT_DIR must be a single directory name, got {raw!r}")
+        raise ValueError(f"OUTPUT_SUBDIR must be a single directory name, got {raw!r}")
     if normalized in ALLOWED_OUTPUT_DIR_NAMES or normalized.startswith(ADMIN_OUTPUT_PREFIX):
         return normalized
     raise ValueError(
-        "REMOTE_OUTPUT_DIR must be one of "
+        "OUTPUT_SUBDIR must be one of "
         f"{sorted(ALLOWED_OUTPUT_DIR_NAMES)} or start with {ADMIN_OUTPUT_PREFIX!r}"
     )
 
 
+@dataclass
 class AAPLBalanceSheetConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = VARIANT_NAME
-    REMOTE_OUTPUT_DIR: str = os.environ.get("REMOTE_OUTPUT_DIR", "output")
     OS_TYPE: str = "linux"
-
-    def __init__(self, remote_output_dir: str | None = None) -> None:
-        self.REMOTE_OUTPUT_DIR = remote_output_dir or os.environ.get("REMOTE_OUTPUT_DIR", "output")
-        self.DOMAIN_NAME = DOMAIN_NAME
-        self.TASK_NAME = TASK_NAME
-        self.VARIANT_NAME = VARIANT_NAME
-        self.OS_TYPE = "linux"
-        self.REQUIRES_TASK_DATA = True
 
     @property
     def output_dir_name(self) -> str:
-        return _normalize_output_dir_name(self.REMOTE_OUTPUT_DIR)
+        return _normalize_output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
-    def task_dir(self) -> str:
-        return f"{DATA_ROOT}/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}"
-
-    @property
-    def input_dir(self) -> str:
-        return f"{self.task_dir}/input"
-
-    @property
-    def reference_dir(self) -> str:
-        return f"{self.task_dir}/reference"
-
-    @property
-    def software_dir(self) -> str:
-        return f"{self.task_dir}/software"
-
-    @property
-    def remote_output_dir(self) -> str:
+    def output_dir(self) -> str:
         return f"{self.task_dir}/{self.output_dir_name}"
 
     @property
@@ -109,7 +84,7 @@ class AAPLBalanceSheetConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/balance_sheet.json"
+        return f"{self.output_dir}/balance_sheet.json"
 
     @property
     def task_description(self) -> str:
@@ -148,7 +123,7 @@ do not modify files under `{self.input_dir}`.
                 "input_dir": self.input_dir,
                 "reference_dir": self.reference_dir,
                 "software_dir": self.software_dir,
-                "remote_output_dir": self.remote_output_dir,
+                "output_dir": self.output_dir,
                 "task_prompt_file": self.task_prompt_file,
                 "output_file": self.output_file,
                 "eval_tmp_dir": EVAL_TMP_DIR,
@@ -192,7 +167,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
         await session.write_file(score_script, SCORE_SCRIPT)
         result = await session.run_command(
             f'python "{score_script}" '
-            f'--output "{meta["remote_output_dir"]}" '
+            f'--output "{meta["output_dir"]}" '
             f'--reference "{meta["reference_dir"]}"'
         )
         if result.get("return_code", 1) != 0:

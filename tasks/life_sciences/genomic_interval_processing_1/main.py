@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import posixpath
 import sys
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -41,33 +41,30 @@ def _normalize_output_dir_name(raw: str) -> str:
     normalized = posixpath.normpath(raw.replace("\\", "/").strip())
     if normalized not in ALLOWED_OUTPUT_DIRS:
         raise ValueError(
-            "REMOTE_OUTPUT_DIR must normalize to one of: "
+            "OUTPUT_SUBDIR must normalize to one of: "
             "output, output_test_pos, output_test_neg, output_admin_pos, output_admin_neg"
         )
     return normalized
 
 
+@dataclass
 class TaskConfig(LinuxTaskConfig):
-    def __init__(self, remote_output_dir: str | None = None) -> None:
-        super().__init__(
-            DOMAIN_NAME=DOMAIN_NAME,
-            TASK_NAME=TASK_NAME,
-            VARIANT_NAME=VARIANT_NAME,
-            OS_TYPE="linux",
-            REMOTE_OUTPUT_DIR=remote_output_dir or os.environ.get("REMOTE_OUTPUT_DIR", "output"),
-        )
+    DOMAIN_NAME: str = DOMAIN_NAME
+    TASK_NAME: str = TASK_NAME
+    VARIANT_NAME: str = VARIANT_NAME
+    OS_TYPE: str = "linux"
 
     @property
     def output_dir_name(self) -> str:
-        return _normalize_output_dir_name(self.REMOTE_OUTPUT_DIR)
+        return _normalize_output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
-    def remote_output_dir(self) -> str:
+    def output_dir(self) -> str:
         return f"{self.task_dir}/{self.output_dir_name}"
 
     @property
     def output_files(self) -> dict[str, str]:
-        return {name: f"{self.remote_output_dir}/{name}" for name in REQUIRED_FILES}
+        return {name: f"{self.output_dir}/{name}" for name in REQUIRED_FILES}
 
     @property
     def task_instructions_file(self) -> str:
@@ -112,14 +109,14 @@ What you must do:
 3. Sort the final BED lexicographically by chromosome, then numerically by start and end.
 4. Record the commands or script steps you used.
 5. Write a JSON summary whose input and output counts match the files you used and produced.
-6. Write exactly these required files under `{self.remote_output_dir}`:
+6. Write exactly these required files under `{self.output_dir}`:
    - `union_peaks.bed`
    - `commands.sh`
    - `summary.json`
 
 Use `{self.software_dir}/bedtools` when you need BEDTools; do not rely on a PATH-resolved `bedtools`.
 Do not modify files under `{self.input_dir}`.
-Do not write final outputs outside `{self.remote_output_dir}`.
+Do not write final outputs outside `{self.output_dir}`.
 Use local staged files only; do not download replacement data from the internet.
 """
 
@@ -128,7 +125,6 @@ Use local staged files only; do not download replacement data from the internet.
         metadata.update(
             {
                 "task_dir": self.task_dir,
-                "data_task_dir": self.data_task_dir,
                 "input_dir": self.input_dir,
                 "software_dir": self.software_dir,
                 "operation_specification_file": self.operation_specification_file,

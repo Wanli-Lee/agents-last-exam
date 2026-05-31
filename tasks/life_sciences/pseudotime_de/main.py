@@ -3,6 +3,7 @@
 import json
 import logging
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 import cua_bench as cb
@@ -24,6 +25,7 @@ VARIANT_NAME = "base"
 DOMAIN_NAME = "life_sciences"
 
 
+@dataclass
 class TaskConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
@@ -31,7 +33,7 @@ class TaskConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/de_genes.csv"
+        return f"{self.output_dir}/de_genes.csv"
 
     @property
     def reference_file(self) -> str:
@@ -39,7 +41,7 @@ class TaskConfig(LinuxTaskConfig):
 
     @property
     def output_files(self) -> dict[str, str]:
-        return {name: f"{self.remote_output_dir}/{name}" for name in REQUIRED_FILES}
+        return {name: f"{self.output_dir}/{name}" for name in REQUIRED_FILES}
 
     @property
     def task_description(self) -> str:
@@ -72,7 +74,7 @@ Analysis pipeline:
 8. Apply BH correction; filter genes with padj < 0.05.
 
 Required output:
-- Save to: `{self.remote_output_dir}/de_genes.csv`
+- Save to: `{self.output_dir}/de_genes.csv`
 - Format: CSV with a single column `gene` containing HGNC symbols (one per row, deduplicated, order-independent).
 - Success criterion: at least 80% symbol-set overlap with a hidden gold-standard gene list.
 
@@ -92,7 +94,7 @@ Do not ask for confirmation. Execute directly.
         return metadata
 
 
-config = TaskConfig(DOMAIN_NAME=DOMAIN_NAME, TASK_NAME=TASK_NAME, VARIANT_NAME=VARIANT_NAME)
+config = TaskConfig()
 
 
 @cb.tasks_config(split="train")

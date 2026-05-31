@@ -7,10 +7,8 @@ SSIM >= 0.95 and unnormalized MSE <= 4E-6.
 """
 
 import io
-import json
 import logging
 from dataclasses import dataclass
-from pathlib import Path
 
 import numpy as np
 from skimage.metrics import structural_similarity as ssim
@@ -42,11 +40,11 @@ class TaskConfig(LinuxTaskConfig):
 
     @property
     def output_npy(self) -> str:
-        return f"{self.remote_output_dir}/reconstructed_calibrated.npy"
+        return f"{self.output_dir}/reconstructed_calibrated.npy"
 
     @property
     def output_json(self) -> str:
-        return f"{self.remote_output_dir}/geometry_calibrated.json"
+        return f"{self.output_dir}/geometry_calibrated.json"
 
     @property
     def reference_npy(self) -> str:
@@ -82,16 +80,16 @@ matches the reference image.
    differential_evolution) until the reconstructed image achieves
    SSIM >= 0.95 and unnormalized MSE <= 4e-6 relative to `reference_image.npy`.
 5. Save the final calibrated parameters to
-   `{self.remote_output_dir}/geometry_calibrated.json`
+   `{self.output_dir}/geometry_calibrated.json`
    and the final reconstructed image to
-   `{self.remote_output_dir}/reconstructed_calibrated.npy`.
+   `{self.output_dir}/reconstructed_calibrated.npy`.
 
 ## Input Files
 - Located at: `{self.input_dir}`
 
 ## Output
-- `{self.remote_output_dir}/geometry_calibrated.json` — calibrated parameters
-- `{self.remote_output_dir}/reconstructed_calibrated.npy` — final reconstruction
+- `{self.output_dir}/geometry_calibrated.json` — calibrated parameters
+- `{self.output_dir}/reconstructed_calibrated.npy` — final reconstruction
 
 ## Software
 - Python 3.10 + LEAP 1.26 (leaptorch), NumPy, SciPy, scikit-image, PyTorch (CPU), imageio.

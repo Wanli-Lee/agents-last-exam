@@ -31,7 +31,7 @@ SCRIPTS_DIR = Path(__file__).parent / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from score_outputs import score_submission, zero_report
+from score_outputs import score_submission, zero_report  # noqa: E402
 
 _setup = BaseTaskSetup()
 
@@ -88,11 +88,11 @@ class TaskConfig(LinuxTaskConfig):
 
     @property
     def policy_output_file(self) -> str:
-        return f"{self.remote_output_dir}/{POLICY_OUTPUT_FILENAME}"
+        return f"{self.output_dir}/{POLICY_OUTPUT_FILENAME}"
 
     @property
     def exposure_output_file(self) -> str:
-        return f"{self.remote_output_dir}/{EXPOSURE_OUTPUT_FILENAME}"
+        return f"{self.output_dir}/{EXPOSURE_OUTPUT_FILENAME}"
 
     @property
     def policy_reference_file(self) -> str:
@@ -156,7 +156,7 @@ locally on this VM. No network access is required or permitted.
   strings separated by `", "` (comma + single space). Split on the first
   `", "` only; some `api_name` values contain commas.
 - Do not modify any file under `{self.input_dir}`.
-- Write only to `{self.remote_output_dir}`.
+- Write only to `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict:

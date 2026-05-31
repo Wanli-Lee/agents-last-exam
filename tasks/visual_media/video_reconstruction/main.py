@@ -25,7 +25,6 @@ VARIANT_NAME_CONST = "international_festival"
 VARIANT_NAME = VARIANT_NAME_CONST
 DOMAIN_NAME = "visual_media"
 TASK_NAME_CONST = "video_reconstruction"
-REMOTE_ROOT_DIR = os.environ.get("IF_REMOTE_ROOT_DIR", r"E:\agenthle")
 PROJECT_FILE_NAME = "blank.drp"
 OUTPUT_VIDEO_NAME = os.environ.get("TARGET_VIDEO_NAME", "output-test.mp4")
 # Do not pin a preview build that Google will retire: `gemini-3-pro-preview`
@@ -217,7 +216,6 @@ async def _prepare_eval_video(
 
 @dataclass
 class TaskConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = REMOTE_ROOT_DIR
     DOMAIN_NAME: str = "visual_media"
 
     TASK_NAME: str = "video_reconstruction"
@@ -237,7 +235,7 @@ class TaskConfig(GeneralTaskConfig):
 
     @property
     def output_video(self) -> str:
-        return rf"{self.remote_output_dir}\{OUTPUT_VIDEO_NAME}"
+        return rf"{self.output_dir}\{OUTPUT_VIDEO_NAME}"
 
     @property
     def task_description(self) -> str:
@@ -358,7 +356,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     except Exception as exc:
         logger.warning("[eval] failed reading segment prompt file: %s", exc)
 
-    remote_eval_dir = rf"{task_cfg.metadata['remote_output_dir']}\eval_tmp"
+    remote_eval_dir = rf"{task_cfg.metadata['output_dir']}\eval_tmp"
     try:
         await session.makedirs(remote_eval_dir)
     except Exception:

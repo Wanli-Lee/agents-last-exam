@@ -20,7 +20,7 @@ def _canonical_output_dir_name(path: str) -> str:
     normalized = posixpath.normpath(path.replace("\\", "/"))
     if normalized not in CANONICAL_OUTPUT_DIR_NAMES:
         raise ValueError(
-            "REMOTE_OUTPUT_DIR must normalize to one of: output, output_test_pos, output_test_neg"
+            "OUTPUT_SUBDIR must normalize to one of: output, output_test_pos, output_test_neg"
         )
     return normalized
 
@@ -28,6 +28,7 @@ def _canonical_output_dir_name(path: str) -> str:
 @dataclass
 class TaskConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = "life_sciences"
+    TASK_NAME: str = "tms_marrow_cell_type_annotation_instance_1"
     VARIANT_NAME: str = "base"
 
     PASS_MACRO_F1: float = 0.75
@@ -40,6 +41,10 @@ class TaskConfig(LinuxTaskConfig):
     ALLOWED_LABELS_FILE: str = "allowed_labels.txt"
     PREDICTIONS_FILE: str = "predictions.csv"
     GROUND_TRUTH_FILE: str = "ground_truth.csv"
+
+    @property
+    def data_task_dir(self) -> str:
+        return self.task_dir
 
     @property
     def data_input_dir(self) -> str:
@@ -78,15 +83,15 @@ class TaskConfig(LinuxTaskConfig):
         return f"{self.task_dir}/output/{self.PREDICTIONS_FILE}"
 
     @property
-    def remote_output_dir(self) -> str:
-        output_dir_name = _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
+    def output_dir(self) -> str:
+        output_dir_name = _canonical_output_dir_name(self.OUTPUT_SUBDIR)
         if output_dir_name in {"output_test_pos", "output_test_neg"}:
             return f"{self.data_task_dir}/{output_dir_name}"
         return self.data_output_dir
 
     @property
     def predictions_path(self) -> str:
-        return f"{self.remote_output_dir}/{self.PREDICTIONS_FILE}"
+        return f"{self.output_dir}/{self.PREDICTIONS_FILE}"
 
     @property
     def ground_truth_path(self) -> str:
@@ -139,7 +144,7 @@ Do not ask for confirmation. Execute directly.
                 "input_note_path": self.input_note_path,
                 "allowed_labels_path": self.allowed_labels_path,
                 "runtime_env_dir": self.runtime_env_dir,
-                "output_dir_name": _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR),
+                "output_dir_name": _canonical_output_dir_name(self.OUTPUT_SUBDIR),
                 "visible_predictions_path": self.visible_predictions_path,
                 "predictions_path": self.predictions_path,
                 "ground_truth_path": self.ground_truth_path,
@@ -152,7 +157,7 @@ Do not ask for confirmation. Execute directly.
         return metadata
 
 
-config = TaskConfig(TASK_NAME="tms_marrow_cell_type_annotation_instance_1")
+config = TaskConfig()
 
 
 @cb.tasks_config(split="train")

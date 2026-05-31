@@ -18,7 +18,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--instruction-file", required=True)
     parser.add_argument("--runtime-env-dir", required=True)
     parser.add_argument("--reference-dir", required=True)
-    parser.add_argument("--remote-output-dir", required=True)
+    parser.add_argument("--output-dir", required=True)
     parser.add_argument("--workspace-root", default="/workspace")
     parser.add_argument("--protected-root", default="/protected")
     return parser.parse_args()
@@ -270,8 +270,7 @@ def main() -> int:
     input_workspace = Path(args.input_workspace)
     instruction_file = Path(args.instruction_file)
     runtime_env_dir = Path(args.runtime_env_dir)
-    reference_dir = Path(args.reference_dir)
-    remote_output_dir = Path(args.remote_output_dir)
+    output_dir = Path(args.output_dir)
     workspace_root = Path(args.workspace_root)
     protected_root = Path(args.protected_root)
     payload: dict[str, Any] = {"score": 0.0}

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import posixpath
 import sys
 from dataclasses import dataclass
@@ -42,7 +41,7 @@ if __name__ not in sys.modules:
     sys.modules[__name__] = sys.modules.get(__name__, type(sys)(__name__))
 
 from tasks.common_setup import BaseTaskSetup
-from tasks.linux_runtime import DATA_ROOT, LinuxTaskConfig
+from tasks.linux_runtime import LinuxTaskConfig
 
 _setup = BaseTaskSetup()
 
@@ -72,7 +71,7 @@ def _canonical_output_dir_name(path: str) -> str:
     normalized = posixpath.normpath(path.replace("\\", "/"))
     if normalized not in CANONICAL_OUTPUT_DIR_NAMES:
         raise ValueError(
-            "REMOTE_OUTPUT_DIR must normalize to one of: output, output_test_pos, output_test_neg"
+            "OUTPUT_SUBDIR must normalize to one of: output, output_test_pos, output_test_neg"
         )
     return normalized
 
@@ -89,11 +88,11 @@ class RgiMcr1ColistinV2Config(LinuxTaskConfig):
 
     @property
     def data_task_dir(self) -> str:
-        return f"{DATA_ROOT}/{self.DOMAIN_NAME}/{TASK_NAME}/{self.VARIANT_NAME}"
+        return f"{self.data_root}/{self.DOMAIN_NAME}/{TASK_NAME}/{self.VARIANT_NAME}"
 
     @property
     def task_dir(self) -> str:
-        return f"{DATA_ROOT}/{self.DOMAIN_NAME}/{VISIBLE_TASK_NAME}/{self.VARIANT_NAME}"
+        return f"{self.data_root}/{self.DOMAIN_NAME}/{VISIBLE_TASK_NAME}/{self.VARIANT_NAME}"
 
     @property
     def reference_dir(self) -> str:
@@ -105,10 +104,10 @@ class RgiMcr1ColistinV2Config(LinuxTaskConfig):
 
     @property
     def output_dir_name(self) -> str:
-        return _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
+        return _canonical_output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
-    def remote_output_dir(self) -> str:
+    def output_dir(self) -> str:
         if self.output_dir_name == "output":
             return f"{self.task_dir}/{self.output_dir_name}"
         return f"{self.data_task_dir}/{self.output_dir_name}"
@@ -131,15 +130,15 @@ class RgiMcr1ColistinV2Config(LinuxTaskConfig):
 
     @property
     def answer_file(self) -> str:
-        return f"{self.remote_output_dir}/answer.json"
+        return f"{self.output_dir}/answer.json"
 
     @property
     def rgi_result_tsv(self) -> str:
-        return f"{self.remote_output_dir}/rgi_result.txt"
+        return f"{self.output_dir}/rgi_result.txt"
 
     @property
     def rgi_result_json(self) -> str:
-        return f"{self.remote_output_dir}/rgi_result.json"
+        return f"{self.output_dir}/rgi_result.json"
 
     @property
     def verification_targets_file(self) -> str:
@@ -159,7 +158,7 @@ Visible inputs:
 - Runtime manifest for installing the official GitHub RGI package: `{self.runtime_pyproject}`
 
 Required workflow:
-1. Work from a writable directory under `{self.remote_output_dir}`.
+1. Work from a writable directory under `{self.output_dir}`.
 2. Create a task-local Python environment from `{self.runtime_env_dir}` so the `rgi` CLI is available.
 3. Use the staged `{self.card_json}` with `rgi load --local -i ../input/card.json`.
 4. Run RGI in contig mode against `../input/input_contig.fasta` with:
@@ -176,7 +175,7 @@ Output requirements:
 - `percent_identity` should be numeric.
 - `drug_class` should report CARD's drug class wording for the hit.
 - `resistance_mechanism` should report CARD's resistance mechanism wording for the hit.
-- Keep solver-created files under `{self.remote_output_dir}`.
+- Keep solver-created files under `{self.output_dir}`.
 - Treat `{self.input_dir}` as read-only source data.
 
 Important constraints:
@@ -193,7 +192,6 @@ Important constraints:
             {
                 "task_id": TASK_ID,
                 "workspace_dir": self.task_dir,
-                "data_task_dir": self.data_task_dir,
                 "output_dir_name": self.output_dir_name,
                 "input_fasta": self.input_fasta,
                 "card_json": self.card_json,
@@ -214,7 +212,7 @@ config = RgiMcr1ColistinV2Config()
 
 @cb.tasks_config(split="train")
 def load():
-    cfg = RgiMcr1ColistinV2Config(REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"))
+    cfg = RgiMcr1ColistinV2Config()
     return [
         cb.Task(
             description=cfg.task_description,

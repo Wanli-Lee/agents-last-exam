@@ -116,7 +116,7 @@ class TaskConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/tool_report.json"
+        return f"{self.output_dir}/tool_report.json"
 
     @property
     def task_description(self) -> str:

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -53,25 +53,12 @@ def _parse_json_stdout(raw: str) -> dict[str, Any]:
     return json.loads(text)
 
 
+@dataclass
 class NDVIZonalStatisticsConfig(GeneralTaskConfig):
+    DOMAIN_NAME: str = "agriculture_env"
+    TASK_NAME: str = "ndvi_zonal_statistics_d02"
     VARIANT_NAME: str = "base"
-
-    def __init__(self) -> None:
-        super().__init__(
-            DOMAIN_NAME="agriculture_env",
-            TASK_NAME="ndvi_zonal_statistics_d02",
-            VARIANT_NAME="base",
-            OS_TYPE="windows",
-            REMOTE_ROOT_DIR=os.environ.get("REMOTE_ROOT_DIR", r"E:\agenthle"),
-        )
-
-    @property
-    def task_dir(self) -> str:
-        return rf"{self.REMOTE_ROOT_DIR}\{self.DOMAIN_NAME}\{self.TASK_NAME}\{self.VARIANT_NAME}"
-
-    @property
-    def input_dir(self) -> str:
-        return rf"{self.task_dir}\input"
+    OS_TYPE: str = "windows"
 
     @property
     def output_test_pos_dir(self) -> str:
@@ -80,10 +67,6 @@ class NDVIZonalStatisticsConfig(GeneralTaskConfig):
     @property
     def output_test_neg_dir(self) -> str:
         return rf"{self.task_dir}\output_test_neg"
-
-    @property
-    def software_dir(self) -> str:
-        return rf"{self.task_dir}\software"
 
     @property
     def python_geo(self) -> str:
@@ -107,11 +90,11 @@ class NDVIZonalStatisticsConfig(GeneralTaskConfig):
 
     @property
     def ndvi_output(self) -> str:
-        return rf"{self.remote_output_dir}\ndvi.tif"
+        return rf"{self.output_dir}\ndvi.tif"
 
     @property
     def csv_output(self) -> str:
-        return rf"{self.remote_output_dir}\polygon_ndvi_stats.csv"
+        return rf"{self.output_dir}\polygon_ndvi_stats.csv"
 
     @property
     def task_description(self) -> str:
@@ -140,7 +123,7 @@ Optional Python runtime:
 - Use `{self.python_geo}` if you want the benchmark-provisioned geospatial Python stack.
 - The package manifest is visible at `{self.runtime_pyproject}`.
 
-Required outputs under `{self.remote_output_dir}`:
+Required outputs under `{self.output_dir}`:
 - `ndvi.tif`
 - `polygon_ndvi_stats.csv`
 
@@ -240,7 +223,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
         meta["evaluator_python"],
         verify_script_path,
         "--pred-dir",
-        meta["remote_output_dir"],
+        meta["output_dir"],
         "--gt-dir",
         meta["reference_dir"],
     ]

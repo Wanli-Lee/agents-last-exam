@@ -11,7 +11,6 @@ Variants: 12 injection molding projects with identical evaluation logic.
 
 import json
 import logging
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -55,17 +54,12 @@ VARIANTS = [
 class MoldFlowTaskConfig(GeneralTaskConfig):
     """Configuration for a single Moldex3D mold-flow analysis task."""
 
-    REMOTE_ROOT_DIR: str = os.environ.get("REMOTE_ROOT_DIR", r"E:\agenthle")
     DOMAIN_NAME: str = "engineering"
 
     TASK_NAME: str = "mold-flow"
     VARIANT_NAME: str = ""
     MDX_PROJECT_NAME: str = ""
     HAS_CAD_REFERENCE: bool = False
-
-    @property
-    def input_dir(self) -> str:
-        return rf"{self.task_dir}\input"
 
     @property
     def input_project(self) -> str:
@@ -79,7 +73,7 @@ class MoldFlowTaskConfig(GeneralTaskConfig):
     @property
     def output_project(self) -> str:
         """The Moldex3D project copied to output/ (agent works here)."""
-        return rf"{self.remote_output_dir}\{self.MDX_PROJECT_NAME}"
+        return rf"{self.output_dir}\{self.MDX_PROJECT_NAME}"
 
     @property
     def process_spec_file(self) -> str:
@@ -94,7 +88,7 @@ class MoldFlowTaskConfig(GeneralTaskConfig):
     @property
     def agent_results_file(self) -> str:
         """Agent's filled results JSON in output/."""
-        return rf"{self.remote_output_dir}\results.json"
+        return rf"{self.output_dir}\results.json"
 
     @property
     def reference_results_file(self) -> str:
@@ -154,7 +148,7 @@ Configure process parameters and run a mold-flow analysis for project **{self.VA
 {cad_step}5. Run the full analysis (this may take 1-2 hours)
 6. After analysis completes, extract the simulation results from the Moldex3D result viewer
 7. Create `{self.agent_results_file}` using the same JSON structure as `{self.results_template_file}` and fill in all null fields with the simulation values
-8. Save any working project artifacts under `{self.remote_output_dir}` if you choose to create a writable copy
+8. Save any working project artifacts under `{self.output_dir}` if you choose to create a writable copy
 
 ## Results to Extract
 After analysis completes, fill in these fields in results.json:
@@ -285,7 +279,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     """
     meta = task_cfg.metadata
     task_tag = meta["variant_name"]
-    output_dir = meta["remote_output_dir"]
+    output_dir = meta["output_dir"]
     agent_results = meta["agent_results_file"]
     ref_results = meta["reference_results_file"]
     ref_process = meta["reference_process_file"]

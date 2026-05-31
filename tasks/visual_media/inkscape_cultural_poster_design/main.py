@@ -299,7 +299,6 @@ async def _read_remote_bytes(session: cb.DesktopSession, path: str) -> bytes:
 
 @dataclass
 class InkscapeCulturalPosterConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = os.environ.get("REMOTE_ROOT_DIR", r"E:\agenthle")
     DOMAIN_NAME: str = "visual_media"
     TASK_NAME: str = "inkscape_cultural_poster_design"
     VARIANT_NAME: str = VARIANT_NAME
@@ -311,7 +310,7 @@ class InkscapeCulturalPosterConfig(GeneralTaskConfig):
 
     @property
     def output_poster(self) -> str:
-        return _remote_join(self.remote_output_dir, "poster.svg")
+        return _remote_join(self.output_dir, "poster.svg")
 
     @property
     def spec_path(self) -> str:

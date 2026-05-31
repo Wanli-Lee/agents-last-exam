@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -67,12 +66,12 @@ class Sec10KFinancialParsingConfig(LinuxTaskConfig):
         return f"{self.task_dir}/output_test_neg"
 
     @property
-    def remote_output_dir(self) -> str:
-        if self.REMOTE_OUTPUT_DIR == "output_test_pos":
+    def output_dir(self) -> str:
+        if self.OUTPUT_SUBDIR == "output_test_pos":
             return self.output_test_pos_dir
-        if self.REMOTE_OUTPUT_DIR == "output_test_neg":
+        if self.OUTPUT_SUBDIR == "output_test_neg":
             return self.output_test_neg_dir
-        return super().remote_output_dir
+        return super().output_dir
 
     @property
     def filings_dir(self) -> str:
@@ -112,19 +111,19 @@ class Sec10KFinancialParsingConfig(LinuxTaskConfig):
 
     @property
     def extraction_output_dir(self) -> str:
-        return f"{self.remote_output_dir}/extractions"
+        return f"{self.output_dir}/extractions"
 
     @property
     def raw_extractions_output_dir(self) -> str:
-        return f"{self.remote_output_dir}/raw_extractions"
+        return f"{self.output_dir}/raw_extractions"
 
     @property
     def qa_output_file(self) -> str:
-        return f"{self.remote_output_dir}/qa_answers.json"
+        return f"{self.output_dir}/qa_answers.json"
 
     @property
     def run2_output_dir(self) -> str:
-        return f"{self.remote_output_dir}/run2_extractions"
+        return f"{self.output_dir}/run2_extractions"
 
     @property
     def reference_ground_truth_dir(self) -> str:
@@ -171,7 +170,7 @@ Your job:
 Important requirements:
 - Follow the staged schema and normalization rules exactly.
 - Use raw USD integers for monetary fields and 2-decimal floats for EPS.
-- Do not write outside `{self.remote_output_dir}`.
+- Do not write outside `{self.output_dir}`.
 - Do not modify files under `input/`.
 - The validation rerun should reflect a second deterministic pass over the same
   visible validation filings.

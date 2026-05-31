@@ -2,7 +2,7 @@
 
 import json
 import logging
-import os
+from dataclasses import dataclass
 from pathlib import Path
 
 import cua_bench as cb
@@ -26,19 +26,16 @@ def _read_script(name: str) -> str:
     return (SCRIPTS_DIR / name).read_text(encoding="utf-8")
 
 
+@dataclass
 class NSCLCRadiomicsConfig(LinuxTaskConfig):
-    def __init__(self, *, REMOTE_OUTPUT_DIR: str | None = None) -> None:
-        super().__init__(
-            DOMAIN_NAME=DOMAIN_NAME,
-            TASK_NAME=TASK_NAME,
-            VARIANT_NAME=VARIANT_NAME,
-            OS_TYPE="linux",
-            REMOTE_OUTPUT_DIR=REMOTE_OUTPUT_DIR or os.environ.get("REMOTE_OUTPUT_DIR", "output"),
-        )
+    DOMAIN_NAME: str = DOMAIN_NAME
+    TASK_NAME: str = TASK_NAME
+    VARIANT_NAME: str = VARIANT_NAME
+    OS_TYPE: str = "linux"
 
     @property
     def risk_scores_file(self) -> str:
-        return f"{self.remote_output_dir}/risk_scores.csv"
+        return f"{self.output_dir}/risk_scores.csv"
 
     @property
     def ground_truth_file(self) -> str:
@@ -71,7 +68,7 @@ patients in `prediction_ids.csv`.
 
 ## Required Output
 
-Write exactly these files under `{self.remote_output_dir}`:
+Write exactly these files under `{self.output_dir}`:
 
 1. `risk_scores.csv` with one row for each held-out patient and columns:
    - `PatientID`
@@ -123,7 +120,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     await session.write_file(f"{EVAL_TMP_DIR}/verify_outputs.py", _read_script("verify_outputs.py"))
     result = await session.run_command(
         f'python "{EVAL_TMP_DIR}/verify_outputs.py" '
-        f'--output-dir "{meta["remote_output_dir"]}" '
+        f'--output-dir "{meta["output_dir"]}" '
         f'--reference-dir "{meta["reference_dir"]}"'
     )
     stdout = result.get("output", result.get("stdout", ""))

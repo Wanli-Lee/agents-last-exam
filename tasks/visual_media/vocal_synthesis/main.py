@@ -88,11 +88,6 @@ class TaskConfig(GeneralTaskConfig):
     VARIANT_NAME: str = ""  # Set per variant
 
     @property
-    def task_dir(self) -> str:
-        """Use the canonical benchmark runtime root on Windows data disk."""
-        return rf"E:\agenthle\visual_media\vocal_synthesis\{self.VARIANT_NAME}"
-
-    @property
     def input_dir(self) -> str:
         return rf"{self.task_dir}\input"
 
@@ -128,11 +123,11 @@ the source vocal's timbre.
 5. Input the lyrics aligned to the corresponding notes.
 6. Adjust vocal parameters — pitch bend curves, vibrato, breath, dynamics, tension, gender, \
 etc. — to match the nuances of the source vocal.
-7. Render/export the project as dry vocal (no effects) to: {self.remote_output_dir}\\{REPRODUCED_VOCAL}
+7. Render/export the project as dry vocal (no effects) to: {self.output_dir}\\{REPRODUCED_VOCAL}
 8. Take a screenshot of the ACE Studio project window showing the piano roll with notes \
-and lyrics visible, and save it as: {self.remote_output_dir}\\{OVERVIEW_SCREENSHOT}
+and lyrics visible, and save it as: {self.output_dir}\\{OVERVIEW_SCREENSHOT}
 
-## Output files (saved to {self.remote_output_dir}):
+## Output files (saved to {self.output_dir}):
 - {REPRODUCED_VOCAL}: Your render — the reproduced dry vocal (no effects).
 - {OVERVIEW_SCREENSHOT}: Screenshot of the ACE Studio project with piano roll and notes visible.
 
@@ -193,7 +188,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     try:
         meta = task_cfg.metadata
         tag = meta["variant_name"]
-        output_dir = meta["remote_output_dir"]
+        output_dir = meta["output_dir"]
         ref_dir = meta["reference_dir"]
         reproduced_vocal_gt_path = meta["reproduced_vocal_gt_path"]
 

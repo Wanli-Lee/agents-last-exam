@@ -84,7 +84,7 @@ class TaskConfig(GeneralTaskConfig):
 
     @property
     def output_dir_name(self) -> str:
-        return self.REMOTE_OUTPUT_DIR.replace("/", "\\").strip("\\")
+        return self.OUTPUT_SUBDIR.replace("/", "\\").strip("\\")
 
     @property
     def input_dir(self) -> str:
@@ -92,7 +92,7 @@ class TaskConfig(GeneralTaskConfig):
 
     @property
     def output_pcb_path(self) -> str:
-        return rf"{self.remote_output_dir}\{EXPECTED_OUTPUT_FILE}"
+        return rf"{self.output_dir}\{EXPECTED_OUTPUT_FILE}"
 
     @property
     def schematic_path(self) -> str:
@@ -150,7 +150,7 @@ config = TaskConfig()
 
 @cb.tasks_config(split="train")
 def load():
-    cfg = TaskConfig(REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"))
+    cfg = TaskConfig()
     return [
         cb.Task(
             description=cfg.task_description,
@@ -173,7 +173,7 @@ async def _find_output_pcb(meta: dict, session: cb.DesktopSession) -> str | None
     result = await session.run_command(
         'powershell -NoProfile -Command '
         + _ps_quote(
-            rf"Get-ChildItem -Path {meta['remote_output_dir']} -Filter *.kicad_pcb -File "
+            rf"Get-ChildItem -Path {meta['output_dir']} -Filter *.kicad_pcb -File "
             r"| Select-Object -First 1 -ExpandProperty FullName"
         )
     )
@@ -235,7 +235,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     meta = task_cfg.metadata
     pcb_path = await _find_output_pcb(meta, session)
     if not pcb_path:
-        logger.warning("missing output PCB in %s", meta["remote_output_dir"])
+        logger.warning("missing output PCB in %s", meta["output_dir"])
         return [0.0]
 
     try:

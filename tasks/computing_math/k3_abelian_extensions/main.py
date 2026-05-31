@@ -5,7 +5,6 @@ from __future__ import annotations
 import importlib.util
 import json
 import logging
-import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -59,7 +58,7 @@ def _load_verify_module():
 
 
 VERIFY_MODULE = _load_verify_module()
-from oracle import build_expected_output
+from oracle import build_expected_output  # noqa: E402
 
 
 async def _run_command(
@@ -95,12 +94,6 @@ class AbelianExtensionsConfig(LinuxTaskConfig):
         return f"{self.task_dir}/output_test_neg"
 
     @property
-    def remote_output_dir(self) -> str:
-        if self.REMOTE_OUTPUT_DIR in {"output_test_pos", "output_test_neg"}:
-            return f"{self.task_dir}/output"
-        return super().remote_output_dir
-
-    @property
     def config_file(self) -> str:
         return f"{self.input_dir}/config.json"
 
@@ -114,7 +107,7 @@ class AbelianExtensionsConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/results.json"
+        return f"{self.output_dir}/results.json"
 
     @property
     def task_description(self) -> str:
@@ -153,7 +146,7 @@ Each object in `extensions` and `non_product_type` must contain:
 Use invariant factors in ascending order with the divisibility condition satisfied. Order `extensions` by `(m, G_invariant_factors)`.
 
 ## Output Rules
-- Save your final deliverable only under `{self.remote_output_dir}`.
+- Save your final deliverable only under `{self.output_dir}`.
 - Do not modify files under `{self.input_dir}`.
 """
 
@@ -162,13 +155,12 @@ Use invariant factors in ascending order with the divisibility condition satisfi
         metadata.update(
             {
                 "task_dir": self.task_dir,
-                "data_task_dir": self.data_task_dir,
                 "input_dir": self.input_dir,
                 "software_dir": self.software_dir,
                 "reference_dir": self.reference_dir,
                 "output_test_pos_dir": self.output_test_pos_dir,
                 "output_test_neg_dir": self.output_test_neg_dir,
-                "remote_output_dir": self.remote_output_dir,
+                "output_dir": self.output_dir,
                 "config_file": self.config_file,
                 "task_spec_file": self.task_spec_file,
                 "gap_wrapper": self.gap_wrapper,

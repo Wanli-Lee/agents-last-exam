@@ -51,10 +51,7 @@ class TaskConfig(GeneralTaskConfig):
     DOMAIN_NAME: str = "computing_math"
 
     TASK_NAME: str = "tris_crackme"
-
-    @property
-    def task_dir(self) -> str:
-        return fr"{self.REMOTE_ROOT_DIR}\{self.DOMAIN_NAME}\{self.TASK_NAME}\{self.VARIANT_NAME}"
+    OS_TYPE: str = "windows"
 
     @property
     def exe_path(self) -> str:
@@ -112,7 +109,7 @@ async def start(task_cfg, session: cb.DesktopSession):
 
 @cb.evaluate_task(split="train")
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
-    out_dir = task_cfg.metadata["remote_output_dir"]
+    out_dir = task_cfg.metadata["output_dir"]
     registry_path = task_cfg.metadata["registry_path"]
 
     logger.info("[tris_crackme] evaluate() begin")

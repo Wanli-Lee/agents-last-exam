@@ -68,7 +68,7 @@ class ECGSuperclassConfig(GeneralTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return rf"{self.remote_output_dir}\predictions.csv"
+        return rf"{self.output_dir}\predictions.csv"
 
     @property
     def reference_file(self) -> str:
@@ -118,7 +118,7 @@ Produce multilabel diagnostic superclass predictions for the staged WFDB ECG rec
   `ecg_id, {label_columns}`
 - Include exactly the ECG IDs from `{self.record_ids_file}`
 - Every label value must be binary: `0` or `1`
-- Do not save extra files into `{self.remote_output_dir}`
+- Do not save extra files into `{self.output_dir}`
 
 ## Important Constraints
 - Treat this as a multilabel problem; labels are not guaranteed to be mutually exclusive

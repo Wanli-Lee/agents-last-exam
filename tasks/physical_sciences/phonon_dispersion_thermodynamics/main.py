@@ -84,13 +84,13 @@ uv sync
 ## What You Must Do
 1. Read `{self.input_problem_spec}` carefully and follow its lattice geometry, path discretization, and output contract exactly.
 2. Construct the dynamical matrix yourself; do not use phonon or materials-science frameworks such as phonopy or ASE.
-3. Write the five required deliverables under `{self.remote_output_dir}`:
+3. Write the five required deliverables under `{self.output_dir}`:
    - `diatomic_1d.npz`
    - `dispersion_2d.npz`
    - `dos.npz`
    - `thermodynamics.npz`
    - `results.json`
-4. Keep all final deliverables inside `{self.remote_output_dir}`.
+4. Keep all final deliverables inside `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict:
@@ -147,7 +147,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
         local_reference_dir.mkdir()
 
         for name in REQUIRED_FILES:
-            output_path = f'{meta["remote_output_dir"]}/{name}'
+            output_path = f'{meta["output_dir"]}/{name}'
             reference_path = f'{meta["reference_dir"]}/{name}'
             if not await session.exists(output_path):
                 logger.error("[%s] Missing output file at %s", tag, output_path)

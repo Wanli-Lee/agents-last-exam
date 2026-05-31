@@ -62,20 +62,20 @@ Use the task-local command-line tools staged here:
 1. Create the missing Quantum ESPRESSO and BerkeleyGW input decks from scratch.
 2. Run the silicon QE mean-field workflow.
 3. Run the BerkeleyGW GW+BSE workflow needed for both quasiparticle and absorption outputs.
-4. Save the required outputs exactly under `{self.remote_output_dir}`.
+4. Save the required outputs exactly under `{self.output_dir}`.
 
 ## Required Output Files
-- `{self.remote_output_dir}/bandstructure.dat`
-- `{self.remote_output_dir}/eqp.dat`
-- `{self.remote_output_dir}/eqp_q.dat`
-- `{self.remote_output_dir}/absorption_eh.dat`
-- `{self.remote_output_dir}/absorption_noeh.dat`
-- `{self.remote_output_dir}/eigenvalues.dat`
-- `{self.remote_output_dir}/eigenvalues_noeh.dat`
-- `{self.remote_output_dir}/bandstructure_inteqp.png`
-- `{self.remote_output_dir}/absorption.png`
+- `{self.output_dir}/bandstructure.dat`
+- `{self.output_dir}/eqp.dat`
+- `{self.output_dir}/eqp_q.dat`
+- `{self.output_dir}/absorption_eh.dat`
+- `{self.output_dir}/absorption_noeh.dat`
+- `{self.output_dir}/eigenvalues.dat`
+- `{self.output_dir}/eigenvalues_noeh.dat`
+- `{self.output_dir}/bandstructure_inteqp.png`
+- `{self.output_dir}/absorption.png`
 
-Do not write outputs outside `{self.remote_output_dir}`.
+Do not write outputs outside `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict:
@@ -87,7 +87,7 @@ Do not write outputs outside `{self.remote_output_dir}`.
                 "reference_dir": self.reference_dir,
                 "software_dir": self.software_dir,
                 "software_bin_dir": self.software_bin_dir,
-                "remote_output_dir": self.remote_output_dir,
+                "output_dir": self.output_dir,
             }
         )
         return metadata
@@ -119,7 +119,7 @@ async def start(task_cfg, session: cb.DesktopSession):
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     result = await evaluate_remote_output_dir(
         session,
-        output_dir=task_cfg.metadata["remote_output_dir"],
+        output_dir=task_cfg.metadata["output_dir"],
         reference_dir=task_cfg.metadata["reference_dir"],
         spec=SILICON_BSE_ABSORPTION_SPEC,
     )

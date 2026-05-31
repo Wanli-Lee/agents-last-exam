@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import shlex
+from dataclasses import dataclass
 from io import BytesIO
 
 import cua_bench as cb
@@ -114,17 +115,14 @@ def _q(value: str) -> str:
     return shlex.quote(str(value))
 
 
+@dataclass
 class UnderwaterPathtracerEffectConfig(LinuxTaskConfig):
     """Linux task config for the underwater pathtracer visual target task."""
 
-    def __init__(self, *, REMOTE_OUTPUT_DIR: str | None = None) -> None:
-        super().__init__(
-            DOMAIN_NAME=DOMAIN_NAME,
-            TASK_NAME=TASK_NAME,
-            VARIANT_NAME=VARIANT_NAME,
-            OS_TYPE="linux",
-            REMOTE_OUTPUT_DIR=REMOTE_OUTPUT_DIR or "output",
-        )
+    DOMAIN_NAME: str = DOMAIN_NAME
+    TASK_NAME: str = TASK_NAME
+    VARIANT_NAME: str = VARIANT_NAME
+    OS_TYPE: str = "linux"
 
     @property
     def starter_root(self) -> str:
@@ -156,11 +154,11 @@ class UnderwaterPathtracerEffectConfig(LinuxTaskConfig):
 
     @property
     def output_image(self) -> str:
-        return f"{self.remote_output_dir}/final.png"
+        return f"{self.output_dir}/final.png"
 
     @property
     def output_manifest(self) -> str:
-        return f"{self.remote_output_dir}/run_manifest.json"
+        return f"{self.output_dir}/run_manifest.json"
 
     @property
     def scene_file(self) -> str:
@@ -202,7 +200,7 @@ provided target reference.
    - Recursive ray tracing through the water-air interface
    - Beer-Lambert depth-dependent attenuation
 4. Run `{self.render_wrapper}` to build and preview your result.
-5. Write the final artifacts under `{self.remote_output_dir}`:
+5. Write the final artifacts under `{self.output_dir}`:
    - `final.png`
    - `run_manifest.json`
 
@@ -213,7 +211,7 @@ provided target reference.
 - The evaluator will rebuild and rerun your modified renderer with its own
   canonical CMake + pathtracer command. A hand-edited or copied PNG is not
   sufficient.
-- Keep final deliverables inside `{self.remote_output_dir}`.
+- Keep final deliverables inside `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict:
@@ -237,9 +235,7 @@ provided target reference.
         return metadata
 
 
-config = UnderwaterPathtracerEffectConfig(
-    REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR")
-)
+config = UnderwaterPathtracerEffectConfig()
 
 
 @cb.tasks_config(split="train")
@@ -367,7 +363,7 @@ def _canonical_render_command(
     build = _q(meta["eval_build_dir"])
     actual_output = output_path or meta["output_image"]
     output = _q(actual_output)
-    output_dir = _q(meta["remote_output_dir"])
+    output_dir = _q(meta["output_dir"])
     scene = _q(meta["scene_file"])
     manifest = _q(meta["output_manifest"])
     manifest_py = meta["output_manifest"]
@@ -417,10 +413,10 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     5. Run LLM vision judge on final.png for visual quality scoring
     """
     meta = task_cfg.metadata
-    output_dir_name = meta["remote_output_dir"].rstrip("/").rsplit("/", 1)[-1]
+    output_dir_name = meta["output_dir"].rstrip("/").rsplit("/", 1)[-1]
     admin_fixture_mode = output_dir_name in {"output_test_pos", "output_test_neg"}
 
-    probe_path = f'{meta["remote_output_dir"]}/{PROBE_OUTPUT}'
+    probe_path = f'{meta["output_dir"]}/{PROBE_OUTPUT}'
 
     if not admin_fixture_mode:
         # Render 1: full quality → final.png
@@ -445,10 +441,10 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
             logger.error("Render (s=%d) failed: %s", PROBE_SAMPLES, render_result2.get("stderr", "")[:800])
             return [0.0]
     else:
-        logger.info("Admin fixture mode: scoring pre-staged %s", meta["remote_output_dir"])
+        logger.info("Admin fixture mode: scoring pre-staged %s", meta["output_dir"])
 
     for fname in REQUIRED_OUTPUT_FILES:
-        path = f'{meta["remote_output_dir"]}/{fname}'
+        path = f'{meta["output_dir"]}/{fname}'
         if not await session.exists(path):
             logger.warning("Missing output file: %s", path)
             return [0.0]

@@ -29,7 +29,6 @@ async def _path_missing(session: cb.DesktopSession, path: str, *, label: str, ta
 
 @dataclass
 class NeurosciencePubFigureReproduceConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = r"E:\agenthle"
     DOMAIN_NAME: str = "psychology_neuro"
     TASK_NAME: str = "neuroscience_pub_figure_reproduce_1"
     VARIANT_NAME: str = ""
@@ -57,11 +56,11 @@ class NeurosciencePubFigureReproduceConfig(GeneralTaskConfig):
 
     @property
     def output_pdf(self) -> str:
-        return rf"{self.remote_output_dir}\schematic_reproduce.pdf"
+        return rf"{self.output_dir}\schematic_reproduce.pdf"
 
     @property
     def output_ai(self) -> str:
-        return rf"{self.remote_output_dir}\schematic.ai"
+        return rf"{self.output_dir}\schematic.ai"
 
     @property
     def reference_pdf(self) -> str:

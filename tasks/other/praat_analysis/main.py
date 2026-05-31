@@ -12,7 +12,6 @@ judge (0.25).
 import csv
 import io
 import logging
-import os
 import re
 import sys
 from dataclasses import dataclass
@@ -159,7 +158,6 @@ def parse_formant_csv(text: str) -> list[tuple[str, int, int]]:
 # ---------------------------------------------------------------------------
 @dataclass
 class TaskConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = os.environ.get("REMOTE_ROOT_DIR", r"E:\agenthle")
     DOMAIN_NAME: str = "other"
 
     TASK_NAME: str = "praat_analysis"
@@ -169,14 +167,6 @@ class TaskConfig(GeneralTaskConfig):
     @property
     def spec(self) -> VariantSpec:
         return VARIANT_SPECS[self.VARIANT_NAME]
-
-    @property
-    def task_dir(self) -> str:
-        return rf"{self.REMOTE_ROOT_DIR}\{self.DOMAIN_NAME}\{self.TASK_NAME}\{self.VARIANT_NAME}"
-
-    @property
-    def input_dir(self) -> str:
-        return rf"{self.task_dir}\input"
 
     @property
     def reference_textgrid_dir(self) -> str:
@@ -272,7 +262,7 @@ Variant: `{self.VARIANT_NAME}`
 7. **Save the plot** as `vowel-formants.pdf` in the output directory.
 
 ## Output
-Save all results to: `{self.remote_output_dir}`
+Save all results to: `{self.output_dir}`
 - TextGrids: {tg_list}
 - Per-vowel formant tables: {formant_list}
 - `vowel-formants.txt` (combined CSV)
@@ -439,7 +429,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     try:
         meta = task_cfg.metadata
         tag = meta["variant_name"]
-        output_dir = meta["remote_output_dir"]
+        output_dir = meta["output_dir"]
         ref_textgrid_dir = meta["reference_textgrid_dir"]
         ref_formants_dir = meta["reference_formants_dir"]
         wav_stems: list[str] = list(meta["wav_stems"])

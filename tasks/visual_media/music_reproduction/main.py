@@ -490,11 +490,6 @@ class TaskConfig(GeneralTaskConfig):
     VARIANT_NAME: str = ""  # Set per variant
 
     @property
-    def task_dir(self) -> str:
-        """Use the canonical benchmark runtime root on Windows data disk."""
-        return rf"E:\agenthle\visual_media\music_reproduction\{self.VARIANT_NAME}"
-
-    @property
     def input_dir(self) -> str:
         return rf"{self.task_dir}\input"
 
@@ -536,16 +531,16 @@ The patch does not need to be identical to the original, but must belong to the 
 6. Transcribe all notes, rhythms, and dynamics for each instrument by entering MIDI data.
 7. Adjust velocity and expression to reflect the dynamic contour of each part.
 8. Export outputs:
-   a. Export MIDI file > save as {self.remote_output_dir}\\{TRANSCRIPTION_MIDI}
-   b. Export audio mixdown (WAV stereo) > save as {self.remote_output_dir}\\{MIXDOWN_WAV}
+   a. Export MIDI file > save as {self.output_dir}\\{TRANSCRIPTION_MIDI}
+   b. Export audio mixdown (WAV stereo) > save as {self.output_dir}\\{MIXDOWN_WAV}
    c. For EACH track: solo the track, export audio mixdown > \
-save as {self.remote_output_dir}\\{STEMS_DIR}\\<track_name>.wav
+save as {self.output_dir}\\{STEMS_DIR}\\<track_name>.wav
    d. Save the DAW project file in the project's own location.
 9. Take a screenshot of the DAW arrange/timeline view showing all tracks with MIDI regions visible:
-   save_milestone_screenshot(path="{self.remote_output_dir}\\{OVERVIEW_SCREENSHOT}", \
+   save_milestone_screenshot(path="{self.output_dir}\\{OVERVIEW_SCREENSHOT}", \
 description="DAW arrange view with all tracks")
 
-Output files (all saved to {self.remote_output_dir}):
+Output files (all saved to {self.output_dir}):
 - {TRANSCRIPTION_MIDI}: Exported MIDI file with GM program assignments per track.
 - {MIXDOWN_WAV}: Stereo audio mixdown.
 - {STEMS_DIR}/: Per-track solo WAV exports (one file per instrument track).
@@ -610,7 +605,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     try:
         meta = task_cfg.metadata
         tag = meta["variant_name"]
-        output_dir = meta["remote_output_dir"]
+        output_dir = meta["output_dir"]
         ref_dir = meta["reference_dir"]
         reference_midi_path = meta["reference_midi_path"]
         reference_stems_dir = meta["reference_stems_dir"]

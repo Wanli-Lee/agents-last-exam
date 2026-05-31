@@ -77,7 +77,6 @@ VARIANTS = _load_variants()
 
 @dataclass
 class HighToLowTaskConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = os.environ.get("REMOTE_ROOT_DIR", r"E:\agenthle")
     variant: VariantSpec = field(default_factory=lambda: VARIANTS[0])
     DOMAIN_NAME: str = "visual_media"
 
@@ -111,7 +110,7 @@ class HighToLowTaskConfig(GeneralTaskConfig):
 
     @property
     def output_submission_dir(self) -> str:
-        return rf"{self.remote_output_dir}\submission"
+        return rf"{self.output_dir}\submission"
 
     @property
     def output_obj(self) -> str:

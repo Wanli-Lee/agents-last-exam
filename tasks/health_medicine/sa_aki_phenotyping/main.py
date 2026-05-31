@@ -1,12 +1,10 @@
 """AgentHLE task: health_medicine/sa_aki_phenotyping."""
 
-import asyncio
 import json
 import logging
 import os
 import sys
 from dataclasses import dataclass
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -74,7 +72,7 @@ class SAAKIPhenotypingConfig(GeneralTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = VARIANT_NAME
-    REMOTE_OUTPUT_DIR: str = os.environ.get("REMOTE_OUTPUT_DIR", "output")
+    OUTPUT_SUBDIR: str = os.environ.get("OUTPUT_SUBDIR", "output")
 
     @property
     def input_dir(self) -> str:
@@ -134,7 +132,7 @@ class SAAKIPhenotypingConfig(GeneralTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return rf"{self.remote_output_dir}\{OUTPUT_FILENAME}"
+        return rf"{self.output_dir}\{OUTPUT_FILENAME}"
 
     @property
     def reference_file(self) -> str:
@@ -177,7 +175,7 @@ Output rules:
 - The header row must be exactly `subject_id`.
 - Each subsequent row must contain one integer `subject_id`.
 - Do not add any other columns, commentary, or sidecar outputs.
-- Do not modify the staged input files and do not write outside `{self.remote_output_dir}`.
+- Do not modify the staged input files and do not write outside `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict[str, Any]:

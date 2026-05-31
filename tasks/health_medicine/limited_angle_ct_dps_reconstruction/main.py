@@ -38,7 +38,7 @@ class TaskConfig(LinuxTaskConfig):
 
     @property
     def output_npy(self) -> str:
-        return f"{self.remote_output_dir}/reconstruction.npy"
+        return f"{self.output_dir}/reconstruction.npy"
 
     @property
     def reference_npy(self) -> str:
@@ -75,7 +75,7 @@ The intended workflow is:
 5. Load the DDPM checkpoint according to the architecture and scheduler in `model_card.md`.
 6. Run a DPS-style reconstruction that combines the CT forward model with the diffusion prior.
 7. Save only the final attenuation-domain reconstruction to:
-   `{self.remote_output_dir}/reconstruction.npy`
+   `{self.output_dir}/reconstruction.npy`
 
 ## Output Contract
 - The file must be NumPy `.npy` data readable by `numpy.load`.
@@ -91,7 +91,7 @@ The binary pass condition is:
 
 ## Constraints
 - Do not modify files under `{self.input_dir}`.
-- Write your final answer only under `{self.remote_output_dir}`.
+- Write your final answer only under `{self.output_dir}`.
 - Do not use the internet or any external model weights beyond the staged checkpoint.
 
 ## Visibility Note

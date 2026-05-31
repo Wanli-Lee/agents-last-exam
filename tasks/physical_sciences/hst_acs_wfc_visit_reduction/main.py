@@ -78,7 +78,7 @@ class HstAcsWfcVisitReductionConfig(LinuxTaskConfig):
 
     @property
     def candidate_script(self) -> str:
-        return f"{self.remote_output_dir}/reduce_visit.py"
+        return f"{self.output_dir}/reduce_visit.py"
 
     @property
     def hidden_input_dir(self) -> str:
@@ -115,7 +115,7 @@ under `{self.runtime_env_dir}`, and the helper wrapper is:
 `{self.python_wrapper}`
 
 Do not modify files under `{self.input_dir}`. Write your final implementation and
-any scratch artifacts only under `{self.remote_output_dir}`.
+any scratch artifacts only under `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict[str, Any]:
@@ -217,11 +217,11 @@ async def _run_candidate(session: cb.DesktopSession, meta: dict[str, Any]) -> st
 @cb.evaluate_task(split="train")
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     meta = task_cfg.metadata
-    output_dir_name = Path(meta["remote_output_dir"]).name
+    output_dir_name = Path(meta["output_dir"]).name
     try:
         reference_files = await _pull_tree(session, meta["reference_outputs_dir"])
         if output_dir_name in STATIC_OUTPUT_DIRS:
-            output_root = meta["remote_output_dir"]
+            output_root = meta["output_dir"]
         else:
             output_root = await _run_candidate(session, meta)
         output_files = await _pull_tree(session, output_root)

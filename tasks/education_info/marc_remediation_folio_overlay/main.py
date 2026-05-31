@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import posixpath
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -53,7 +53,7 @@ TASK_ID = f"{DOMAIN_NAME}/{TASK_NAME}"
 VARIANT_NAME = "base"
 ALLOWED_OUTPUT_DIRS = {"output", "output_test_pos", "output_test_neg"}
 FIXTURE_OUTPUT_DIRS = {"output_test_pos", "output_test_neg"}
-EVAL_TMP_DIR = f"/tmp/agenthle_eval/{TASK_NAME}"
+EVAL_TMP_DIR = f"/tmp/ale_eval/{TASK_NAME}"
 SCRIPTS_DIR = Path(__file__).resolve().parent / "scripts"
 
 
@@ -61,7 +61,7 @@ def _canonical_output_dir_name(path: str) -> str:
     normalized = posixpath.normpath(path.replace("\\", "/")).strip("/")
     if normalized not in ALLOWED_OUTPUT_DIRS:
         raise ValueError(
-            "REMOTE_OUTPUT_DIR must normalize to one of: " + ", ".join(sorted(ALLOWED_OUTPUT_DIRS))
+            "OUTPUT_SUBDIR must normalize to one of: " + ", ".join(sorted(ALLOWED_OUTPUT_DIRS))
         )
     return normalized
 
@@ -81,22 +81,19 @@ async def _run_command(
         return await session.run_command(command, check=check)
 
 
+@dataclass
 class MarcRemediationFolioOverlayConfig(LinuxTaskConfig):
-    def __init__(self, remote_output_dir: str = "output") -> None:
-        super().__init__(
-            DOMAIN_NAME=DOMAIN_NAME,
-            TASK_NAME=TASK_NAME,
-            VARIANT_NAME=VARIANT_NAME,
-            OS_TYPE="linux",
-            REMOTE_OUTPUT_DIR=remote_output_dir,
-        )
+    DOMAIN_NAME: str = DOMAIN_NAME
+    TASK_NAME: str = TASK_NAME
+    VARIANT_NAME: str = VARIANT_NAME
+    OS_TYPE: str = "linux"
 
     @property
     def output_dir_name(self) -> str:
-        return _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
+        return _canonical_output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
-    def remote_output_dir(self) -> str:
+    def output_dir(self) -> str:
         return f"{self.task_dir}/{self.output_dir_name}"
 
     @property
@@ -117,7 +114,7 @@ class MarcRemediationFolioOverlayConfig(LinuxTaskConfig):
 
     @property
     def candidate_submission_dir(self) -> str:
-        return f"{self.remote_output_dir}/submission"
+        return f"{self.output_dir}/submission"
 
     @property
     def candidate_public_outputs_dir(self) -> str:
@@ -168,7 +165,7 @@ Leave the completed project at:
 
 `{self.candidate_submission_dir}`
 
-Do not modify files under `{self.input_dir}`. Write final work only under `{self.remote_output_dir}`.
+Do not modify files under `{self.input_dir}`. Write final work only under `{self.output_dir}`.
 The benchmark harness exposes only the intended input/software surface and the writable output directory while you solve; evaluator-only reference data is not part of the solve-time task.
 """
 
@@ -195,9 +192,7 @@ The benchmark harness exposes only the intended input/software surface and the w
         return metadata
 
 
-config = MarcRemediationFolioOverlayConfig(
-    remote_output_dir=os.environ.get("REMOTE_OUTPUT_DIR", "output")
-)
+config = MarcRemediationFolioOverlayConfig()
 
 
 @cb.tasks_config(split="train")

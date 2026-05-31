@@ -45,15 +45,10 @@ async def _missing(session: cb.DesktopSession, path: str, *, label: str, tag: st
 
 @dataclass
 class HumanoidVelocityTrackingConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = r"E:\agenthle"
     DOMAIN_NAME: str = "engineering"
     TASK_NAME: str = "humanoid_velocity_tracking_policy"
     VARIANT_NAME: str = ""
     VARIANT_LABEL: str = ""
-
-    @property
-    def input_dir(self) -> str:
-        return rf"{self.task_dir}\input"
 
     @property
     def input_task_brief(self) -> str:
@@ -93,11 +88,11 @@ class HumanoidVelocityTrackingConfig(GeneralTaskConfig):
 
     @property
     def output_policy(self) -> str:
-        return rf"{self.remote_output_dir}\policy.py"
+        return rf"{self.output_dir}\policy.py"
 
     @property
     def output_checkpoint(self) -> str:
-        return rf"{self.remote_output_dir}\checkpoint.pt"
+        return rf"{self.output_dir}\checkpoint.pt"
 
     @property
     def reference_baseline_policy(self) -> str:
@@ -127,7 +122,7 @@ You are producing a policy submission for an Isaac Lab humanoid velocity-trackin
 1. Read the staged task brief, proprioceptive-state spec, and success criteria.
 2. Train, distill, hand-author, or otherwise produce a deterministic policy that
    implements the required `Policy` API.
-3. Save exactly two files in `{self.remote_output_dir}`:
+3. Save exactly two files in `{self.output_dir}`:
    `policy.py` and `checkpoint.pt`.
 
 ## Output Requirements
@@ -135,7 +130,7 @@ You are producing a policy submission for an Isaac Lab humanoid velocity-trackin
 - `Policy.inference(obs)` must return exactly `{{"action": tensor}}`.
 - The action tensor must have shape `(N, 23)`, dtype `torch.float32`, and live
   on the same device as `obs["command"]`.
-- Do not write final answers outside `{self.remote_output_dir}`.
+- Do not write final answers outside `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict:

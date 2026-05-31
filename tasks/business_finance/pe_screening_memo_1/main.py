@@ -93,7 +93,7 @@ class PEScreeningMemoConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/{self.OUTPUT_FILENAME}"
+        return f"{self.output_dir}/{self.OUTPUT_FILENAME}"
 
     @property
     def reference_file(self) -> str:
@@ -131,7 +131,7 @@ Output requirements:
 Constraints:
 1. Use only the staged packet.
 2. Do not use web search.
-4. Write only your final memo under `{self.remote_output_dir}`.
+4. Write only your final memo under `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict[str, Any]:

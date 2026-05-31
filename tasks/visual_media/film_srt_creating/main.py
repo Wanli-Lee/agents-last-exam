@@ -2,7 +2,6 @@
 
 Single variant: ``train``.
 Software: Jianying (剪映专业版, free).
-VM: agenthle-dev-gpu-free (E:\\agenthle\\visual_media\\film_srt_creating\\train\\).
 """
 
 import json
@@ -42,7 +41,6 @@ VARIANTS = ["train"]
 
 @dataclass
 class TaskConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = os.environ.get("REMOTE_ROOT_DIR", r"E:\agenthle")
     DOMAIN_NAME: str = "visual_media"
 
     TASK_NAME: str = "film_srt_creating"
@@ -63,7 +61,7 @@ class TaskConfig(GeneralTaskConfig):
         # Exported video lives under the task output directory.
         # Default is `agent_output.mp4`. For eval testing you can set:
         # `TARGET_VIDEO_NAME=output-test.mp4`.
-        return rf"{self.remote_output_dir}\{self.OUTPUT_VIDEO_NAME}"
+        return rf"{self.output_dir}\{self.OUTPUT_VIDEO_NAME}"
 
     @property
     def task_description(self) -> str:
@@ -249,7 +247,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
         tc = sample_timecodes[idx] if idx < len(sample_timecodes) else None
         print(f"[eval] sampling idx={idx} timecode={tc} time_ms={time_ms}")
         # Extract frames on remote, then read the small PNGs back.
-        remote_tmp_dir = rf"{task_cfg.metadata['remote_output_dir']}\eval_frames"
+        remote_tmp_dir = rf"{task_cfg.metadata['output_dir']}\eval_frames"
         try:
             await session.makedirs(remote_tmp_dir)
         except Exception:

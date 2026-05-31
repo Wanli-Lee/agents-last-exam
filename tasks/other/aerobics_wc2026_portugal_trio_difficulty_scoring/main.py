@@ -103,7 +103,7 @@ class AerobicsDifficultyConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/difficulty_element_log.xlsx"
+        return f"{self.output_dir}/difficulty_element_log.xlsx"
 
     @property
     def reference_xlsx(self) -> str:
@@ -147,7 +147,7 @@ The total D-score implied by the `credited_value` column should fall between
                 "output_test_pos_dir": self.output_test_pos_dir,
                 "output_test_neg_dir": self.output_test_neg_dir,
                 "software_dir": self.software_dir,
-                "remote_output_dir": self.remote_output_dir,
+                "output_dir": self.output_dir,
                 "video_file": self.video_file,
                 "cop_pdf": self.cop_pdf,
                 "output_file": self.output_file,

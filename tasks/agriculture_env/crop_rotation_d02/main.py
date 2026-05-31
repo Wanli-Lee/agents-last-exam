@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -21,8 +20,8 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tasks.common_config import GeneralTaskConfig
-from tasks.common_setup import BaseTaskSetup
+from tasks.common_config import GeneralTaskConfig  # noqa: E402
+from tasks.common_setup import BaseTaskSetup  # noqa: E402
 
 _setup = BaseTaskSetup()
 
@@ -41,7 +40,7 @@ def _canonical_output_dir_name(path: str) -> str:
     normalized = path.replace("\\", "/").strip("/")
     if normalized not in ALLOWED_OUTPUT_DIRS:
         raise ValueError(
-            "REMOTE_OUTPUT_DIR must be one of: " + ", ".join(sorted(ALLOWED_OUTPUT_DIRS))
+            "OUTPUT_SUBDIR must be one of: " + ", ".join(sorted(ALLOWED_OUTPUT_DIRS))
         )
     return normalized
 
@@ -110,17 +109,17 @@ class CropRotationAuditConfig(GeneralTaskConfig):
         return rf"{self.software_dir}\python_geo.bat"
 
     @property
-    def remote_output_dir(self) -> str:
-        output_dir_name = _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
+    def output_dir(self) -> str:
+        output_dir_name = _canonical_output_dir_name(self.OUTPUT_SUBDIR)
         return rf"{self.task_dir}\{output_dir_name}"
 
     @property
     def eligible_output_file(self) -> str:
-        return rf"{self.remote_output_dir}\eligible_units.gpkg"
+        return rf"{self.output_dir}\eligible_units.gpkg"
 
     @property
     def flagged_output_file(self) -> str:
-        return rf"{self.remote_output_dir}\flagged_units.gpkg"
+        return rf"{self.output_dir}\flagged_units.gpkg"
 
     @property
     def reference_eligible_file(self) -> str:
@@ -154,7 +153,7 @@ Optional Python runtime:
 Your task:
 1. Read `{self.task_prompt_file}` and follow it exactly.
 2. Load the input layer `seq1524_d02` from `{self.input_gpkg}`.
-3. Produce these two GeoPackages under `{self.remote_output_dir}`:
+3. Produce these two GeoPackages under `{self.output_dir}`:
    - `eligible_units.gpkg`
    - `flagged_units.gpkg`
 4. Use exact layer names:
@@ -165,7 +164,7 @@ Rules:
 - Do not modify files under `input/`.
 - Preserve the input geometry and original columns exactly as required by the task brief.
 - Keep the output CRS as EPSG:2154.
-- Write final outputs only under `{self.remote_output_dir}`.
+- Write final outputs only under `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict:
@@ -188,14 +187,15 @@ Rules:
                 "flagged_output_file": self.flagged_output_file,
                 "reference_eligible_file": self.reference_eligible_file,
                 "reference_flagged_file": self.reference_flagged_file,
-                "output_dir_name": _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR),
+                "output_dir": self.output_dir,
+                "output_dir_name": _canonical_output_dir_name(self.OUTPUT_SUBDIR),
                 "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/",
             }
         )
         return metadata
 
 
-config = CropRotationAuditConfig(REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"))
+config = CropRotationAuditConfig()
 
 
 @cb.tasks_config(split="train")
@@ -237,7 +237,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
                 "python",
                 verify_script_path,
                 "--pred-dir",
-                meta["remote_output_dir"],
+                meta["output_dir"],
                 "--gt-dir",
                 meta["reference_dir"],
             ]

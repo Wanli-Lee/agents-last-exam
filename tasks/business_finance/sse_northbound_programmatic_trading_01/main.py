@@ -61,7 +61,7 @@ class SseNorthboundProgrammaticTradingConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/research_answers.json"
+        return f"{self.output_dir}/research_answers.json"
 
     @property
     def answer_key_file(self) -> str:

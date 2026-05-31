@@ -38,7 +38,6 @@ import re
 import sys
 import traceback
 from collections import defaultdict, deque
-from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
 try:

@@ -62,7 +62,7 @@ def _canonical_output_dir_name(raw: str) -> str:
     normalized = raw.replace("\\", "/").strip("/")
     if normalized not in ALLOWED_OUTPUT_DIRS:
         raise ValueError(
-            "REMOTE_OUTPUT_DIR must be one of: " + ", ".join(sorted(ALLOWED_OUTPUT_DIRS))
+            "OUTPUT_SUBDIR must be one of: " + ", ".join(sorted(ALLOWED_OUTPUT_DIRS))
         )
     return normalized
 
@@ -93,17 +93,12 @@ def _log_score(result: ScoreResult) -> None:
 
 @dataclass
 class ButterflyFlapConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = os.environ.get("REMOTE_ROOT_DIR", r"E:\agenthle")
-    REMOTE_OUTPUT_DIR: str = os.environ.get("REMOTE_OUTPUT_DIR", "output")
+    OUTPUT_SUBDIR: str = os.environ.get("OUTPUT_SUBDIR", "output")
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = VARIANT_NAME
     OUTPUT_VIDEO_NAME: str = OUTPUT_VIDEO_NAME
     PASS_THRESHOLD: float = PASS_THRESHOLD
-
-    @property
-    def task_dir(self) -> str:
-        return rf"{self.REMOTE_ROOT_DIR}\{self.DOMAIN_NAME}\{self.TASK_NAME}\{self.VARIANT_NAME}"
 
     @property
     def input_dir(self) -> str:
@@ -122,12 +117,12 @@ class ButterflyFlapConfig(GeneralTaskConfig):
         return rf"{self.software_dir}\launch_after_effects.bat"
 
     @property
-    def remote_output_dir(self) -> str:
-        return rf"{self.task_dir}\{_canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)}"
+    def output_dir(self) -> str:
+        return rf"{self.task_dir}\{_canonical_output_dir_name(self.OUTPUT_SUBDIR)}"
 
     @property
     def remote_output_video(self) -> str:
-        return rf"{self.remote_output_dir}\{self.OUTPUT_VIDEO_NAME}"
+        return rf"{self.output_dir}\{self.OUTPUT_VIDEO_NAME}"
 
     @property
     def task_description(self) -> str:
@@ -173,7 +168,7 @@ Do not modify files under input/. Write only the final MP4 under output/.
                 "source_image": self.source_image,
                 "task_spec": self.task_spec,
                 "ae_launcher": self.ae_launcher,
-                "output_dir_name": _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR),
+                "output_dir_name": _canonical_output_dir_name(self.OUTPUT_SUBDIR),
                 "output_video": self.remote_output_video,
                 "output_video_name": self.OUTPUT_VIDEO_NAME,
                 "pass_threshold": self.PASS_THRESHOLD,
@@ -183,12 +178,12 @@ Do not modify files under input/. Write only the final MP4 under output/.
         return metadata
 
 
-config = ButterflyFlapConfig(REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"))
+config = ButterflyFlapConfig()
 
 
 @cb.tasks_config(split="train")
 def load():
-    cfg = ButterflyFlapConfig(REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"))
+    cfg = ButterflyFlapConfig()
     return [
         cb.Task(
             description=cfg.task_description,

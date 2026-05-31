@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -92,8 +91,6 @@ class NHANESConfounderSensitivityConfig(LinuxTaskConfig):
             TASK_NAME=TASK_NAME,
             VARIANT_NAME=variant_name,
             OS_TYPE="linux",
-            REMOTE_ROOT_DIR=os.environ.get("REMOTE_ROOT_DIR", "/media/user/data/agenthle"),
-            REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"),
         )
 
     @property
@@ -138,11 +135,11 @@ class NHANESConfounderSensitivityConfig(LinuxTaskConfig):
 
     @property
     def subset_output_file(self) -> str:
-        return f"{self.remote_output_dir}/hpyl_nsaid_subset.csv"
+        return f"{self.output_dir}/hpyl_nsaid_subset.csv"
 
     @property
     def summary_output_file(self) -> str:
-        return f"{self.remote_output_dir}/sensitivity_summary.csv"
+        return f"{self.output_dir}/sensitivity_summary.csv"
 
     @property
     def reference_subset_file(self) -> str:
@@ -170,14 +167,14 @@ Visible task inputs:
 If you want the pinned Python environment, use:
 - `{self.python_wrapper}`
 
-Your job is to rebuild the analytic cohort and export exactly these files under `{self.remote_output_dir}`:
+Your job is to rebuild the analytic cohort and export exactly these files under `{self.output_dir}`:
 - `{self.subset_output_file}`
 - `{self.summary_output_file}`
 
 Requirements:
 1. Follow the exact cohort construction, variable derivations, and model definitions in `task_spec.txt`.
 2. Use `output_contract.json` for the exact output filenames, column order, formulas, and metadata fields.
-4. Write only the required task outputs under `{self.remote_output_dir}`.
+4. Write only the required task outputs under `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict[str, Any]:

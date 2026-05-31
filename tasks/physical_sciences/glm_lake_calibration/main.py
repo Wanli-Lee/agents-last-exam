@@ -2,15 +2,15 @@
 
 import json
 import logging
-import os
 import shlex
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
 import cua_bench as cb
 
 from tasks.common_setup import BaseTaskSetup
-from tasks.linux_runtime import DATA_ROOT, LinuxTaskConfig
+from tasks.linux_runtime import LinuxTaskConfig
 
 _setup = BaseTaskSetup()
 
@@ -57,19 +57,14 @@ def _read_script(name: str) -> str:
     return (SCRIPTS_DIR / name).read_text(encoding="utf-8")
 
 
+@dataclass
 class GLMLakeCalibrationConfig(LinuxTaskConfig):
     """Task configuration for the GLM lake calibration benchmark."""
 
+    DOMAIN_NAME: str = "physical_sciences"
+    TASK_NAME: str = "glm_lake_calibration"
     VARIANT_NAME: str = "base"
-
-    def __init__(self) -> None:
-        super().__init__(
-            DOMAIN_NAME="physical_sciences",
-            TASK_NAME="glm_lake_calibration",
-            VARIANT_NAME="base",
-            OS_TYPE="linux",
-            REMOTE_ROOT_DIR=os.environ.get("REMOTE_ROOT_DIR", "/media/user/data/agenthle"),
-        )
+    OS_TYPE: str = "linux"
 
     @property
     def output_test_pos_dir(self) -> str:
@@ -81,7 +76,7 @@ class GLMLakeCalibrationConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/output.nc"
+        return f"{self.output_dir}/output.nc"
 
     @property
     def glm_config_path(self) -> str:
@@ -135,7 +130,7 @@ profiles match the staged observations with RMSE below 1.5 C.
 4. Save the final simulation NetCDF exactly to `{self.output_file}`.
 
 ## Important Constraints
-- Only edit `{self.glm_config_path}` and write under `{self.remote_output_dir}`
+- Only edit `{self.glm_config_path}` and write under `{self.output_dir}`
 - Do not replace the staged GLM binary
 - The output must cover the required 2009-01-01 through late-2015 simulation window
 """
@@ -151,7 +146,6 @@ profiles match the staged observations with RMSE below 1.5 C.
                 "reference_dir": self.reference_dir,
                 "output_test_pos_dir": self.output_test_pos_dir,
                 "output_test_neg_dir": self.output_test_neg_dir,
-                "remote_output_dir": self.remote_output_dir,
                 "output_file": self.output_file,
                 "glm_config_path": self.glm_config_path,
                 "observation_file": self.observation_file,
@@ -192,7 +186,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     """Score on the VM after post-submit hidden evaluator assets are staged."""
 
     meta = task_cfg.metadata
-    mode = Path(meta["remote_output_dir"]).name
+    mode = Path(meta["output_dir"]).name
     hidden_paths = [meta["reference_dir"], f"{meta['reference_dir']}/fixture_metrics.json"]
     for path in hidden_paths:
         if not await session.exists(path):
@@ -214,7 +208,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
         f"--input-dir {shlex.quote(meta['input_dir'])} "
         f"--software-dir {shlex.quote(meta['software_dir'])} "
         f"--reference-dir {shlex.quote(meta['reference_dir'])} "
-        f"--output-dir {shlex.quote(meta['remote_output_dir'])}"
+        f"--output-dir {shlex.quote(meta['output_dir'])}"
     )
     result = await _run_command(
         session,

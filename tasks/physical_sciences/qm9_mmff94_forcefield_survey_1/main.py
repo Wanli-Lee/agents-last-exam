@@ -41,7 +41,6 @@ def _extract_json_payload(stdout: str) -> dict[str, Any]:
 
 @dataclass
 class Qm9Mmff94ForceFieldSurveyConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = r"E:\agenthle"
     DOMAIN_NAME: str = "physical_sciences"
     TASK_NAME: str = "qm9_mmff94_forcefield_survey_1"
     VARIANT_NAME: str = ""
@@ -77,12 +76,12 @@ relative to B3LYP/6-31G(2df,p) reference geometries across the QM9 dataset.
 Write every result file directly inside:
 
 ```
-{self.remote_output_dir}
+{self.output_dir}
 ```
 
 ## What You Must Produce
 
-The following 10 files under `{self.remote_output_dir}`:
+The following 10 files under `{self.output_dir}`:
 
 1. `force_field_failures.csv` — Phase 1. For every QM9 molecule with exactly
    2 heteroatoms (O/N/F): embed one ETKDG conformer with `randomSeed=42`,
@@ -176,7 +175,7 @@ async def start(task_cfg, session: cb.DesktopSession):
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     meta = task_cfg.metadata
     tag = meta["variant_name"]
-    agent_output_dir = meta["remote_output_dir"]
+    agent_output_dir = meta["output_dir"]
     reference_dir = meta["reference_dir"]
     eval_tmp_dir = meta["eval_tmp_dir"]
 

@@ -50,11 +50,11 @@ class YeastColonyDetectionConfig(LinuxTaskConfig):
 
     @property
     def answer_file(self) -> str:
-        return f"{self.remote_output_dir}/answer.json"
+        return f"{self.output_dir}/answer.json"
 
     @property
     def measurements_dir(self) -> str:
-        return f"{self.remote_output_dir}/measurements"
+        return f"{self.output_dir}/measurements"
 
     @property
     def measurements_file(self) -> str:
@@ -80,7 +80,7 @@ Detect the red yeast colonies growing on the agar plate while excluding white do
 1. Use the plate image and mask to identify red yeast colonies inside the plate region.
 2. Create a reproducible detection workflow in CellProfiler 4.2.8 or another image-analysis workflow available on the VM.
 3. Count the detected red colonies.
-4. Save all required outputs under `{self.remote_output_dir}`.
+4. Save all required outputs under `{self.output_dir}`.
 
 ## Required Outputs
 - JSON count file: `{self.answer_file}`
@@ -93,7 +93,7 @@ Detect the red yeast colonies growing on the agar plate while excluding white do
 ## Constraints
 - Do not modify files under `{self.input_dir}`.
 - Only read the visible files under `{self.input_dir}`.
-- Keep all task-produced files inside `{self.remote_output_dir}`.
+- Keep all task-produced files inside `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict[str, Any]:
@@ -101,7 +101,6 @@ Detect the red yeast colonies growing on the agar plate while excluding white do
         metadata.update(
             {
                 "task_dir": self.task_dir,
-                "data_task_dir": self.data_task_dir,
                 "input_dir": self.input_dir,
                 "software_dir": self.software_dir,
                 "plate_image": self.plate_image,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-import os
+from dataclasses import dataclass
 from typing import Any
 
 import cua_bench as cb
@@ -32,29 +32,15 @@ VARIANTS = [
 ]
 
 
+@dataclass
 class GenomeBrowserSvgConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = "life_sciences"
     TASK_NAME: str = "tp53_locus_variant_histone_browser_svg"
-
-    def __init__(
-        self,
-        *,
-        VARIANT_NAME: str = "base",
-        GENE: str = "TP53",
-        CHROM: str = "chr17",
-        START: int = 7571651,
-        END: int = 7590910,
-    ) -> None:
-        super().__init__(
-            DOMAIN_NAME=self.DOMAIN_NAME,
-            TASK_NAME=self.TASK_NAME,
-            VARIANT_NAME=VARIANT_NAME,
-            REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"),
-        )
-        self.GENE = GENE
-        self.CHROM = CHROM
-        self.START = START
-        self.END = END
+    VARIANT_NAME: str = "base"
+    GENE: str = "TP53"
+    CHROM: str = "chr17"
+    START: int = 7571651
+    END: int = 7590910
 
     @property
     def task_config_path(self) -> str:
@@ -70,7 +56,7 @@ class GenomeBrowserSvgConfig(LinuxTaskConfig):
 
     @property
     def output_svg_path(self) -> str:
-        return f"{self.remote_output_dir}/{OUTPUT_FILE}"
+        return f"{self.output_dir}/{OUTPUT_FILE}"
 
     @property
     def reference_json_path(self) -> str:

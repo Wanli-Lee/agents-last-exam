@@ -62,7 +62,7 @@ class FluSightOfflineHospForecastConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = "health_medicine"
     TASK_NAME: str = "flusight_offline_hosp_forecast_2024_12_14"
     VARIANT_NAME: str = "base"
-    REMOTE_OUTPUT_DIR: str = os.environ.get("REMOTE_OUTPUT_DIR", "output")
+    OUTPUT_SUBDIR: str = os.environ.get("OUTPUT_SUBDIR", "output")
 
     @property
     def task_prompt_file(self) -> str:
@@ -118,7 +118,7 @@ class FluSightOfflineHospForecastConfig(LinuxTaskConfig):
 
     @property
     def output_submission(self) -> str:
-        return f"{self.remote_output_dir}/submission.csv"
+        return f"{self.output_dir}/submission.csv"
 
     @property
     def evaluator_script(self) -> str:
@@ -154,7 +154,7 @@ Visible task files:
 What you must do:
 1. Read `{self.task_prompt_file}` and `{self.output_contract_file}` first.
 2. Use the archived historical snapshot in `{self.historical_file}` to forecast weekly admissions for the 53 required jurisdictions and four required target weeks.
-3. Fill the staged template contract exactly and write one final file under `{self.remote_output_dir}`:
+3. Fill the staged template contract exactly and write one final file under `{self.output_dir}`:
    - `{self.output_submission}`
 4. If you want the staged Python environment, materialize it with `{self.bootstrap_wrapper}` and run Python with `{self.python_wrapper}`.
 

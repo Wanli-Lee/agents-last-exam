@@ -4,12 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import posixpath
 import shlex
-import sys
 import textwrap
-from pathlib import Path
 from typing import Any
 
 import cua_bench as cb
@@ -28,14 +25,14 @@ VARIANT_NAMES = ["137", "153", "184", "185"]
 ALLOWED_OUTPUT_DIRS = {"output", "output_test_pos", "output_test_neg"}
 # `agenthle-ubuntu` currently has a full root disk, so evaluator scratch must
 # live on the data disk instead of `/tmp`.
-EVAL_SCRATCH_ROOT = f"/media/user/data/agenthle/.tmp_eval/{TASK_NAME}"
+EVAL_SCRATCH_ROOT = f"/media/user/data/ale-data/.tmp_eval/{TASK_NAME}"
 
 
 def _canonical_output_dir_name(path: str) -> str:
     normalized = posixpath.normpath(path.replace("\\", "/"))
     if normalized not in ALLOWED_OUTPUT_DIRS:
         raise ValueError(
-            "REMOTE_OUTPUT_DIR must normalize to one of: " + ", ".join(sorted(ALLOWED_OUTPUT_DIRS))
+            "OUTPUT_SUBDIR must normalize to one of: " + ", ".join(sorted(ALLOWED_OUTPUT_DIRS))
         )
     return normalized
 
@@ -193,21 +190,20 @@ class CelegansNeuronTrackingConfig(LinuxTaskConfig):
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = "137"
 
-    def __init__(self, *, variant_name: str, remote_output_dir: str = "output") -> None:
+    def __init__(self, *, variant_name: str) -> None:
         super().__init__(
             DOMAIN_NAME=DOMAIN_NAME,
             TASK_NAME=TASK_NAME,
             VARIANT_NAME=variant_name,
             OS_TYPE="linux",
-            REMOTE_OUTPUT_DIR=remote_output_dir,
         )
 
     @property
     def output_dir_name(self) -> str:
-        return _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
+        return _canonical_output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
-    def remote_output_dir(self) -> str:
+    def output_dir(self) -> str:
         return f"{self.task_dir}/{self.output_dir_name}"
 
     @property
@@ -252,7 +248,7 @@ class CelegansNeuronTrackingConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/{self.VARIANT_NAME}.h5"
+        return f"{self.output_dir}/{self.VARIANT_NAME}.h5"
 
     @property
     def reference_scorer(self) -> str:
@@ -320,16 +316,13 @@ class CelegansNeuronTrackingConfig(LinuxTaskConfig):
 
 @cb.tasks_config(split="train")
 def load():
-    remote_output_dir = os.environ.get("REMOTE_OUTPUT_DIR", "output")
     return [
         cb.Task(
             description=CelegansNeuronTrackingConfig(
                 variant_name=variant_name,
-                remote_output_dir=remote_output_dir,
             ).task_description,
             metadata=CelegansNeuronTrackingConfig(
                 variant_name=variant_name,
-                remote_output_dir=remote_output_dir,
             ).to_metadata(),
             computer={"provider": "computer", "setup_config": {"os_type": "linux"}},
         )

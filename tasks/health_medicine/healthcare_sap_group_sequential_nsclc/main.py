@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import shlex
 import sys
 from dataclasses import dataclass
@@ -36,7 +35,6 @@ logger = logging.getLogger(__name__)
 DOMAIN_NAME = "health_medicine"
 TASK_NAME = "healthcare_sap_group_sequential_nsclc"
 VARIANT_NAME = "base"
-DEFAULT_REMOTE_ROOT = "/media/user/data/agenthle"
 ALLOWED_OUTPUT_DIRS = {
     "output",
     "output_test_pos",
@@ -71,16 +69,14 @@ class TaskConfig(LinuxTaskConfig):
             TASK_NAME=TASK_NAME,
             VARIANT_NAME=VARIANT_NAME,
             OS_TYPE="linux",
-            REMOTE_ROOT_DIR=os.environ.get("REMOTE_ROOT_DIR", DEFAULT_REMOTE_ROOT),
-            REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"),
         )
 
     @property
     def output_dir_name(self) -> str:
-        return _output_dir_name(self.REMOTE_OUTPUT_DIR)
+        return _output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
-    def remote_output_dir(self) -> str:
+    def output_dir(self) -> str:
         return _remote_join(self.task_dir, self.output_dir_name)
 
     @property
@@ -109,7 +105,7 @@ You are preparing a clinical-trial Statistical Analysis Plan on a Linux VM.
 
 ## Goal
 Create the full SAP deliverable set in:
-`{self.remote_output_dir}`
+`{self.output_dir}`
 
 Required output filenames:
 - `SAP.md`
@@ -194,7 +190,7 @@ async def _output_files(session: cb.DesktopSession, output_dir: str) -> dict[str
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     meta = task_cfg.metadata
     try:
-        output_files = await _output_files(session, meta["remote_output_dir"])
+        output_files = await _output_files(session, meta["output_dir"])
     except Exception as exc:
         logger.error("failed to read agent output files after retries: %s", exc)
         return [0.0]

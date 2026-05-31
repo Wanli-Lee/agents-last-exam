@@ -79,7 +79,7 @@ class TaskConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/{OUTPUT_FILENAME}"
+        return f"{self.output_dir}/{OUTPUT_FILENAME}"
 
     @property
     def reference_file(self) -> str:
@@ -105,7 +105,7 @@ If you want the staged scientific Python environment, use the wrapper:
 "{self.python_wrapper}" your_script.py
 ```
 
-That wrapper keeps any created runtime environment under `{self.remote_output_dir}`.
+That wrapper keeps any created runtime environment under `{self.output_dir}`.
 
 ## Your Task
 1. Read `{self.task_brief_file}` and `{self.benchmark_prompt_file}`.

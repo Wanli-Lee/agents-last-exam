@@ -376,11 +376,6 @@ class TaskConfig(GeneralTaskConfig):
     VARIANT_NAME: str = ""  # Set per variant
 
     @property
-    def task_dir(self) -> str:
-        """Use the canonical benchmark runtime root on Windows data disk."""
-        return rf"E:\agenthle\visual_media\score_to_part\{self.VARIANT_NAME}"
-
-    @property
     def input_dir(self) -> str:
         return rf"{self.task_dir}\input"
 
@@ -390,7 +385,7 @@ class TaskConfig(GeneralTaskConfig):
 
     @property
     def parts_output_dir(self) -> str:
-        return rf"{self.remote_output_dir}\{PARTS_SUBDIR}"
+        return rf"{self.output_dir}\{PARTS_SUBDIR}"
 
     @property
     def reference_midi_dir(self) -> str:
@@ -433,10 +428,10 @@ Steps:
    c. Export the part as a PDF score to {self.parts_output_dir}\\<part_name>.pdf
       - Same naming convention as the MIDI file.
 4. Take a screenshot showing the notation software with the part extraction or export workflow:
-   save_milestone_screenshot(path="{self.remote_output_dir}\\{OVERVIEW_SCREENSHOT}", \
+   save_milestone_screenshot(path="{self.output_dir}\\{OVERVIEW_SCREENSHOT}", \
 description="Part extraction workflow in notation software")
 
-Output files (all saved to {self.remote_output_dir}):
+Output files (all saved to {self.output_dir}):
 - {PARTS_SUBDIR}/<part_name>.mid: One MIDI file per printed player part.
 - {PARTS_SUBDIR}/<part_name>.pdf: One PDF score per printed player part.
 - {OVERVIEW_SCREENSHOT}: Screenshot of the notation software showing the workflow.
@@ -496,7 +491,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     try:
         meta = task_cfg.metadata
         tag = meta["variant_name"]
-        output_dir = meta["remote_output_dir"]
+        output_dir = meta["output_dir"]
         ref_dir = meta["reference_dir"]
         parts_output_dir = meta["parts_output_dir"]
         ref_midi_dir = meta["reference_midi_dir"]

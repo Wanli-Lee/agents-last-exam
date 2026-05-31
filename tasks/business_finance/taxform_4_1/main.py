@@ -18,7 +18,7 @@ SCRIPTS_DIR = Path(__file__).parent / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from score_taxform_outputs import score_variant_outputs
+from score_taxform_outputs import score_variant_outputs  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -163,10 +163,10 @@ Fill these blank return pages in the browser, then click `Save Results` on each 
 3. Open every source form listed above and extract the needed values.
 4. Open every output form listed above and complete the tax return.
 5. Click `Save Results` on each required output form.
-6. Move the downloaded JSON file(s) into `{self.remote_output_dir}`.
+6. Move the downloaded JSON file(s) into `{self.output_dir}`.
 
 ## Required Final Output Files
-Place these exact files in `{self.remote_output_dir}`:
+Place these exact files in `{self.output_dir}`:
 {output_file_lines}
 """
 
@@ -219,7 +219,7 @@ async def _read_json_remote(session: cb.DesktopSession, path: str) -> dict[str, 
 @cb.evaluate_task(split="train")
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     meta = task_cfg.metadata
-    output_dir = meta["remote_output_dir"]
+    output_dir = meta["output_dir"]
     reference_dir = meta["reference_dir"]
     output_forms: list[str] = meta["output_forms"]
 

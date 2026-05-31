@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -62,7 +61,6 @@ class AgoraGovernanceClassifyConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = "legal"
     TASK_NAME: str = "agora_governance_classify_instance_1"
     VARIANT_NAME: str = "base"
-    REMOTE_OUTPUT_DIR: str = os.environ.get("REMOTE_OUTPUT_DIR", "output")
 
     @property
     def task_spec_file(self) -> str:
@@ -90,7 +88,7 @@ class AgoraGovernanceClassifyConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/agent_output.json"
+        return f"{self.output_dir}/agent_output.json"
 
     @property
     def reference_truth_file(self) -> str:

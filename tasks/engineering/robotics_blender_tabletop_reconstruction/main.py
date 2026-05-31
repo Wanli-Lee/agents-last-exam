@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import textwrap
+from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
 from typing import Any
 
@@ -313,32 +314,12 @@ def _final_score(
     }
 
 
+@dataclass
 class RoboticsBlenderTaskConfig(GeneralTaskConfig):
-    def __init__(
-        self,
-        *,
-        REMOTE_OUTPUT_DIR: str | None = None,
-        REMOTE_ROOT_DIR: str | None = None,
-        DOMAIN_NAME: str = "engineering",
-        TASK_NAME: str = "robotics_blender_tabletop_reconstruction",
-        OS_TYPE: str = "windows",
-    ) -> None:
-        super().__init__(
-            REMOTE_OUTPUT_DIR=REMOTE_OUTPUT_DIR or os.environ.get("REMOTE_OUTPUT_DIR", "output"),
-            REMOTE_ROOT_DIR=REMOTE_ROOT_DIR or os.environ.get("REMOTE_ROOT_DIR", r"E:\agenthle"),
-            DOMAIN_NAME=DOMAIN_NAME,
-            TASK_NAME=TASK_NAME,
-            OS_TYPE=OS_TYPE,
-            VARIANT_NAME="base",
-        )
-
-    @property
-    def task_dir(self) -> str:
-        return _remote_child(self.REMOTE_ROOT_DIR, self.DOMAIN_NAME, self.TASK_NAME, self.VARIANT_NAME)
-
-    @property
-    def input_dir(self) -> str:
-        return _remote_child(self.task_dir, "input")
+    DOMAIN_NAME: str = "engineering"
+    TASK_NAME: str = "robotics_blender_tabletop_reconstruction"
+    VARIANT_NAME: str = "base"
+    OS_TYPE: str = "windows"
 
     @property
     def export_spec_path(self) -> str:
@@ -366,27 +347,27 @@ class RoboticsBlenderTaskConfig(GeneralTaskConfig):
 
     @property
     def output_scene(self) -> str:
-        return _remote_child(self.remote_output_dir, "scene.blend")
+        return _remote_child(self.output_dir, "scene.blend")
 
     @property
     def output_render(self) -> str:
-        return _remote_child(self.remote_output_dir, "verification_render.png")
+        return _remote_child(self.output_dir, "verification_render.png")
 
     @property
     def output_full_scene_obj(self) -> str:
-        return _remote_child(self.remote_output_dir, "full_scene.obj")
+        return _remote_child(self.output_dir, "full_scene.obj")
 
     @property
     def output_mustard_obj(self) -> str:
-        return _remote_child(self.remote_output_dir, "mustard_bottle.obj")
+        return _remote_child(self.output_dir, "mustard_bottle.obj")
 
     @property
     def output_mug_obj(self) -> str:
-        return _remote_child(self.remote_output_dir, "mug.obj")
+        return _remote_child(self.output_dir, "mug.obj")
 
     @property
     def output_potted_meat_obj(self) -> str:
-        return _remote_child(self.remote_output_dir, "potted_meat_can.obj")
+        return _remote_child(self.output_dir, "potted_meat_can.obj")
 
     @property
     def blender_wrapper(self) -> str:
@@ -413,7 +394,7 @@ class RoboticsBlenderTaskConfig(GeneralTaskConfig):
             Software:
             - Launch Blender through the staged task-local wrapper: `{self.blender_wrapper}`
 
-            Required outputs under `{self.remote_output_dir}`:
+            Required outputs under `{self.output_dir}`:
             - `scene.blend`
             - `verification_render.png`
             - `mustard_bottle.obj`
@@ -488,7 +469,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
         return [0.0]
 
     await session.makedirs(EVAL_TMP_DIR)
-    output_tag = PureWindowsPath(meta["remote_output_dir"]).name or "output"
+    output_tag = PureWindowsPath(meta["output_dir"]).name or "output"
     helper_path = _remote_child(EVAL_TMP_DIR, f"extract_scene_metrics_{output_tag}.py")
     metrics_path = _remote_child(EVAL_TMP_DIR, f"candidate_metrics_{output_tag}.json")
     await session.write_file(helper_path, _read_script("extract_scene_metrics.py"))

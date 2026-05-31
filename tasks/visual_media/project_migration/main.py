@@ -95,10 +95,10 @@ Input:
 
 Before you begin:
 1. Generate the list of VST3 plugins installed on this VM and save it to \
-`{self.remote_output_dir}\\{AVAILABLE_VSTS}`. In PowerShell:
+`{self.output_dir}\\{AVAILABLE_VSTS}`. In PowerShell:
    `$roots = @('C:\\Program Files\\Common Files\\VST3','C:\\Program Files (x86)\\Common Files\\VST3'); \
 $items = @(); foreach ($r in $roots) {{ if (Test-Path $r) {{ $items += Get-ChildItem -Path $r -Recurse -Filter *.vst3 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name }} }}; \
-($items | Sort-Object -Unique) | Out-File -FilePath '{self.remote_output_dir}\\{AVAILABLE_VSTS}' -Encoding ascii`
+($items | Sort-Object -Unique) | Out-File -FilePath '{self.output_dir}\\{AVAILABLE_VSTS}' -Encoding ascii`
 2. Open the Cubase project at `{self.input_dir}\\{PROJECT_FILE}` using the Cubase shortcut \
 at `{self.software_dir}\\Cubase.lnk` (e.g. double-click the .lnk, or \
 `Start-Process '{self.software_dir}\\Cubase.lnk'`).
@@ -108,20 +108,20 @@ Steps:
 2. For each track with a missing VST instrument or effect:
    a. Open the track's instrument or insert slot.
    b. Replace the missing VST with a functionally equivalent one from the available \
-plugins listed in `{self.remote_output_dir}\\{AVAILABLE_VSTS}`.
+plugins listed in `{self.output_dir}\\{AVAILABLE_VSTS}`.
    c. Choose a preset or patch that best approximates the original sound character \
 (e.g., replace a missing string library with an available string patch).
 3. Play back the project and verify all tracks produce audible, artifact-free audio.
 4. Export stems: for each track/channel as organized in the project (do NOT split or \
 reorganize tracks — export exactly as the project defines them), solo it and export \
-audio mixdown (WAV, 44.1 kHz or higher) to {self.remote_output_dir}\\{STEMS_DIR}\\<track_name>.wav
-5. Save the migrated project to {self.remote_output_dir}\\{MIGRATED_PROJECT}
+audio mixdown (WAV, 44.1 kHz or higher) to {self.output_dir}\\{STEMS_DIR}\\<track_name>.wav
+5. Save the migrated project to {self.output_dir}\\{MIGRATED_PROJECT}
 6. Take a screenshot of the Cubase MixConsole or arrange view showing all tracks with \
 their replaced plugins visible:
-   save_milestone_screenshot(path="{self.remote_output_dir}\\{OVERVIEW_SCREENSHOT}", \
+   save_milestone_screenshot(path="{self.output_dir}\\{OVERVIEW_SCREENSHOT}", \
 description="Cubase project with replaced plugins")
 
-Output files (all saved to {self.remote_output_dir}):
+Output files (all saved to {self.output_dir}):
 - {MIGRATED_PROJECT}: Cubase project with all missing VSTs replaced.
 - {STEMS_DIR}/: Per-track solo WAV exports (one per track).
 - {OVERVIEW_SCREENSHOT}: Screenshot of MixConsole or arrange view.
@@ -186,7 +186,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     try:
         meta = task_cfg.metadata
         tag = meta["variant_name"]
-        output_dir = meta["remote_output_dir"]
+        output_dir = meta["output_dir"]
         ref_dir = meta["reference_dir"]
         reference_stems_dir = meta["reference_stems_dir"]
 

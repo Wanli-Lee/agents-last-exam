@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -36,7 +35,7 @@ except ModuleNotFoundError:  # pragma: no cover - local import fallback only
     )
 
 from tasks.common_setup import BaseTaskSetup
-from tasks.linux_runtime import DATA_ROOT, LinuxTaskConfig
+from tasks.linux_runtime import LinuxTaskConfig
 
 if __name__ not in sys.modules:
     sys.modules[__name__] = sys.modules.get(__name__, type(sys)(__name__))
@@ -59,11 +58,11 @@ SCORE_SCRIPT = (SCRIPTS_DIR / "score_outputs.py").read_text(encoding="utf-8")
 def _normalize_output_dir_name(raw: str) -> str:
     normalized = raw.replace("\\", "/").strip("/")
     if not normalized or "/" in normalized:
-        raise ValueError(f"REMOTE_OUTPUT_DIR must be a single directory name, got {raw!r}")
+        raise ValueError(f"OUTPUT_SUBDIR must be a single directory name, got {raw!r}")
     if normalized in ALLOWED_OUTPUT_DIR_NAMES or normalized.startswith(ADMIN_OUTPUT_PREFIX):
         return normalized
     raise ValueError(
-        "REMOTE_OUTPUT_DIR must be one of "
+        "OUTPUT_SUBDIR must be one of "
         f"{sorted(ALLOWED_OUTPUT_DIR_NAMES)} or start with {ADMIN_OUTPUT_PREFIX!r}"
     )
 
@@ -73,35 +72,18 @@ class AtwoodReproductionConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = VARIANT_NAME
-    REMOTE_OUTPUT_DIR: str = os.environ.get("REMOTE_OUTPUT_DIR", "output")
     OS_TYPE: str = "linux"
 
     @property
     def output_dir_name(self) -> str:
-        return _normalize_output_dir_name(self.REMOTE_OUTPUT_DIR)
-
-    @property
-    def task_dir(self) -> str:
-        return f"{DATA_ROOT}/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}"
-
-    @property
-    def input_dir(self) -> str:
-        return f"{self.task_dir}/input"
-
-    @property
-    def reference_dir(self) -> str:
-        return f"{self.task_dir}/reference"
+        return _normalize_output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
     def hidden_gold_dir(self) -> str:
         return f"{self.reference_dir}/hidden_gold"
 
     @property
-    def software_dir(self) -> str:
-        return f"{self.task_dir}/software"
-
-    @property
-    def remote_output_dir(self) -> str:
+    def output_dir(self) -> str:
         return f"{self.task_dir}/{self.output_dir_name}"
 
     @property
@@ -138,7 +120,7 @@ You are working on a Linux VM as an applied-economics replication analyst.
 Use the staged public materials to reproduce the coefficient report for Alicia
 Atwood (2022), Table 2, row "Vaccination effect".
 
-Write all final files under `{self.remote_output_dir}`:
+Write all final files under `{self.output_dir}`:
 - `execution_log.txt`
 - `repair_log.json`
 - `paper_coefficients.json`
@@ -157,12 +139,8 @@ Follow the file contracts in `{self.task_prompt_file}` and the schemas under
                 "task_id": TASK_ID,
                 "variant_name": self.VARIANT_NAME,
                 "output_dir_name": self.output_dir_name,
-                "task_dir": self.task_dir,
-                "input_dir": self.input_dir,
-                "software_dir": self.software_dir,
-                "reference_dir": self.reference_dir,
                 "hidden_gold_dir": self.hidden_gold_dir,
-                "remote_output_dir": self.remote_output_dir,
+                "output_dir": self.output_dir,
                 "task_prompt_file": self.task_prompt_file,
                 "paper_file": self.paper_file,
                 "replication_package": self.replication_package,
@@ -215,7 +193,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
         await session.write_file(score_script, SCORE_SCRIPT)
         result = await session.run_command(
             f'python "{score_script}" '
-            f'--output "{meta["remote_output_dir"]}" '
+            f'--output "{meta["output_dir"]}" '
             f'--reference "{meta["hidden_gold_dir"]}"'
         )
         stdout = result.get("stdout", "")

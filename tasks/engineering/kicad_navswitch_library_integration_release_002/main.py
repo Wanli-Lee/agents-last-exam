@@ -2,7 +2,6 @@
 
 import json
 import logging
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -130,7 +129,7 @@ You are repairing a KiCad project for the SparkFun Qwiic Navigation Switch board
 
 ## Required Deliverables
 Save all deliverables under:
-`{self.remote_output_dir}`
+`{self.output_dir}`
 
 Required files and directories:
 - `{PROJECT_BASENAME}.kicad_pro`
@@ -175,7 +174,7 @@ config = TaskConfig()
 
 @cb.tasks_config(split="train")
 def load():
-    cfg = TaskConfig(REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"))
+    cfg = TaskConfig()
     return [
         cb.Task(
             description=cfg.task_description,
@@ -199,7 +198,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
 
     command = (
         f'python "{verifier_path}" '
-        f'--agent-dir "{meta["remote_output_dir"]}" '
+        f'--agent-dir "{meta["output_dir"]}" '
         f'--reference-project-dir "{meta["reference_project_dir"]}" '
         f'--reference-outputs-dir "{meta["reference_outputs_dir"]}"'
     )

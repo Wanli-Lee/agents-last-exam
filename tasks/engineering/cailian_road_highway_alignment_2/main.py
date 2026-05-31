@@ -23,7 +23,6 @@ TASK_NAME = "cailian_road_highway_alignment_2"
 TASK_ID = f"{DOMAIN_NAME}/{TASK_NAME}"
 VARIANT_NAME = "base"
 
-REMOTE_ROOT_DIR = r"E:\agenthle"
 CIVIL3D_EXE = r"C:\Program Files\Autodesk\AutoCAD 2024\acad.exe"
 
 # Control points from the submission
@@ -64,18 +63,9 @@ def _read_script(name: str) -> str:
 
 @dataclass
 class CailianRoadConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = REMOTE_ROOT_DIR
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = VARIANT_NAME
-
-    @property
-    def task_dir(self) -> str:
-        return _win(self.REMOTE_ROOT_DIR, DOMAIN_NAME, TASK_NAME, VARIANT_NAME)
-
-    @property
-    def input_dir(self) -> str:
-        return _win(self.task_dir, "input")
 
     @property
     def topo_surface_file(self) -> str:
@@ -83,11 +73,11 @@ class CailianRoadConfig(GeneralTaskConfig):
 
     @property
     def alignment_dwg(self) -> str:
-        return _win(self.remote_output_dir, "alignment.dwg")
+        return _win(self.output_dir, "alignment.dwg")
 
     @property
     def alignment_tsv(self) -> str:
-        return _win(self.remote_output_dir, "alignment_metrics.tsv")
+        return _win(self.output_dir, "alignment_metrics.tsv")
 
     @property
     def civil3d_launcher(self) -> str:
@@ -134,7 +124,7 @@ profile along the alignment. Do NOT edit the profile.
 ## Output
 - Save alignment drawing to: `{self.alignment_dwg}`
 - Save metrics TSV to: `{self.alignment_tsv}`
-- Keep all work inside `{self.remote_output_dir}`
+- Keep all work inside `{self.output_dir}`
 """
 
     def to_metadata(self) -> dict:
@@ -331,7 +321,6 @@ async def _run_cmd(session, cmd, retries=3, delay=5, check=False):
 @cb.evaluate_task(split="train")
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     meta = task_cfg.metadata
-    output_dir = meta["remote_output_dir"]
     alignment_dwg = meta["alignment_dwg"]
     alignment_tsv = meta["alignment_tsv"]
     topo_surface = meta["topo_surface_file"]

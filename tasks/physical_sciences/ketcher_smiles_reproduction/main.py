@@ -75,7 +75,7 @@ class KetcherSmilesTaskConfig(GeneralTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return rf"{self.remote_output_dir}\submission.smi"
+        return rf"{self.output_dir}\submission.smi"
 
     @property
     def reference_file(self) -> str:

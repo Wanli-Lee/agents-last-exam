@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -63,7 +62,6 @@ class BpmnCategoryGovernanceConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = "business_finance"
     TASK_NAME: str = "bpmn_category_governance_restructuring_l3"
     VARIANT_NAME: str = "base"
-    REMOTE_OUTPUT_DIR: str = os.environ.get("REMOTE_OUTPUT_DIR", "output")
 
     @property
     def task_prompt_file(self) -> str:
@@ -123,23 +121,23 @@ class BpmnCategoryGovernanceConfig(LinuxTaskConfig):
 
     @property
     def output_bpmn(self) -> str:
-        return f"{self.remote_output_dir}/modified_process.bpmn20.xml"
+        return f"{self.output_dir}/modified_process.bpmn20.xml"
 
     @property
     def output_structural(self) -> str:
-        return f"{self.remote_output_dir}/structural_changes.json"
+        return f"{self.output_dir}/structural_changes.json"
 
     @property
     def output_rules(self) -> str:
-        return f"{self.remote_output_dir}/business_rules_compliance.json"
+        return f"{self.output_dir}/business_rules_compliance.json"
 
     @property
     def output_results(self) -> str:
-        return f"{self.remote_output_dir}/test_results.json"
+        return f"{self.output_dir}/test_results.json"
 
     @property
     def output_design_decisions(self) -> str:
-        return f"{self.remote_output_dir}/design_decisions.md"
+        return f"{self.output_dir}/design_decisions.md"
 
     @property
     def task_description(self) -> str:

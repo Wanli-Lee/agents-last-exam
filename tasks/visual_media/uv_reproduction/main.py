@@ -266,9 +266,6 @@ def _remote_child(base: str, *parts: str) -> str:
 
 @dataclass
 class UVTaskConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = os.environ.get(
-        "BLENDER_PACKAGE_REMOTE_ROOT", os.environ.get("REMOTE_ROOT_DIR", r"E:\agenthle")
-    )
     DOMAIN_NAME: str = "visual_media"
 
     TASK_NAME: str = "uv_reproduction"
@@ -308,7 +305,7 @@ class UVTaskConfig(GeneralTaskConfig):
     @property
     def task_dir(self) -> str:
         return _remote_child(
-            self.REMOTE_ROOT_DIR, self.DOMAIN_NAME, self.TASK_NAME, self.REMOTE_TASK_DIR_NAME
+            self.data_root, self.DOMAIN_NAME, self.TASK_NAME, self.REMOTE_TASK_DIR_NAME
         )
 
     @property
@@ -341,7 +338,7 @@ class UVTaskConfig(GeneralTaskConfig):
 
     @property
     def output_submission_dir(self) -> str:
-        return _remote_child(self.remote_output_dir, "submission")
+        return _remote_child(self.output_dir, "submission")
 
     @property
     def output_texture_dir(self) -> str:
@@ -448,7 +445,7 @@ class UVTaskConfig(GeneralTaskConfig):
                 "submission_contract": self.SUBMISSION_CONTRACT,
                 "mode": self.MODE,
                 "task_dir": self.task_dir,
-                "remote_output_dir": self.remote_output_dir,
+                "output_dir": self.output_dir,
                 "reference_dir": self.reference_dir,
                 "input_dir": self.input_dir,
                 "input_obj": self.input_obj,

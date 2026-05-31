@@ -2,7 +2,6 @@
 
 import json
 import logging
-import os
 import shlex
 import sys
 from dataclasses import dataclass
@@ -45,7 +44,6 @@ class FDSDetectorReconstructionConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = VARIANT_NAME
-    REMOTE_OUTPUT_DIR: str = os.environ.get("REMOTE_OUTPUT_DIR", "output")
 
     @property
     def project_dir(self) -> str:
@@ -69,7 +67,7 @@ class FDSDetectorReconstructionConfig(LinuxTaskConfig):
 
     @property
     def output_cli(self) -> str:
-        return f"{self.remote_output_dir}/reconstruct_fire_case.py"
+        return f"{self.output_dir}/reconstruct_fire_case.py"
 
     @property
     def reference_evaluator_dir(self) -> str:
@@ -102,7 +100,7 @@ Use the visible project files and the documented reconstruction contract. Your i
 ## Required Final Submission
 Write your completed submission package to:
 
-`{self.remote_output_dir}`
+`{self.output_dir}`
 
 At minimum, `{self.output_cli}` must exist. The evaluator will run that script against scenario input directories and check the generated FDS/Smokeview artifacts.
 
@@ -118,7 +116,7 @@ For each scenario, your CLI must write these files into the CLI `--output-dir`:
 
 ## Important Rules
 - Do not modify files under `{self.input_dir}`.
-- Use `{self.remote_output_dir}` only for your final submitted files.
+- Use `{self.output_dir}` only for your final submitted files.
 - FDS/Smokeview are available at `{self.software_dir}/fds` and `{self.software_dir}/smokeview` for optional professional validation, but the submitted CLI must run offline with Python standard-library code.
 """
 
@@ -146,9 +144,7 @@ config = FDSDetectorReconstructionConfig()
 
 @cb.tasks_config(split="train")
 def load():
-    cfg = FDSDetectorReconstructionConfig(
-        REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output")
-    )
+    cfg = FDSDetectorReconstructionConfig()
     return [
         cb.Task(
             description=cfg.task_description,
@@ -168,7 +164,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     meta = task_cfg.metadata
 
     for key, label in [
-        ("remote_output_dir", "submission output directory"),
+        ("output_dir", "submission output directory"),
         ("output_cli", "submitted reconstruct_fire_case.py"),
         ("reference_evaluator", "hidden evaluator script"),
         ("reference_evaluator_dir", "hidden evaluator directory"),
@@ -186,7 +182,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
             "python",
             shlex.quote(verifier_path),
             "--submission-dir",
-            shlex.quote(meta["remote_output_dir"]),
+            shlex.quote(meta["output_dir"]),
             "--reference-dir",
             shlex.quote(meta["reference_evaluator_dir"]),
             "--work-dir",

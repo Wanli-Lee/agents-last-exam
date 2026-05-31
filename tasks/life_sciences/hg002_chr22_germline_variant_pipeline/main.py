@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import shutil
 import sys
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from typing import Any
@@ -61,11 +62,12 @@ def _canonical_output_dir_name(name: str) -> str:
     normalized = str(PurePosixPath(name))
     if normalized not in CANONICAL_OUTPUT_DIRS:
         raise ValueError(
-            f"REMOTE_OUTPUT_DIR must normalize to one of {sorted(CANONICAL_OUTPUT_DIRS)}"
+            f"OUTPUT_SUBDIR must normalize to one of {sorted(CANONICAL_OUTPUT_DIRS)}"
         )
     return normalized
 
 
+@dataclass
 class Hg002Chr22Config(LinuxTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
@@ -73,15 +75,15 @@ class Hg002Chr22Config(LinuxTaskConfig):
 
     @property
     def output_dir_name(self) -> str:
-        return _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
+        return _canonical_output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
-    def remote_output_dir(self) -> str:
+    def output_dir(self) -> str:
         return _remote_join(self.task_dir, self.output_dir_name)
 
     @property
     def submission_root(self) -> str:
-        return _remote_join(self.remote_output_dir, "submission")
+        return _remote_join(self.output_dir, "submission")
 
     @property
     def hidden_truth_dir(self) -> str:
@@ -133,7 +135,7 @@ Requirements:
 Rules:
 - Treat `{self.input_dir}` plus any intended visible `software/` entry points as
   the solve-time surface.
-- Write solver-created files only under `{self.remote_output_dir}`.
+- Write solver-created files only under `{self.output_dir}`.
 - Hidden benchmarking against evaluator-side truth happens after you finish.
 """
 
@@ -152,12 +154,12 @@ Rules:
         return metadata
 
 
-config = Hg002Chr22Config(DOMAIN_NAME=DOMAIN_NAME, TASK_NAME=TASK_NAME)
+config = Hg002Chr22Config()
 
 
 @cb.tasks_config(split="train")
 def load():
-    cfg = Hg002Chr22Config(DOMAIN_NAME=DOMAIN_NAME, TASK_NAME=TASK_NAME)
+    cfg = Hg002Chr22Config()
     return [
         cb.Task(
             description=cfg.task_description,

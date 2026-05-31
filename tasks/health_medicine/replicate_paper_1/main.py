@@ -69,7 +69,6 @@ class ReplicatePaperConfig(LinuxTaskConfig):
             TASK_NAME=TASK_NAME,
             VARIANT_NAME=VARIANT_NAME,
             OS_TYPE="linux",
-            REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"),
         )
 
     @property
@@ -81,12 +80,12 @@ class ReplicatePaperConfig(LinuxTaskConfig):
         return f"{self.task_dir}/output_test_neg"
 
     @property
-    def remote_output_dir(self) -> str:
-        if self.REMOTE_OUTPUT_DIR == "output_test_pos":
+    def output_dir(self) -> str:
+        if self.OUTPUT_SUBDIR == "output_test_pos":
             return self.output_test_pos_dir
-        if self.REMOTE_OUTPUT_DIR == "output_test_neg":
+        if self.OUTPUT_SUBDIR == "output_test_neg":
             return self.output_test_neg_dir
-        return f"{self.task_dir}/{self.REMOTE_OUTPUT_DIR}"
+        return f"{self.task_dir}/{self.OUTPUT_SUBDIR}"
 
     @property
     def simulation_spec_pdf(self) -> str:
@@ -106,19 +105,19 @@ class ReplicatePaperConfig(LinuxTaskConfig):
 
     @property
     def summary_results(self) -> str:
-        return f"{self.remote_output_dir}/summary_results.csv"
+        return f"{self.output_dir}/summary_results.csv"
 
     @property
     def coverage_results(self) -> str:
-        return f"{self.remote_output_dir}/coverage_results.csv"
+        return f"{self.output_dir}/coverage_results.csv"
 
     @property
     def findings_file(self) -> str:
-        return f"{self.remote_output_dir}/summary_findings.txt"
+        return f"{self.output_dir}/summary_findings.txt"
 
     @property
     def metadata_file(self) -> str:
-        return f"{self.remote_output_dir}/run_metadata.json"
+        return f"{self.output_dir}/run_metadata.json"
 
     @property
     def task_description(self) -> str:
@@ -141,18 +140,18 @@ Required work:
 2. Implement IPTW, A-IPTW, and TMLE estimators for the shift intervention.
 3. Run at least 1000 repetitions for each sample size: 50, 100, 200, and 500.
 4. Summarize mean estimate, bias, variance, Monte Carlo SE, 95% interval, and coverage for every estimator/sample-size pair.
-5. Write all deliverables only under `{self.remote_output_dir}`.
+5. Write all deliverables only under `{self.output_dir}`.
 
 Required outputs:
 - `{self.summary_results}`
 - `{self.coverage_results}`
-- `{self.remote_output_dir}/comparison_plots/` with at least one non-empty `.png` or `.pdf`
+- `{self.output_dir}/comparison_plots/` with at least one non-empty `.png` or `.pdf`
 - `{self.findings_file}`
 - `{self.metadata_file}`
 
 Software guidance:
 - Use the provisioned R entry point `{self.software_dir}/Rscript`.
-- You may write temporary simulation files inside `{self.remote_output_dir}`.
+- You may write temporary simulation files inside `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict[str, Any]:
@@ -167,8 +166,8 @@ Software guidance:
                 "reference_dir": self.reference_dir,
                 "output_test_pos_dir": self.output_test_pos_dir,
                 "output_test_neg_dir": self.output_test_neg_dir,
-                "remote_output_dir": self.remote_output_dir,
-                "remote_output_label": self.REMOTE_OUTPUT_DIR,
+                "output_dir": self.output_dir,
+                "remote_output_label": self.OUTPUT_SUBDIR,
                 "simulation_spec_pdf": self.simulation_spec_pdf,
                 "simulation_spec_txt": self.simulation_spec_txt,
                 "task_instructions": self.task_instructions,
@@ -219,7 +218,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
         session,
         (
             f'python "{verifier_path}" '
-            f'--output-dir "{meta["remote_output_dir"]}" '
+            f'--output-dir "{meta["output_dir"]}" '
             f'--reference-dir "{meta["reference_dir"]}"'
             f"{allow_fixture}"
         ),

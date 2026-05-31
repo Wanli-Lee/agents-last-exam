@@ -54,7 +54,7 @@ External resources:
 2. Ensembl VEP REST API
 3. NCBI ClinVar / E-utilities
 
-Required outputs under `{self.remote_output_dir}`:
+Required outputs under `{self.output_dir}`:
 - `{self.VARIANT_COUNT_FILE}` with a single integer
 - `{self.VEP_RESULTS_FILE}` with exact header `CHROM,POS,REF,ALT,GENE,CONSEQUENCE,IMPACT,SIFT,POLYPHEN`
 - `{self.GNOMAD_RESULTS_FILE}` with exact header `CHROM,POS,REF,ALT,ALLELE_FREQ`
@@ -84,7 +84,11 @@ Rules:
         return metadata
 
 
-config = TaskConfig(TASK_NAME="Clinical_Variant_Annotation")
+config = TaskConfig(
+    DOMAIN_NAME="health_medicine",
+    TASK_NAME="Clinical_Variant_Annotation",
+    VARIANT_NAME="base",
+)
 
 
 @cb.tasks_config(split="train")
@@ -116,7 +120,7 @@ def _data_lines(csv_text: str, prefix: str) -> list[str]:
 
 @cb.evaluate_task(split="train")
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
-    output_dir = task_cfg.metadata["remote_output_dir"]
+    output_dir = task_cfg.metadata["output_dir"]
     score = 0.0
 
     try:

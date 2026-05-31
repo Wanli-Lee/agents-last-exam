@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import logging
-import os
 import posixpath
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -61,32 +61,24 @@ def _normalize_output_dir_name(raw: str) -> str:
     normalized = posixpath.normpath(raw.replace("\\", "/"))
     if normalized not in CANONICAL_OUTPUT_DIR_NAMES:
         raise ValueError(
-            "REMOTE_OUTPUT_DIR must normalize to one of: "
+            "OUTPUT_SUBDIR must normalize to one of: "
             + ", ".join(sorted(CANONICAL_OUTPUT_DIR_NAMES))
         )
     return normalized
 
 
+@dataclass
 class CostOptimizationConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = VARIANT_NAME
 
-    def __init__(self, *, remote_output_dir: str = "output") -> None:
-        super().__init__(
-            DOMAIN_NAME=DOMAIN_NAME,
-            TASK_NAME=TASK_NAME,
-            VARIANT_NAME=VARIANT_NAME,
-            OS_TYPE="linux",
-            REMOTE_OUTPUT_DIR=remote_output_dir,
-        )
-
     @property
     def output_dir_name(self) -> str:
-        return _normalize_output_dir_name(self.REMOTE_OUTPUT_DIR)
+        return _normalize_output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
-    def remote_output_dir(self) -> str:
+    def output_dir(self) -> str:
         return f"{self.task_dir}/{self.output_dir_name}"
 
     @property
@@ -123,11 +115,11 @@ class CostOptimizationConfig(LinuxTaskConfig):
 
     @property
     def output_report(self) -> str:
-        return f"{self.remote_output_dir}/optimization_report.json"
+        return f"{self.output_dir}/optimization_report.json"
 
     @property
     def output_summary(self) -> str:
-        return f"{self.remote_output_dir}/savings_summary.csv"
+        return f"{self.output_dir}/savings_summary.csv"
 
     @property
     def reference_report(self) -> str:
@@ -160,7 +152,7 @@ class CostOptimizationConfig(LinuxTaskConfig):
             f"- Treat `{self.input_dir}` as read-only.\n"
             f"- Use `{self.python_wrapper}` if you want a task-local Python environment with pandas.\n"
             "- The benchmark only exposes the visible input/software/output surface while you are solving the task.\n"
-            f"- Write final deliverables only under `{self.remote_output_dir}`.\n"
+            f"- Write final deliverables only under `{self.output_dir}`.\n"
         )
 
     def to_metadata(self) -> dict:
@@ -191,7 +183,7 @@ class CostOptimizationConfig(LinuxTaskConfig):
 
 @cb.tasks_config(split="train")
 def load():
-    cfg = CostOptimizationConfig(remote_output_dir=os.environ.get("REMOTE_OUTPUT_DIR", "output"))
+    cfg = CostOptimizationConfig()
     return [
         cb.Task(
             description=cfg.task_description,

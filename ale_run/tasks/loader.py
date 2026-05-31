@@ -39,6 +39,12 @@ _TASK_LOCAL_MODULE_NAMES = (
 
 _TASK_IMPORT_LOCK = threading.Lock()
 
+# Transient data root used only by ``load_meta`` so path properties don't raise
+# while we extract VM-selection fields pre-provision. Never reaches the agent:
+# load_meta returns only os_type + task_card fields, never the probe-rendered
+# description or paths.
+_PROVISION_PROBE_ROOT = "__ALE_PROBE_ROOT__"
+
 
 # ======================================================================
 # TaskLoader
@@ -134,6 +140,32 @@ class TaskLoader:
                         sys.path.remove(p)
                     except ValueError:
                         pass
+
+    def load_meta(self, variant_index: int = 0) -> Dict[str, Any]:
+        """Pre-provision metadata: ``os_type`` + task_card VM fields only.
+
+        Needed to build the env spec (which image / machine / timeout) *before*
+        a VM exists, so before the real data root is known. Path properties and
+        the description require the injected data root, so we render under a
+        throwaway probe root and return ONLY the VM-selection fields — never the
+        probe-rendered description or paths (those would carry a fake root).
+        The real description + metadata come from :meth:`load` post-provision.
+        """
+        from tasks.common_config import reset_data_root, set_data_root
+
+        token = set_data_root(_PROVISION_PROBE_ROOT)
+        try:
+            full = self.load(variant_index)
+        finally:
+            reset_data_root(token)
+        return {
+            "os_type": full.get("os_type", "windows"),
+            "image_category": full.get("image_category"),
+            "snapshot_name": full.get("snapshot_name"),
+            "machine_type": full.get("machine_type"),
+            "gpu": full.get("gpu"),
+            "timeout_s": full.get("timeout_s"),
+        }
 
     def load(self, variant_index: int = 0) -> Dict[str, Any]:
         module = self._load_module()
@@ -372,7 +404,7 @@ class TaskLoader:
             software_dir=metadata.get("software_dir"),
             reference_dir=metadata.get("reference_dir"),
             reference_gcs_prefix=metadata.get("reference_gcs_prefix"),
-            remote_output_dir=metadata.get("remote_output_dir"),
+            output_dir=metadata.get("output_dir"),
         )
 
     def get_setup_fn(self):

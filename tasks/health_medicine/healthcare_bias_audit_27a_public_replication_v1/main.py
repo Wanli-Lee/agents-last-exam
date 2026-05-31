@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import shlex
 import sys
 from pathlib import Path
@@ -113,8 +112,6 @@ class HealthcareBiasAuditConfig(LinuxTaskConfig):
             TASK_NAME=TASK_NAME,
             VARIANT_NAME=variant_name,
             OS_TYPE="linux",
-            REMOTE_ROOT_DIR=os.environ.get("REMOTE_ROOT_DIR", "/media/user/data/agenthle"),
-            REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"),
         )
 
     @property
@@ -171,15 +168,15 @@ class HealthcareBiasAuditConfig(LinuxTaskConfig):
 
     @property
     def results_dir(self) -> str:
-        return f"{self.remote_output_dir}/results"
+        return f"{self.output_dir}/results"
 
     @property
     def answers_output_file(self) -> str:
-        return f"{self.remote_output_dir}/audit_answers.json"
+        return f"{self.output_dir}/audit_answers.json"
 
     @property
     def memo_output_file(self) -> str:
-        return f"{self.remote_output_dir}/audit_memo.md"
+        return f"{self.output_dir}/audit_memo.md"
 
     @property
     def reference_answers_file(self) -> str:
@@ -218,11 +215,11 @@ Visible data files:
 - `{self.data_dictionary_file}`
 
 Your job is to:
-1. Create a writable working copy of the staged bundle under `{self.remote_output_dir}` (or another writable subdirectory inside it) so the supplied scripts can write `results/` without mutating the staged `input/` tree.
+1. Create a writable working copy of the staged bundle under `{self.output_dir}` (or another writable subdirectory inside it) so the supplied scripts can write `results/` without mutating the staged `input/` tree.
 2. Run the provided Python and R scripts in the dependency order needed to generate the five required CSV outputs.
 3. Fill in `audit_answers.json` using only the public synthetic replication outputs from this run.
 4. Write `audit_memo.md` for a clinical analytics lead, grounding it in this run's outputs and clearly distinguishing the public synthetic replication from the paper's private-data values.
-5. Save exactly these deliverables under `{self.remote_output_dir}`:
+5. Save exactly these deliverables under `{self.output_dir}`:
    - `results/model_lasso_predictors.csv`
    - `results/model_r2.csv`
    - `results/table2_concentration_metric.csv`
@@ -237,7 +234,7 @@ Rules:
 - Do not replace the supplied workflow with a different analytical pipeline.
 - Do not use the original paper's `17.7% -> 46.5%` value or the later `59%` correction as the graded answer.
 - Treat the staged solve-time files as read-only and do not rely on any hidden evaluator-only data.
-- If you create scratch files under `{self.remote_output_dir}`, clean them up before finishing so only the required deliverables remain.
+- If you create scratch files under `{self.output_dir}`, clean them up before finishing so only the required deliverables remain.
 """
 
     def to_metadata(self) -> dict[str, Any]:
@@ -296,7 +293,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     meta = task_cfg.metadata
 
     expected_files = set(REQUIRED_OUTPUT_FILES)
-    observed_files = set(await _list_relative_files(session, meta["remote_output_dir"]))
+    observed_files = set(await _list_relative_files(session, meta["output_dir"]))
     if observed_files != expected_files:
         logger.error("Unexpected candidate output file set: %s", sorted(observed_files))
         return [0.0]
@@ -315,7 +312,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
         candidate_files = {}
         reference_files = {}
         for rel_path in REQUIRED_OUTPUT_FILES:
-            candidate_path = f'{meta["remote_output_dir"]}/{rel_path}'
+            candidate_path = f'{meta["output_dir"]}/{rel_path}'
             reference_path = (
                 meta["reference_dir"] + "/" + rel_path
             )

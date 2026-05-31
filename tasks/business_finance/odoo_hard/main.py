@@ -54,7 +54,7 @@ class TaskConfig(GeneralTaskConfig):
 
     @property
     def task_description(self) -> str:
-        out_dir = self.remote_output_dir
+        out_dir = self.output_dir
         tag = self.RUN_TAG
         db_name = self.DEFAULT_DB_NAME
 
@@ -303,7 +303,7 @@ class _OdooHardSetup(BaseTaskSetup):
     """
 
     async def setup(self, task_cfg, session: cb.DesktopSession) -> None:
-        out_dir = task_cfg.metadata["remote_output_dir"]
+        out_dir = task_cfg.metadata["output_dir"]
         odoo_url = task_cfg.metadata.get("odoo_url", config.DEFAULT_ODOO_URL)
         template_db = task_cfg.metadata.get("template_db", config.TEMPLATE_DB_NAME)
         db_name = task_cfg.metadata.get("db_name", config.DEFAULT_DB_NAME)
@@ -372,7 +372,7 @@ def _float_eq(a, b, tol=0.01) -> bool:
 
 @cb.evaluate_task(split="train")
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
-    out_dir = task_cfg.metadata["remote_output_dir"]
+    out_dir = task_cfg.metadata["output_dir"]
     ref_dir = task_cfg.metadata.get("reference_dir")
 
     psql_path = task_cfg.metadata.get("psql_path", config.DEFAULT_PSQL_PATH)

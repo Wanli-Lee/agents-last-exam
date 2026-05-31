@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-import os
+from dataclasses import dataclass
 from typing import Any
 
 import cua_bench as cb
@@ -38,33 +38,30 @@ SUPPORTED_AMBERTOOLS_TOOLS = (
 )
 
 
+@dataclass
 class AmberThreeStageMmgbsaTaskConfig(LinuxTaskConfig):
     """Linux task config for the Amber three-stage MMGBSA workflow task."""
 
-    def __init__(self, *, REMOTE_OUTPUT_DIR: str | None = None) -> None:
-        super().__init__(
-            DOMAIN_NAME=DOMAIN_NAME,
-            TASK_NAME=TASK_NAME,
-            VARIANT_NAME=VARIANT_NAME,
-            OS_TYPE="linux",
-            REMOTE_OUTPUT_DIR=REMOTE_OUTPUT_DIR or os.environ.get("REMOTE_OUTPUT_DIR", "output"),
-        )
+    DOMAIN_NAME: str = DOMAIN_NAME
+    TASK_NAME: str = TASK_NAME
+    VARIANT_NAME: str = VARIANT_NAME
+    OS_TYPE: str = "linux"
 
     @property
     def output_submit_min(self) -> str:
-        return f"{self.remote_output_dir}/submit_min.sh"
+        return f"{self.output_dir}/submit_min.sh"
 
     @property
     def output_submit_prod(self) -> str:
-        return f"{self.remote_output_dir}/submit_prod.sh"
+        return f"{self.output_dir}/submit_prod.sh"
 
     @property
     def output_submit_mmgbsa(self) -> str:
-        return f"{self.remote_output_dir}/submit_mmgbsa.sh"
+        return f"{self.output_dir}/submit_mmgbsa.sh"
 
     @property
     def output_results(self) -> str:
-        return f"{self.remote_output_dir}/FINAL_RESULTS_MMGBSA.dat"
+        return f"{self.output_dir}/FINAL_RESULTS_MMGBSA.dat"
 
     @property
     def hidden_reference_results(self) -> str:
@@ -94,7 +91,7 @@ Software:
 Your task:
 1. Inspect `complex_structure.pdb` and the two markdown specs under `input/`.
 2. Treat chain `A` as the receptor and chains `B` plus `C` together as the ligand.
-3. Create exactly these four files under `{self.remote_output_dir}`:
+3. Create exactly these four files under `{self.output_dir}`:
    - `submit_min.sh`
    - `submit_prod.sh`
    - `submit_mmgbsa.sh`
@@ -176,7 +173,7 @@ async def start(task_cfg, session: cb.DesktopSession):
 @cb.evaluate_task(split="train")
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     meta = task_cfg.metadata
-    output_dir = meta["remote_output_dir"]
+    output_dir = meta["output_dir"]
     files = await _list_output_files(session, output_dir)
 
     bundle: dict[str, str] = {}

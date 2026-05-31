@@ -62,7 +62,7 @@ def _canonical_output_dir_name(path: str) -> str:
     normalized = path.replace("\\", "/").strip("/")
     if normalized not in ALLOWED_OUTPUT_DIRS:
         raise ValueError(
-            "REMOTE_OUTPUT_DIR must be one of: " + ", ".join(sorted(ALLOWED_OUTPUT_DIRS))
+            "OUTPUT_SUBDIR must be one of: " + ", ".join(sorted(ALLOWED_OUTPUT_DIRS))
         )
     return normalized
 
@@ -87,14 +87,14 @@ async def _run_command(
 
 
 class ProstateIMRTConfig(LinuxTaskConfig):
-    def __init__(self, remote_output_dir: str = "output") -> None:
+    def __init__(self, output_subdir: str = "output") -> None:
         super().__init__(
             DOMAIN_NAME=DOMAIN_NAME,
             TASK_NAME=TASK_NAME,
             VARIANT_NAME=VARIANT_NAME,
             OS_TYPE="linux",
-            REMOTE_OUTPUT_DIR=remote_output_dir,
         )
+        self.OUTPUT_SUBDIR = output_subdir
 
     @property
     def dicom_dir(self) -> str:
@@ -141,8 +141,8 @@ class ProstateIMRTConfig(LinuxTaskConfig):
         return f"{self.software_dir}/run_matrad.sh"
 
     @property
-    def remote_output_dir(self) -> str:
-        output_dir_name = _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
+    def output_dir(self) -> str:
+        output_dir_name = _canonical_output_dir_name(self.OUTPUT_SUBDIR)
         return f"{self.task_dir}/{output_dir_name}"
 
     @property
@@ -174,7 +174,7 @@ Your task (six phases):
 5. DICOM-RT export of RTPLAN.dcm, RTDOSE.dcm, and corrected RTSTRUCT, all sharing a consistent FrameOfReferenceUID.
 6. Independent QA in Python: recompute DVH from the submitted RTDOSE + RTSTRUCT, render axial/sagittal/coronal isodose PNGs, and produce `report.md`, `plan_metrics.json`, `beam_summary.csv`, `decisions.md`.
 
-Required outputs, written only under `{self.remote_output_dir}`:
+Required outputs, written only under `{self.output_dir}`:
 - `RTPLAN.dcm`, `RTDOSE.dcm`, `RTSTRUCT_corrected.dcm`
 - `replay_state.mat` (numeric-only matRad state for independent replay)
 - `dvh_metrics.csv`, `plan_metrics.json`, `beam_summary.csv`
@@ -184,7 +184,7 @@ Required outputs, written only under `{self.remote_output_dir}`:
 Runtime guidance:
 - Invoke matRad / Octave via `{self.matrad_wrapper}`; the wrapper activates the pinned `rtplan-matrad` environment (GNU Octave 6.4.0, matRad commit `c014dc82`, Python 3.10 with pydicom / pymedphys / numba / numpy / scipy / matplotlib / scikit-image).
 - No network access is required after the environment is installed.
-- Do not modify files under `input/`. Write the final bundle only under `{self.remote_output_dir}`.
+- Do not modify files under `input/`. Write the final bundle only under `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict[str, Any]:
@@ -203,7 +203,7 @@ Runtime guidance:
                 "readme_file": self.readme_file,
                 "submission_template_dir": self.submission_template_dir,
                 "matrad_wrapper": self.matrad_wrapper,
-                "output_dir_name": _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR),
+                "output_dir_name": _canonical_output_dir_name(self.OUTPUT_SUBDIR),
                 "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/",
                 "eval_tmp_dir": EVAL_TMP_DIR,
                 "micromamba_env": MICROMAMBA_ENV_NAME,
@@ -213,7 +213,7 @@ Runtime guidance:
         return metadata
 
 
-config = ProstateIMRTConfig(remote_output_dir=os.environ.get("REMOTE_OUTPUT_DIR", "output"))
+config = ProstateIMRTConfig(output_subdir=os.environ.get("OUTPUT_SUBDIR", "output"))
 
 
 @cb.tasks_config(split="train")
@@ -239,7 +239,7 @@ def _read_script(name: str) -> str:
 @cb.evaluate_task(split="train")
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     meta = task_cfg.metadata
-    sub_dir = meta["remote_output_dir"]
+    sub_dir = meta["output_dir"]
     ref_dir = meta["reference_dir"]
     env_name = meta["micromamba_env"]
     tmp_dir = meta["eval_tmp_dir"]

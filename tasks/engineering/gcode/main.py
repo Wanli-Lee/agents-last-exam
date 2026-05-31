@@ -9,7 +9,6 @@ Variants: 18 workpieces with identical evaluation logic but different geometry.
 
 import json
 import logging
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -60,16 +59,11 @@ VARIANTS = [
 class GCodeTaskConfig(GeneralTaskConfig):
     """Configuration for a single GCode CAM workpiece task."""
 
-    REMOTE_ROOT_DIR: str = os.environ.get("REMOTE_ROOT_DIR", r"E:\agenthle")
     DOMAIN_NAME: str = "engineering"
 
     TASK_NAME: str = "gcode"
     VARIANT_NAME: str = ""
     PM_PROJECT_NAME: str = ""
-
-    @property
-    def input_dir(self) -> str:
-        return rf"{self.task_dir}\input"
 
     @property
     def input_pm_project(self) -> str:
@@ -79,7 +73,7 @@ class GCodeTaskConfig(GeneralTaskConfig):
     @property
     def output_pm_project(self) -> str:
         """The PM project copied to output/ (agent works here)."""
-        return rf"{self.remote_output_dir}\{self.PM_PROJECT_NAME}"
+        return rf"{self.output_dir}\{self.PM_PROJECT_NAME}"
 
     @property
     def reference_stl(self) -> str:
@@ -87,7 +81,7 @@ class GCodeTaskConfig(GeneralTaskConfig):
 
     @property
     def agent_sim_stl(self) -> str:
-        return rf"{self.remote_output_dir}\agent_sim.stl"
+        return rf"{self.output_dir}\agent_sim.stl"
 
     @property
     def input_prt(self) -> str:
@@ -249,11 +243,11 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
       If agent_sim.stl already exists in the output directory (e.g. placed
       by setup_test_dirs.py for pos/neg testing), steps 1-3 are skipped
       and only the STL comparison (step 4) runs. This allows testing the
-      evaluation with REMOTE_OUTPUT_DIR=output_test_pos / output_test_neg.
+      evaluation with OUTPUT_SUBDIR=output_test_pos / output_test_neg.
     """
     meta = task_cfg.metadata
     task_tag = meta["variant_name"]
-    output_dir = meta["remote_output_dir"]
+    output_dir = meta["output_dir"]
     output_pm = meta["output_pm_project"]
     ref_stl = meta["reference_stl"]
     agent_stl = meta["agent_sim_stl"]

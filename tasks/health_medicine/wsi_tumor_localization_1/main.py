@@ -53,7 +53,7 @@ class WsiTumorLocalizationConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/prediction.json"
+        return f"{self.output_dir}/prediction.json"
 
     @property
     def reference_file(self) -> str:

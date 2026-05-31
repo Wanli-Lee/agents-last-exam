@@ -78,7 +78,7 @@ class SumoUrbanCalibrationConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = VARIANT_NAME
-    REMOTE_OUTPUT_DIR: str = os.environ.get("REMOTE_OUTPUT_DIR", "output")
+    OUTPUT_SUBDIR: str = os.environ.get("OUTPUT_SUBDIR", "output")
 
     @property
     def task_prompt_file(self) -> str:
@@ -118,15 +118,15 @@ class SumoUrbanCalibrationConfig(LinuxTaskConfig):
 
     @property
     def runtime_state_dir(self) -> str:
-        return f"{self.remote_output_dir}/.runtime_state"
+        return f"{self.output_dir}/.runtime_state"
 
     @property
     def network_file(self) -> str:
-        return f"{self.remote_output_dir}/network.net.xml"
+        return f"{self.output_dir}/network.net.xml"
 
     @property
     def additionals_dir(self) -> str:
-        return f"{self.remote_output_dir}/additionals"
+        return f"{self.output_dir}/additionals"
 
     @property
     def bus_stops_file(self) -> str:
@@ -150,7 +150,7 @@ class SumoUrbanCalibrationConfig(LinuxTaskConfig):
 
     @property
     def demand_dir(self) -> str:
-        return f"{self.remote_output_dir}/demand"
+        return f"{self.output_dir}/demand"
 
     @property
     def calibrated_od_file(self) -> str:
@@ -162,7 +162,7 @@ class SumoUrbanCalibrationConfig(LinuxTaskConfig):
 
     @property
     def simulation_dir(self) -> str:
-        return f"{self.remote_output_dir}/simulation"
+        return f"{self.output_dir}/simulation"
 
     @property
     def sumocfg_file(self) -> str:
@@ -170,11 +170,11 @@ class SumoUrbanCalibrationConfig(LinuxTaskConfig):
 
     @property
     def calibration_report_file(self) -> str:
-        return f"{self.remote_output_dir}/calibration_report.json"
+        return f"{self.output_dir}/calibration_report.json"
 
     @property
     def decisions_file(self) -> str:
-        return f"{self.remote_output_dir}/DECISIONS.md"
+        return f"{self.output_dir}/DECISIONS.md"
 
     @property
     def evaluator_python(self) -> str:
@@ -208,7 +208,7 @@ What you must do:
 1. Read `{self.task_prompt_file}` and `{self.output_contract_file}` first.
 2. Use the visible starter project under `{self.starter_project_dir}` to repair the broken SUMO configuration, demand, signal timing, and vehicle-type setup.
 3. If you want the staged Python environment, materialize it with `{self.bootstrap_wrapper}` and run Python with `{self.python_wrapper}`. Use `{self.task_runner_wrapper}` for SUMO-facing commands inside that task-local environment.
-4. Write the final submission tree under `{self.remote_output_dir}` with the required files at the documented locations.
+4. Write the final submission tree under `{self.output_dir}` with the required files at the documented locations.
 
 Required output files:
 - `{self.network_file}`
@@ -271,7 +271,7 @@ config = SumoUrbanCalibrationConfig()
 
 @cb.tasks_config(split="train")
 def load():
-    cfg = SumoUrbanCalibrationConfig(REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"))
+    cfg = SumoUrbanCalibrationConfig()
     return [
         cb.Task(
             description=cfg.task_description,
@@ -306,7 +306,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     meta = task_cfg.metadata
 
     required_eval_paths = [
-        ("remote_output_dir", "submission output directory"),
+        ("output_dir", "submission output directory"),
         ("evaluator_script", "hidden evaluator script"),
         ("ground_truth_dir", "hidden evaluator ground truth"),
     ]
@@ -332,7 +332,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
             "python",
             shlex.quote(verifier_path),
             "--submission-dir",
-            shlex.quote(meta["remote_output_dir"]),
+            shlex.quote(meta["output_dir"]),
             "--evaluator-python",
             shlex.quote(meta["evaluator_python"]),
             "--evaluator-script",

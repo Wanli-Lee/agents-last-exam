@@ -122,7 +122,7 @@ Your task:
 2. Build a cold-start model from metadata and embeddings without interaction data for cold items.
 3. Use the canonical per-user temporal split: 70% train, 10% validation, 20% test.
 4. Produce a combined ranking that contains both warm and cold items.
-5. Write exactly these files under `{self.remote_output_dir}`:
+5. Write exactly these files under `{self.output_dir}`:
    - `predictions_warm.csv` — columns: `user_id, item_id, predicted_rating, rank`
    - `predictions_cold.csv` — columns: `user_id, item_id, predicted_score, rank`
    - `predictions_combined.csv` — columns: `user_id, item_id, predicted_score, rank, item_type` (item_type is "warm" or "cold")
@@ -594,7 +594,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
 
     output_payloads: Dict[str, bytes] = {}
     for filename in REQUIRED_OUTPUT_FILES:
-        remote_path = f"{meta['remote_output_dir']}/{filename}"
+        remote_path = f"{meta['output_dir']}/{filename}"
         try:
             output_payloads[filename] = await _read_remote_bytes(session, remote_path)
         except Exception as exc:

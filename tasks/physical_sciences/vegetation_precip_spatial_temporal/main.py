@@ -71,7 +71,6 @@ class TaskConfig(GeneralTaskConfig):
 
     TASK_NAME: str = "vegetation_precip_spatial_temporal"
     VARIANT_NAME: str = "base"
-    REMOTE_ROOT_DIR: str = os.environ.get("REMOTE_ROOT_DIR", r"E:\agenthle")
 
     # Spatial domain: CONUS bounding box
     CONUS_WEST: float = -125.0
@@ -92,14 +91,6 @@ class TaskConfig(GeneralTaskConfig):
     GEE_SERVICE_ACCOUNT: str = os.environ.get("GEE_SERVICE_ACCOUNT", "")
     GCS_BUCKET: str = os.environ.get("GCS_BUCKET", "")
     GEE_ACCOUNT_EMAIL: str = os.environ.get("GEE_ACCOUNT_EMAIL", "agenthle.sv@gmail.com")
-
-    @property
-    def task_dir(self) -> str:
-        return rf"{self.REMOTE_ROOT_DIR}\{self.DOMAIN_NAME}\{self.TASK_NAME}\{self.VARIANT_NAME}"
-
-    @property
-    def input_dir(self) -> str:
-        return rf"{self.task_dir}\input"
 
     @property
     def output_test_pos_dir(self) -> str:
@@ -197,7 +188,7 @@ Required outputs (save all to the output folder):
    A JSON list of exactly 3 conclusion strings, one per research question,
    summarizing the key findings from the analysis.
 
-Save all final outputs to: {self.remote_output_dir}
+Save all final outputs to: {self.output_dir}
 """
 
     def to_metadata(self) -> dict:
@@ -930,7 +921,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     Returns [total_score / TOTAL_POINTS].
     """
     metadata = task_cfg.metadata
-    output_dir = metadata["remote_output_dir"]
+    output_dir = metadata["output_dir"]
     task_tag = metadata["variant_name"]
     required_biome_keywords = metadata.get(
         "required_biome_keywords", ["all", "grass", "savanna", "shrub"]

@@ -2,7 +2,6 @@
 
 import json
 import logging
-import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,15 +31,7 @@ class CFRGameTheoryConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = VARIANT_NAME
-
-    def __init__(self, *, REMOTE_OUTPUT_DIR: str = ""):
-        super().__init__(
-            DOMAIN_NAME=DOMAIN_NAME,
-            TASK_NAME=TASK_NAME,
-            VARIANT_NAME=VARIANT_NAME,
-            OS_TYPE="linux",
-            REMOTE_OUTPUT_DIR=REMOTE_OUTPUT_DIR or os.environ.get("REMOTE_OUTPUT_DIR", "output"),
-        )
+    OS_TYPE: str = "linux"
 
     @property
     def problem_spec(self) -> str:
@@ -64,7 +55,7 @@ class CFRGameTheoryConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/results.json"
+        return f"{self.output_dir}/results.json"
 
     @property
     def reference_file(self) -> str:
@@ -98,7 +89,7 @@ The JSON must contain top-level keys `tier1`, `tier2`, and `tier3`:
 ## Rules
 - Read `{self.problem_spec}` first and follow it closely.
 - Do not modify any files under `{self.input_dir}`.
-- Do not write outside `{self.remote_output_dir}`.
+- Do not write outside `{self.output_dir}`.
 - Use only the staged local inputs and the software already available on this VM.
 """
 

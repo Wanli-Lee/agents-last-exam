@@ -77,7 +77,7 @@ class AbbIrb6700UrdfConfig(LinuxTaskConfig):
 
     @property
     def output_submission_urdf(self) -> str:
-        return f"{self.remote_output_dir}/submission.urdf"
+        return f"{self.output_dir}/submission.urdf"
 
     @property
     def reference_urdf(self) -> str:
@@ -118,7 +118,7 @@ You are reconstructing a robot URDF on a Linux VM.
 - The file must be valid XML/URDF.
 - Preserve the required link names, joint names, kinematic tree, joint limits, mimic rules, and auxiliary frames.
 - Reference meshes under the staged `meshes/` directory.
-- Do not place the final answer anywhere outside `{self.remote_output_dir}`.
+- Do not place the final answer anywhere outside `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict:
@@ -187,11 +187,11 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
             logger.error("[%s] Missing %s at %s", tag, label, meta[key])
             return [0.0]
 
-    if not await session.exists(meta["remote_output_dir"]):
-        logger.error("[%s] Missing output directory: %s", tag, meta["remote_output_dir"])
+    if not await session.exists(meta["output_dir"]):
+        logger.error("[%s] Missing output directory: %s", tag, meta["output_dir"])
         return [0.0]
 
-    entries = sorted(await session.list_dir(meta["remote_output_dir"]))
+    entries = sorted(await session.list_dir(meta["output_dir"]))
     if entries != ["submission.urdf"]:
         logger.error(
             "[%s] Output directory contents must be exactly ['submission.urdf'], found %s",

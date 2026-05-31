@@ -33,11 +33,11 @@ class TaskConfig(LinuxTaskConfig):
 
     @property
     def final_state_json(self) -> str:
-        return f"{self.remote_output_dir}/final_state.json"
+        return f"{self.output_dir}/final_state.json"
 
     @property
     def sandbox_dir(self) -> str:
-        return f"{self.remote_output_dir}/sandbox_fs"
+        return f"{self.output_dir}/sandbox_fs"
 
     @property
     def task_description(self) -> str:
@@ -61,7 +61,7 @@ constraints in the metadata files.
 
 Use this workflow:
 1. Read `{self.input_dir}/task_instructions.md`.
-2. Run `{self.input_dir}/setup_workspace.sh "{self.remote_output_dir}"` to create
+2. Run `{self.input_dir}/setup_workspace.sh "{self.output_dir}"` to create
    a writable workspace at `{self.sandbox_dir}`.
 3. Change every regular `.log` file under `{self.sandbox_dir}/var/logs` to mode
    `444`, except files owned by `syslog` in `ownership.csv` and files listed in
@@ -79,7 +79,7 @@ interfere with any processes.
 mapping. Include one entry for each file listed in `ownership.csv`, with path,
 type, owner, group, and final mode.
 
-Do not write outputs outside `{self.remote_output_dir}`.
+Do not write outputs outside `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict:
@@ -125,7 +125,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
         result = await session.run_command(
             f'python "{score_script}" '
             f'--input "{meta["input_dir"]}" '
-            f'--output "{meta["remote_output_dir"]}" '
+            f'--output "{meta["output_dir"]}" '
             f'--reference "{meta["reference_dir"]}"'
         )
         stdout = result.get("stdout", "")

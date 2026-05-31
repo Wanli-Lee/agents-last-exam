@@ -137,11 +137,8 @@ class TaskConfig(GeneralTaskConfig):
     DOMAIN_NAME: str = "computing_math"
 
     TASK_NAME: str = "newyear_keygen2"
+    OS_TYPE: str = "windows"
     OUTPUT_FILENAME: str = "key.txt"
-
-    @property
-    def task_dir(self) -> str:
-        return fr"{self.REMOTE_ROOT_DIR}\{self.DOMAIN_NAME}\{self.TASK_NAME}\{self.VARIANT_NAME}"
 
     @property
     def exe_path(self) -> str:
@@ -149,7 +146,7 @@ class TaskConfig(GeneralTaskConfig):
 
     @property
     def output_path(self) -> str:
-        return fr"{self.remote_output_dir}\{self.OUTPUT_FILENAME}"
+        return fr"{self.output_dir}\{self.OUTPUT_FILENAME}"
 
     @property
     def task_description(self) -> str:
@@ -206,7 +203,7 @@ async def start(task_cfg, session: cb.DesktopSession):
 
 @cb.evaluate_task(split="train")
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
-    out_dir = task_cfg.metadata["remote_output_dir"]
+    out_dir = task_cfg.metadata["output_dir"]
     output_path = task_cfg.metadata["output_path"]
     uid_text = task_cfg.metadata["uid_text"]
 

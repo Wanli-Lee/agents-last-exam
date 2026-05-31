@@ -329,7 +329,6 @@ def _local_soft_score(image_pairs: list[dict[str, Any]], *, report_path: Path | 
 
 @dataclass
 class ZBrushTaskConfig(GeneralTaskConfig):
-    REMOTE_ROOT_DIR: str = field(init=False, default=os.environ.get("REMOTE_ROOT_DIR", r"E:\agenthle"))
     spec: ProjectSpec = field(default=None)
     DOMAIN_NAME: str = field(init=False, default="game")
 
@@ -350,11 +349,11 @@ class ZBrushTaskConfig(GeneralTaskConfig):
 
     @property
     def output_project_path(self) -> str:
-        return _remote_child(self.remote_output_dir, self.spec.input_project_file)
+        return _remote_child(self.output_dir, self.spec.input_project_file)
 
     @property
     def candidate_objects_dir(self) -> str:
-        return _remote_child(self.remote_output_dir, "output-test", "objects")
+        return _remote_child(self.output_dir, "output-test", "objects")
 
     @property
     def reference_manifest_path(self) -> str:

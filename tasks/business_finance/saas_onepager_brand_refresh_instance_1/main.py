@@ -19,7 +19,7 @@ SCRIPTS_DIR = Path(__file__).parent / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from score_onepager_output import score_output
+from score_onepager_output import score_output  # noqa: E402
 
 _setup = BaseTaskSetup()
 
@@ -80,11 +80,11 @@ class OnePagerBrandRefreshConfig(GeneralTaskConfig):
 
     @property
     def output_png(self) -> str:
-        return rf"{self.remote_output_dir}\edited_onepager.png"
+        return rf"{self.output_dir}\edited_onepager.png"
 
     @property
     def output_pptx(self) -> str:
-        return rf"{self.remote_output_dir}\edited_onepager.pptx"
+        return rf"{self.output_dir}\edited_onepager.pptx"
 
     @property
     def reference_png(self) -> str:
@@ -148,7 +148,7 @@ You are editing a SaaS one-pager on a Windows VM.
 
 ## Output Requirements
 - The `.pptx` must remain meaningfully editable.
-- Save only the final required deliverables inside `{self.remote_output_dir}`.
+- Save only the final required deliverables inside `{self.output_dir}`.
 - Do not modify files under `input/`.
 """
 
@@ -162,7 +162,7 @@ You are editing a SaaS one-pager on a Windows VM.
             "software_dir": self.software_dir,
             "reference_dir": self.reference_dir,
             "reference_gcs_prefix": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/reference",
-            "remote_output_dir": self.remote_output_dir,
+            "output_dir": self.output_dir,
             "task_id": TASK_ID,
             "variant_label": self.VARIANT_LABEL,
             "input_dir": self.input_dir,
@@ -192,8 +192,8 @@ def _config_for_variant(variant_name: str, variant_label: str) -> OnePagerBrandR
     return OnePagerBrandRefreshConfig(VARIANT_NAME=variant_name, VARIANT_LABEL=variant_label)
 
 
-async def _reset_remote_output_dir(session: cb.DesktopSession, remote_output_dir: str) -> None:
-    escaped = remote_output_dir.replace("'", "''")
+async def _reset_output_dir(session: cb.DesktopSession, output_dir: str) -> None:
+    escaped = output_dir.replace("'", "''")
     command = (
         "powershell -NoProfile -Command "
         f"\"$p = '{escaped}'; "
@@ -207,9 +207,9 @@ async def _reset_remote_output_dir(session: cb.DesktopSession, remote_output_dir
     if result.get("return_code", 1) != 0:
         raise RuntimeError(
             "Failed to reset remote output dir "
-            f"{remote_output_dir}: {result.get('stderr') or result.get('stdout')}"
+            f"{output_dir}: {result.get('stderr') or result.get('stdout')}"
         )
-    await session.makedirs(remote_output_dir)
+    await session.makedirs(output_dir)
 
 
 @cb.tasks_config(split="train")

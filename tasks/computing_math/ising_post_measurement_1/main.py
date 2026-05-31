@@ -29,10 +29,6 @@ from variant_specs import DOMAIN_NAME, TASK_NAME, VARIANTS, VariantSpec, get_var
 logger = logging.getLogger(__name__)
 
 
-def _output_dir_name(remote_output_dir: str) -> str:
-    return posixpath.basename(posixpath.normpath(remote_output_dir))
-
-
 @dataclass
 class TaskConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
@@ -47,7 +43,7 @@ class TaskConfig(LinuxTaskConfig):
 
     @property
     def output_dir_name(self) -> str:
-        return _output_dir_name(self.remote_output_dir)
+        return self.OUTPUT_SUBDIR
 
     @property
     def config_file(self) -> str:
@@ -76,12 +72,12 @@ class TaskConfig(LinuxTaskConfig):
     @property
     def output_files(self) -> dict[str, str]:
         files = {
-            "critical_state.npy": f"{self.remote_output_dir}/critical_state.npy",
-            "post_probs.npy": f"{self.remote_output_dir}/post_probs.npy",
-            "rdm_site1.npy": f"{self.remote_output_dir}/rdm_site1.npy",
+            "critical_state.npy": f"{self.output_dir}/critical_state.npy",
+            "post_probs.npy": f"{self.output_dir}/post_probs.npy",
+            "rdm_site1.npy": f"{self.output_dir}/rdm_site1.npy",
         }
         if self.REQUIRES_CORRELATORS:
-            files["correlators.npz"] = f"{self.remote_output_dir}/correlators.npz"
+            files["correlators.npz"] = f"{self.output_dir}/correlators.npz"
         return files
 
     @property
@@ -116,16 +112,16 @@ You are working on a Linux VM.
 2. Read `{self.config_file}` for the variant parameters.
 3. If `{self.ancilla_state_file}` is present, use it as the staged ancilla state; otherwise use the critical ancilla rule from the spec.
 4. If you need Python packages, install them from `input/runtime_env/pyproject.toml` or `input/requirements.txt`.
-5. Compute the required outputs and write them under `{self.remote_output_dir}`.
+5. Compute the required outputs and write them under `{self.output_dir}`.
 
 ## Required Outputs
-- `{self.remote_output_dir}/critical_state.npy`
-- `{self.remote_output_dir}/post_probs.npy`
-- `{self.remote_output_dir}/rdm_site1.npy`
-- If the selected variant requires one-body correlators, also write `{self.remote_output_dir}/correlators.npz` with keys `Z_one_body` and `X_one_body`
+- `{self.output_dir}/critical_state.npy`
+- `{self.output_dir}/post_probs.npy`
+- `{self.output_dir}/rdm_site1.npy`
+- If the selected variant requires one-body correlators, also write `{self.output_dir}/correlators.npz` with keys `Z_one_body` and `X_one_body`
 
 Do not modify files under `{self.input_dir}`.
-Write final outputs only under `{self.remote_output_dir}`.
+Write final outputs only under `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict:
@@ -153,19 +149,16 @@ Write final outputs only under `{self.remote_output_dir}`.
         return metadata
 
 
-def _cfg_for_variant(spec: VariantSpec, remote_output_dir: str | None = None) -> TaskConfig:
-    kwargs = {
-        "VARIANT_NAME": spec.variant_name,
-        "VARIANT_LABEL": spec.variant_label,
-        "N_QUBITS": spec.n_qubits,
-        "ANCILLA_MODE": spec.ancilla_mode,
-        "HAS_ANCILLA_STATE": spec.has_ancilla_state,
-        "COUPLING_U": spec.coupling_u,
-        "REQUIRES_CORRELATORS": spec.requires_correlators,
-    }
-    if remote_output_dir is not None:
-        kwargs["REMOTE_OUTPUT_DIR"] = remote_output_dir
-    return TaskConfig(**kwargs)
+def _cfg_for_variant(spec: VariantSpec) -> TaskConfig:
+    return TaskConfig(
+        VARIANT_NAME=spec.variant_name,
+        VARIANT_LABEL=spec.variant_label,
+        N_QUBITS=spec.n_qubits,
+        ANCILLA_MODE=spec.ancilla_mode,
+        HAS_ANCILLA_STATE=spec.has_ancilla_state,
+        COUPLING_U=spec.coupling_u,
+        REQUIRES_CORRELATORS=spec.requires_correlators,
+    )
 
 
 @cb.tasks_config(split="train")

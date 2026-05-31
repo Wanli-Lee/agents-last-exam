@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import posixpath
 import sys
 from dataclasses import dataclass
@@ -81,7 +80,7 @@ def _canonical_output_dir_name(path: str) -> str:
     normalized = posixpath.normpath(path.replace("\\", "/")).strip("/")
     if normalized not in ALLOWED_OUTPUT_DIRS:
         raise ValueError(
-            "REMOTE_OUTPUT_DIR must normalize to one of: " + ", ".join(sorted(ALLOWED_OUTPUT_DIRS))
+            "OUTPUT_SUBDIR must normalize to one of: " + ", ".join(sorted(ALLOWED_OUTPUT_DIRS))
         )
     return normalized
 
@@ -98,10 +97,10 @@ class SpatialDomainConfig(LinuxTaskConfig):
 
     @property
     def output_dir_name(self) -> str:
-        return _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
+        return _canonical_output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
-    def remote_output_dir(self) -> str:
+    def output_dir(self) -> str:
         return f"{self.task_dir}/{self.output_dir_name}"
 
     @property
@@ -138,15 +137,15 @@ class SpatialDomainConfig(LinuxTaskConfig):
 
     @property
     def summary_file(self) -> str:
-        return f"{self.remote_output_dir}/summary.csv"
+        return f"{self.output_dir}/summary.csv"
 
     @property
     def manifest_file(self) -> str:
-        return f"{self.remote_output_dir}/manifest.json"
+        return f"{self.output_dir}/manifest.json"
 
     @property
     def umap_png(self) -> str:
-        return f"{self.remote_output_dir}/{REQUIRED_PNG}"
+        return f"{self.output_dir}/{REQUIRED_PNG}"
 
     @property
     def task_description(self) -> str:
@@ -177,7 +176,7 @@ Recommended setup:
 - If you need the staged spatial transcriptomics stack, run:
   `{self.software_uv} sync --frozen --python 3.12 --project {self.runtime_env_dir}`
 
-Required outputs under `{self.remote_output_dir}`:
+Required outputs under `{self.output_dir}`:
 - `summary.csv` with exact header `slice_id,n_clusters_pred` (one row per slice)
 - `manifest.json` — must contain `"has_graph": true`, `"has_embedding": true`, `"has_clustering": true`, an integer `"seed"`, and a nonempty string `"method"`
 - `per_slice/<slice_id>_labels.csv` for all 12 slices with exact header `barcode,predicted_label`
@@ -186,13 +185,13 @@ Required outputs under `{self.remote_output_dir}`:
 Rules:
 - Use the exact per-slice target cluster counts from `{self.slice_config_file}`.
 - Treat `{self.input_dir}` as read-only.
-- Keep all solver-created files under `{self.remote_output_dir}`.
+- Keep all solver-created files under `{self.output_dir}`.
 - Do not use hidden evaluator-owned directories in your workflow.
 {replay_note}
 """
 
     def label_file(self, slice_id: str) -> str:
-        return f"{self.remote_output_dir}/per_slice/{slice_id}_labels.csv"
+        return f"{self.output_dir}/per_slice/{slice_id}_labels.csv"
 
     def annotation_file(self, slice_id: str) -> str:
         return f"{self.reference_dir}/manual_annotations/{slice_id}_manual_annotations.tsv"
@@ -226,12 +225,12 @@ Rules:
         return metadata
 
 
-config = SpatialDomainConfig(REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"))
+config = SpatialDomainConfig()
 
 
 @cb.tasks_config(split="train")
 def load():
-    cfg = SpatialDomainConfig(REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"))
+    cfg = SpatialDomainConfig()
     return [
         cb.Task(
             description=cfg.task_description,

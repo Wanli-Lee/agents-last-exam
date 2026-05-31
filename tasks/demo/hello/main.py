@@ -24,7 +24,6 @@ from tasks.linux_runtime import LinuxTaskConfig
 
 logger = logging.getLogger(__name__)
 
-
 VARIANTS: list[tuple[str, dict]] = [
     ("simple",    {"expected": "hello world\n"}),
     ("json_kv",   {"expected_kv": {"greeting": "hello", "target": "world"}}),
@@ -34,7 +33,6 @@ VARIANTS: list[tuple[str, dict]] = [
         "line 3: done",
     ]}),
 ]
-
 
 @dataclass
 class TaskConfig(LinuxTaskConfig):
@@ -46,7 +44,7 @@ class TaskConfig(LinuxTaskConfig):
 
     @property
     def answer_path(self) -> str:
-        return f"{self.remote_output_dir}/answer.txt"
+        return f"{self.output_dir}/answer.txt"
 
     @property
     def input_request_path(self) -> str:
@@ -91,7 +89,6 @@ class TaskConfig(LinuxTaskConfig):
         })
         return m
 
-
 def _expected_text(variant: str, payload: dict) -> str:
     """The reference content for each variant. This is what evaluate compares against."""
     if variant == "simple":
@@ -102,7 +99,6 @@ def _expected_text(variant: str, payload: dict) -> str:
     if variant == "multiline":
         return "\n".join(payload["expected_lines"]) + "\n"
     raise ValueError(f"unknown variant: {variant}")
-
 
 def _request_text(variant: str, payload: dict, output_path: str) -> str:
     """The agent-visible instructions in input/note_request.txt for this variant."""
@@ -126,11 +122,10 @@ def _request_text(variant: str, payload: dict, output_path: str) -> str:
         return (
             f"Variant: multiline\n"
             f"Write these 3 lines to {output_path} (Unix newlines, trailing newline):\n"
-            + "\n".join(f"  {l}" for l in lines)
+            + "\n".join(f"  {ln}" for ln in lines)
             + "\n"
         )
     raise ValueError(variant)
-
 
 @cb.tasks_config(split="train")
 def load():
@@ -148,7 +143,6 @@ def load():
         ))
     return out
 
-
 @cb.setup_task(split="train")
 async def start(task_cfg, session: cb.DesktopSession):
     """Stage input/ + software/ on VM; verify reference/ NOT visible yet."""
@@ -157,7 +151,7 @@ async def start(task_cfg, session: cb.DesktopSession):
     payload = meta["expected_payload"]
 
     # Create directories.
-    for d in (meta["input_dir"], meta["software_dir"], meta["remote_output_dir"]):
+    for d in (meta["input_dir"], meta["software_dir"], meta["output_dir"]):
         await session.run_command(f"mkdir -p {d!r}", check=False)
     # Reset output between runs.
     await session.run_command(f"rm -f {meta['answer_path']!r}", check=False)
@@ -183,7 +177,7 @@ async def start(task_cfg, session: cb.DesktopSession):
     helper = (
         "#!/bin/bash\n"
         "set -eu\n"
-        f"mkdir -p {meta['remote_output_dir']!r}\n"
+        f"mkdir -p {meta['output_dir']!r}\n"
         f"cat > {meta['answer_path']!r} <<'__ALE_EOF__'\n"
         f"{expected}"
         f"__ALE_EOF__\n"
@@ -200,7 +194,6 @@ async def start(task_cfg, session: cb.DesktopSession):
         raise RuntimeError(
             f"reference leaked during setup: {meta['reference_path']} was readable"
         )
-
 
 @cb.evaluate_task(split="train")
 async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
@@ -229,9 +222,9 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
         return [1.0]
 
     # Partial: how many expected lines are present in output?
-    expected_lines = [l for l in expected_norm.split("\n") if l.strip()]
+    expected_lines = [ln for ln in expected_norm.split("\n") if ln.strip()]
     if not expected_lines:
         return [0.0]
-    hits = sum(1 for l in expected_lines if l in actual_norm)
+    hits = sum(1 for ln in expected_lines if ln in actual_norm)
     partial = hits / len(expected_lines)
     return [round(partial * 0.5, 3)]

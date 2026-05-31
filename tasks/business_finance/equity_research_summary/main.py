@@ -18,7 +18,7 @@ SCRIPTS_DIR = Path(__file__).parent / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from score_workbook import WorkbookScoreResult, score_workbook_bytes
+from score_workbook import WorkbookScoreResult, score_workbook_bytes  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class EquityResearchSummaryConfig(GeneralTaskConfig):
 
     @property
     def output_workbook(self) -> str:
-        return win_join(self.remote_output_dir, "TSLA_Financial_Summary.xlsx")
+        return win_join(self.output_dir, "TSLA_Financial_Summary.xlsx")
 
     @property
     def reference_manifest(self) -> str:

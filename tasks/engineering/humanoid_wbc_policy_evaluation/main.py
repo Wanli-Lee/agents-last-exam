@@ -73,11 +73,11 @@ class HumanoidWbcPolicyEvaluationConfig(LinuxTaskConfig):
 
     @property
     def output_report(self) -> str:
-        return f"{self.remote_output_dir}/policy_evaluation_report.json"
+        return f"{self.output_dir}/policy_evaluation_report.json"
 
     @property
     def output_visual_demos_dir(self) -> str:
-        return f"{self.remote_output_dir}/visual_demos"
+        return f"{self.output_dir}/visual_demos"
 
     @property
     def reference_expected_verdicts(self) -> str:
@@ -124,7 +124,7 @@ You are evaluating whole-body-control policy rollouts for a Unitree G1 humanoid 
 - Each evaluation item must include `evidence.visual_demo_path`, pointing to a
   visible playback artifact under `visual_demos/`. Accepted formats are
   `.mp4`, `.webm`, `.gif`, and `.html`.
-- Do not write final answers outside `{self.remote_output_dir}`.
+- Do not write final answers outside `{self.output_dir}`.
 """
 
     def to_metadata(self) -> dict:
@@ -183,11 +183,11 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
         logger.error("[%s] Missing hidden reference: %s", tag, meta["reference_expected_verdicts"])
         return [0.0]
 
-    if not await session.exists(meta["remote_output_dir"]):
-        logger.error("[%s] Missing output directory: %s", tag, meta["remote_output_dir"])
+    if not await session.exists(meta["output_dir"]):
+        logger.error("[%s] Missing output directory: %s", tag, meta["output_dir"])
         return [0.0]
 
-    entries = sorted(await session.list_dir(meta["remote_output_dir"]))
+    entries = sorted(await session.list_dir(meta["output_dir"]))
     if entries != ["policy_evaluation_report.json", "visual_demos"]:
         logger.error(
             "[%s] Output directory contents must be exactly "
@@ -223,7 +223,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
                     continue
                 if not demo_path.startswith("visual_demos/") or ".." in demo_path:
                     continue
-                remote_demo_path = f"{meta['remote_output_dir']}/{demo_path}"
+                remote_demo_path = f"{meta["output_dir"]}/{demo_path}"
                 local_demo_path = local_output_dir / demo_path
                 local_demo_path.parent.mkdir(parents=True, exist_ok=True)
                 local_demo_path.write_bytes(await session.read_bytes(remote_demo_path))

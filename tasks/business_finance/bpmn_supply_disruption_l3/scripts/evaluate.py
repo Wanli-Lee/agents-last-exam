@@ -29,7 +29,6 @@ import sys
 import traceback
 import xml.etree.ElementTree as ET
 from collections import deque
-from pathlib import Path
 
 BPMN_NS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 FLOWABLE_NS = "http://flowable.org/bpmn"

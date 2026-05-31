@@ -32,7 +32,7 @@ def _canonical_output_dir_name(path: str) -> str:
     normalized = posixpath.normpath(path.replace("\\", "/"))
     if normalized not in CANONICAL_OUTPUT_DIR_NAMES:
         raise ValueError(
-            "REMOTE_OUTPUT_DIR must normalize to one of: output, output_test_pos, output_test_neg"
+            "OUTPUT_SUBDIR must normalize to one of: output, output_test_pos, output_test_neg"
         )
     return normalized
 
@@ -44,15 +44,15 @@ class TaskConfig(LinuxTaskConfig):
 
     @property
     def output_dir_name(self) -> str:
-        return _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
+        return _canonical_output_dir_name(self.OUTPUT_SUBDIR)
 
     @property
-    def remote_output_dir(self) -> str:
+    def output_dir(self) -> str:
         return f"{self.task_dir}/{self.output_dir_name}"
 
     @property
     def output_files(self) -> dict[str, str]:
-        return {name: f"{self.remote_output_dir}/{name}" for name in REQUIRED_FILES}
+        return {name: f"{self.output_dir}/{name}" for name in REQUIRED_FILES}
 
     @property
     def task_spec_file(self) -> str:
@@ -107,7 +107,7 @@ What you need to do:
 4. When a patient has multiple primary-tumor samples, keep only the one whose sample submitter_id is lexicographically smallest.
 5. Merge expression with survival and clinical covariates, and stratify patients into high/low KRAS groups using the cohort median.
 6. Fit a Kaplan-Meier analysis, a log-rank test, and a Cox proportional hazards model with KRAS group, age, and stage grouping.
-7. Save every required output under `{self.remote_output_dir}`.
+7. Save every required output under `{self.output_dir}`.
 
 Required output files:
 - `cohort.csv`
@@ -124,10 +124,9 @@ Do not ask for confirmation. Execute directly.
         metadata.update(
             {
                 "task_dir": self.task_dir,
-                "data_task_dir": self.data_task_dir,
                 "input_dir": self.input_dir,
                 "software_dir": self.software_dir,
-                "remote_output_dir": self.remote_output_dir,
+                "output_dir": self.output_dir,
                 "output_dir_name": self.output_dir_name,
                 "output_files": self.output_files,
                 "task_spec_file": self.task_spec_file,

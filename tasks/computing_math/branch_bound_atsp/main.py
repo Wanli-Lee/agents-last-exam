@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -34,8 +33,10 @@ except ModuleNotFoundError:  # pragma: no cover - local import fallback only
         evaluate_task=_identity_decorator,
     )
 
+from dataclasses import dataclass
+
 from tasks.common_setup import BaseTaskSetup
-from tasks.linux_runtime import DATA_ROOT, LinuxTaskConfig
+from tasks.linux_runtime import LinuxTaskConfig
 
 _setup = BaseTaskSetup()
 
@@ -51,59 +52,17 @@ DOMAIN_NAME = "computing_math"
 TASK_NAME = "branch_bound_atsp"
 TASK_ID = f"{DOMAIN_NAME}/{TASK_NAME}"
 VARIANT_NAME = "base"
-ALLOWED_OUTPUT_DIR_NAMES = {"output"}
-ADMIN_OUTPUT_PREFIX = "output_admin_"
 
 
-def _normalize_output_dir_name(raw: str) -> str:
-    normalized = raw.replace("\\", "/").strip("/")
-    if not normalized or "/" in normalized:
-        raise ValueError(f"REMOTE_OUTPUT_DIR must be a single directory name, got {raw!r}")
-    if normalized in ALLOWED_OUTPUT_DIR_NAMES or normalized.startswith(ADMIN_OUTPUT_PREFIX):
-        return normalized
-    raise ValueError(
-        "REMOTE_OUTPUT_DIR must be one of "
-        f"{sorted(ALLOWED_OUTPUT_DIR_NAMES)} or start with {ADMIN_OUTPUT_PREFIX!r}"
-    )
-
-
+@dataclass
 class BranchBoundATSPConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = VARIANT_NAME
     OS_TYPE: str = "linux"
 
-    def __init__(self, remote_output_dir: str | None = None) -> None:
-        self.REMOTE_OUTPUT_DIR = remote_output_dir or os.environ.get("REMOTE_OUTPUT_DIR", "output")
-        self.DOMAIN_NAME = DOMAIN_NAME
-        self.TASK_NAME = TASK_NAME
-        self.VARIANT_NAME = VARIANT_NAME
-        self.OS_TYPE = "linux"
-        self.REQUIRES_TASK_DATA = True
-
-    @property
-    def output_dir_name(self) -> str:
-        return _normalize_output_dir_name(self.REMOTE_OUTPUT_DIR)
-
-    @property
-    def task_dir(self) -> str:
-        return f"{DATA_ROOT}/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}"
-
-    @property
-    def input_dir(self) -> str:
-        return f"{self.task_dir}/input"
-
-    @property
-    def reference_dir(self) -> str:
-        return f"{self.task_dir}/reference"
-
-    @property
-    def software_dir(self) -> str:
-        return f"{self.task_dir}/software"
-
-    @property
-    def remote_output_dir(self) -> str:
-        return f"{self.task_dir}/{self.output_dir_name}"
+    # task_dir / input_dir / reference_dir / software_dir / output_dir are all
+    # inherited from LinuxTaskConfig and resolve off the injected data root.
 
     @property
     def problem_spec_file(self) -> str:
@@ -123,7 +82,7 @@ class BranchBoundATSPConfig(LinuxTaskConfig):
 
     @property
     def output_file(self) -> str:
-        return f"{self.remote_output_dir}/results.json"
+        return f"{self.output_dir}/results.json"
 
     @property
     def reference_file(self) -> str:
@@ -161,12 +120,6 @@ TSP packages. Do not modify files under `{self.input_dir}`.
             {
                 "task_id": TASK_ID,
                 "variant_name": self.VARIANT_NAME,
-                "output_dir_name": self.output_dir_name,
-                "task_dir": self.task_dir,
-                "input_dir": self.input_dir,
-                "reference_dir": self.reference_dir,
-                "software_dir": self.software_dir,
-                "remote_output_dir": self.remote_output_dir,
                 "problem_spec_file": self.problem_spec_file,
                 "task_prompt_file": self.task_prompt_file,
                 "runtime_manifest": self.runtime_manifest,

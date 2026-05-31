@@ -81,14 +81,7 @@ class K8sMigrationTaskConfig(LinuxTaskConfig):
     DOMAIN_NAME: str = DOMAIN_NAME
     TASK_NAME: str = TASK_NAME
     VARIANT_NAME: str = VARIANT_NAME
-
-    @property
-    def output_dir_name(self) -> str:
-        return (self.REMOTE_OUTPUT_DIR or "output").strip().strip("/")
-
-    @property
-    def remote_output_dir(self) -> str:
-        return f"{self.task_dir}/{self.output_dir_name}"
+    OS_TYPE: str = "linux"
 
     @property
     def software_readme(self) -> str:
@@ -153,11 +146,11 @@ than raw PATH commands:
 - Trivy:      `{self.software_entries["trivy"]}`
 
 Write all deliverables here:
-- `{self.remote_output_dir}`
+- `{self.output_dir}`
 
 ## Required Deliverables
 
-1. Helm chart at `{self.remote_output_dir}/helm/webapp-chart/`:
+1. Helm chart at `{self.output_dir}/helm/webapp-chart/`:
    - `Chart.yaml` (valid YAML, with `name`)
    - `values.yaml`
    - Templates covering 8 Kubernetes resources:
@@ -170,7 +163,7 @@ Write all deliverables here:
      (`/` → frontend, `/api` → backend). Every resource must carry the label
      `app=webapp`.
 
-2. Terraform config at `{self.remote_output_dir}/terraform/`:
+2. Terraform config at `{self.output_dir}/terraform/`:
    - `required_providers` block
    - every `variable` has a `description`
    - at least one `output` block
@@ -178,12 +171,12 @@ Write all deliverables here:
      `ingress`, `metrics-server`, `storage-provisioner`
 
 3. GitHub Actions workflow at
-   `{self.remote_output_dir}/.github/workflows/deploy.yml` with 5 stages:
+   `{self.output_dir}/.github/workflows/deploy.yml` with 5 stages:
    `build` (`docker build`), `test` (`pytest` + `npm test`), `security`
    (`trivy`), `deploy` (`helm upgrade`), `verify` (`rollout status`).
 
 4. Live verification text snapshots under
-   `{self.remote_output_dir}/verification/` — `pods.txt`, `services.txt`,
+   `{self.output_dir}/verification/` — `pods.txt`, `services.txt`,
    `helm-status.txt`, `health-check.txt` — captured from the running cluster.
 
 ## Expected Minikube Startup
@@ -214,7 +207,6 @@ report a CPU target.
         metadata = super().to_metadata()
         metadata.update(
             {
-                "output_dir_name": self.output_dir_name,
                 "software_readme": self.software_readme,
                 "software_entries": self.software_entries,
                 "input_readme": self.input_readme,
@@ -261,7 +253,7 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
 
     cmd = (
         f'python3.12 "{verify_path}" '
-        f'--output-dir "{meta["remote_output_dir"]}" '
+        f'--output-dir "{meta["output_dir"]}" '
         f'--eval-tmp-dir "{eval_tmp_dir}" '
         f'--json-only{live_flag}'
     )

@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import posixpath
 import shlex
 from dataclasses import dataclass
@@ -92,15 +91,6 @@ async def _run_command(
     return await session.run_command(command, check=check)
 
 
-def _canonical_output_dir_name(path: str) -> str:
-    normalized = posixpath.normpath(path.replace("\\", "/"))
-    if normalized not in ALLOWED_OUTPUT_DIRS:
-        raise ValueError(
-            "REMOTE_OUTPUT_DIR must normalize to one of: output, output_test_pos, output_test_neg"
-        )
-    return normalized
-
-
 async def _read_remote_tail(
     session: cb.DesktopSession,
     path: str,
@@ -183,14 +173,6 @@ class OpenroadIbexConfig(LinuxTaskConfig):
     VARIANT_NAME: str = VARIANT_NAME
 
     @property
-    def output_dir_name(self) -> str:
-        return _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR)
-
-    @property
-    def remote_output_dir(self) -> str:
-        return f"{self.task_dir}/{self.output_dir_name}"
-
-    @property
     def input_task_instructions(self) -> str:
         return f"{self.input_dir}/task_instructions.md"
 
@@ -208,15 +190,15 @@ class OpenroadIbexConfig(LinuxTaskConfig):
 
     @property
     def output_config(self) -> str:
-        return f"{self.remote_output_dir}/config.mk"
+        return f"{self.output_dir}/config.mk"
 
     @property
     def output_journal(self) -> str:
-        return f"{self.remote_output_dir}/JOURNAL.md"
+        return f"{self.output_dir}/JOURNAL.md"
 
     @property
     def output_audit_dir(self) -> str:
-        return f"{self.remote_output_dir}/flow/logs/sky130hd/ibex/base"
+        return f"{self.output_dir}/flow/logs/sky130hd/ibex/base"
 
     @property
     def task_description(self) -> str:
@@ -235,9 +217,9 @@ You are working on Linux on an RTL-to-GDSII signoff-closure task for lowRISC ibe
 1. Read `{self.input_task_instructions}`.
 2. Create a writable workspace by running:
    `bash {self.prepare_workspace_script}`
-3. Work only inside `{self.remote_output_dir}/workspace`.
+3. Work only inside `{self.output_dir}/workspace`.
 4. Tune only the allowed files described in the staged task brief.
-5. When finished, copy the required deliverables into `{self.remote_output_dir}`.
+5. When finished, copy the required deliverables into `{self.output_dir}`.
 
 ## Final Deliverables
 - `{self.output_config}`
@@ -263,7 +245,6 @@ Do not rely on hidden evaluator-only data.
                 "reference_frozen_hashes": f"{self.reference_dir}/frozen_hashes.json",
                 "reference_metrics": f"{self.reference_dir}/reference_metrics.json",
                 "reference_starter_zip": f"{self.reference_dir}/starter_project.zip",
-                "output_dir_name": self.output_dir_name,
                 "output_config": self.output_config,
                 "output_journal": self.output_journal,
                 "output_audit_dir": self.output_audit_dir,
@@ -273,14 +254,12 @@ Do not rely on hidden evaluator-only data.
         return metadata
 
 
-config = OpenroadIbexConfig(
-    REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"),
-)
+config = OpenroadIbexConfig()
 
 
 @cb.tasks_config(split="train")
 def load():
-    cfg = OpenroadIbexConfig(REMOTE_OUTPUT_DIR=os.environ.get("REMOTE_OUTPUT_DIR", "output"))
+    cfg = OpenroadIbexConfig()
     return [
         cb.Task(
             description=cfg.task_description,
@@ -310,8 +289,8 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
         logger.error("[%s] missing evaluator reference paths: %s", tag, missing_reference)
         return [0.0]
 
-    if not await session.exists(meta["remote_output_dir"]):
-        logger.error("[%s] missing submission directory: %s", tag, meta["remote_output_dir"])
+    if not await session.exists(meta["output_dir"]):
+        logger.error("[%s] missing submission directory: %s", tag, meta["output_dir"])
         return [0.0]
 
     await session.makedirs(EVAL_TMP_DIR)
@@ -337,14 +316,14 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     await session.write_file(verifier_path, _read_script("verify_submission.py"))
 
     extra_args: list[str] = []
-    if meta["output_dir_name"] != "output":
+    if posixpath.basename(meta["output_dir"].rstrip("/")) != "output":
         extra_args.append("--skip-reseed")
 
     command_parts = [
         "python",
         shlex.quote(verifier_path),
         "--submission-dir",
-        shlex.quote(meta["remote_output_dir"]),
+        shlex.quote(meta["output_dir"]),
         "--reference-dir",
         shlex.quote(meta["reference_dir"]),
         "--work-dir",

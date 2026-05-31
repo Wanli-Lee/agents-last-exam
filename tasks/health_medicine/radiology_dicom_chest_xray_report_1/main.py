@@ -2,7 +2,6 @@
 
 import json
 import logging
-import os
 import re
 from difflib import SequenceMatcher
 from dataclasses import dataclass
@@ -66,11 +65,11 @@ class TaskConfig(GeneralTaskConfig):
 
     @property
     def bounding_box_path(self) -> str:
-        return rf"{self.remote_output_dir}\{BOUNDING_BOX_FILENAME}"
+        return rf"{self.output_dir}\{BOUNDING_BOX_FILENAME}"
 
     @property
     def report_path(self) -> str:
-        return rf"{self.remote_output_dir}\{FINAL_REPORT_FILENAME}"
+        return rf"{self.output_dir}\{FINAL_REPORT_FILENAME}"
 
     @property
     def reference_bounding_box_path(self) -> str:
@@ -91,7 +90,7 @@ Files and tools:
 - DICOM viewer launcher: `{self.dicom_viewer_launcher_path}`
 - Study folder: `{self.input_dir}`
 - Indication file: `{self.indication_file_path}`
-- Output directory: `{self.remote_output_dir}`
+- Output directory: `{self.output_dir}`
 
 Study notes:
 - The input folder contains the chest study DICOM files, including a PA view and a lateral view.
