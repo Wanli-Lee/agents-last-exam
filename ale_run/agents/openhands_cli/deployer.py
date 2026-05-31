@@ -361,6 +361,12 @@ class OpenHandsCliDeployer(BaseAgentDeployer):
 
         duration_s = time.monotonic() - t0
         exit_code = proc.returncode
+
+        # Token/cost usage is NOT in the JSON event stream — it lives only in
+        # the persisted conversation's ``base_state.json``. Copy the freshest
+        # one into work_dir so it gets gathered and parse_artifacts can read it.
+        self._copy_base_state(wd)
+
         status = "completed" if exit_code == 0 else "failed"
         error: str | None = None
         if status == "failed":
@@ -408,6 +414,27 @@ class OpenHandsCliDeployer(BaseAgentDeployer):
         env["NO_COLOR"] = "1"
         env["HOME"] = home
         return env
+
+    def _copy_base_state(self, wd: Path) -> None:
+        """Copy the freshest conversation base_state.json into work_dir.
+
+        OpenHands persists per-run token/cost accounting only in
+        ``$OPENHANDS_PERSISTENCE_DIR/conversations/<id>/base_state.json``.
+        The framework gathers files from work_dir, so we mirror that file
+        in as ``base_state.json`` for parse_artifacts to consume.
+        """
+        home = os.path.expanduser("~")
+        conv_root = Path(home) / ".openhands" / "conversations"
+        if not conv_root.is_dir():
+            return
+        candidates = list(conv_root.glob("*/base_state.json"))
+        if not candidates:
+            return
+        newest = max(candidates, key=lambda p: p.stat().st_mtime)
+        try:
+            shutil.copy2(newest, wd / "base_state.json")
+        except OSError as e:
+            logger.warning("openhands_cli: could not copy base_state.json: %s", e)
 
     # =========================================================================
     # parse_artifacts
@@ -458,11 +485,81 @@ class OpenHandsCliDeployer(BaseAgentDeployer):
         for ev in events:
             cls._consume_event(ev, builder)
 
+        # Token/cost usage is not in the event stream — it lives in the
+        # persisted base_state.json (copied into work_dir by launch()).
+        # Emit one StepMetrics carrying the cumulative totals. OpenHands
+        # reports cost via accumulated_cost.
+        usage = cls._extract_usage_from_base_state(work_dir / "base_state.json")
+        if usage:
+            builder.add_step(
+                source="system",
+                message=None,
+                metrics=StepMetrics(
+                    input_tokens=usage.get("input_tokens"),
+                    output_tokens=usage.get("output_tokens"),
+                    cache_read_tokens=usage.get("cache_read_tokens"),
+                    cache_creation_tokens=usage.get("cache_write_tokens"),
+                    cost_usd=usage.get("cost_usd"),
+                ),
+                extra={"usage_base_state": True},
+            )
+
         builder.trajectory.extra.setdefault("openhands_cli", {}).update({
             "exit_code": run_result.exit_code,
             "transcript_path": str(stdout_log),
             "event_count": len(events),
         })
+
+    @staticmethod
+    def _extract_usage_from_base_state(path: Path) -> dict[str, Any] | None:
+        """Aggregate token/cost from OpenHands base_state.json.
+
+        Usage lives under state["stats"]["usage_to_metrics"][<id>] with
+        accumulated_token_usage (prompt/completion/cache_read/cache_write)
+        and accumulated_cost. The CLI default agent uses two usage ids
+        ("agent" and "condenser"); sum across all so totals reflect the run.
+        prompt_tokens is the full input (cache_read inclusive), so the
+        uncached input is prompt_tokens - cache_read_tokens.
+        """
+        if not path.exists():
+            return None
+        try:
+            state = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        u2m = (state.get("stats") or {}).get("usage_to_metrics")
+        if not isinstance(u2m, dict):
+            return None
+        total_input = total_output = total_cache_read = total_cache_write = 0
+        total_cost = 0.0
+        any_usage = False
+        saw_cost = False
+        for entry in u2m.values():
+            if not isinstance(entry, dict):
+                continue
+            tu = entry.get("accumulated_token_usage")
+            if isinstance(tu, dict):
+                total_input += int(tu.get("prompt_tokens") or 0)
+                total_output += int(tu.get("completion_tokens") or 0)
+                total_cache_read += int(tu.get("cache_read_tokens") or 0)
+                total_cache_write += int(tu.get("cache_write_tokens") or 0)
+                any_usage = True
+            cost = entry.get("accumulated_cost")
+            if cost is not None:
+                try:
+                    total_cost += float(cost)
+                    saw_cost = True
+                except (TypeError, ValueError):
+                    pass
+        if not any_usage:
+            return None
+        return {
+            "input_tokens": max(total_input - total_cache_read, 0),
+            "output_tokens": total_output,
+            "cache_read_tokens": total_cache_read or None,
+            "cache_write_tokens": total_cache_write or None,
+            "cost_usd": total_cost if saw_cost else None,
+        }
 
     # ------------------------------------------------------------------
     # JSON-Event stream parsing
