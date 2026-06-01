@@ -85,10 +85,15 @@ class ForgecodeDeployer(BaseAgentDeployer):
     async def _auto_install_cli(self) -> None:
         """Download the forge binary from GitHub releases.
 
-        Tries the official releases page at
-        ``https://github.com/tailcallhq/forgecode/releases/``.
+        Downloads a PINNED version (``cfg.forge_version``) from
+        ``releases/download/v<version>/`` — never ``releases/latest`` — so
+        every environment runs the same validated binary. forge's ``-p`` mode
+        self-updates to latest on startup otherwise; the ``[updates]`` block
+        in forge.toml disables that, and this pin governs fresh installs.
         Falls back to cargo install from source if the binary download fails.
         """
+        cfg: ForgecodeConfig = self.config  # type: ignore[assignment]
+        version = cfg.forge_version
         home = os.path.expanduser("~")
         bin_dir = f"{home}/.local/bin"
         os.makedirs(bin_dir, exist_ok=True)
@@ -103,7 +108,7 @@ class ForgecodeDeployer(BaseAgentDeployer):
             [
                 "bash", "-c",
                 f'curl -fsSL '
-                f'"https://github.com/tailcallhq/forgecode/releases/latest/download/forge-x86_64-unknown-linux-musl" '
+                f'"https://github.com/tailcallhq/forgecode/releases/download/v{version}/forge-x86_64-unknown-linux-musl" '
                 f'-o "{bin_dir}/forge.tmp" && chmod +x "{bin_dir}/forge.tmp" '
                 f'&& mv -f "{bin_dir}/forge.tmp" "{bin_dir}/forge"',
             ],
@@ -398,16 +403,24 @@ class ForgecodeDeployer(BaseAgentDeployer):
             return exec_env.get(name, "")
 
         if cfg.is_openrouter:
-            # OpenRouter routing: forge speaks the Anthropic protocol,
-            # so we point it at OpenRouter's v1 endpoint.
+            # OpenRouter routing: forge >=2.13 DROPPED the old behaviour of
+            # reading ANTHROPIC_API_KEY + ANTHROPIC_BASE_URL to tunnel the
+            # Anthropic protocol through OpenRouter. It now migrates known
+            # provider env vars into a credentials store on first run; the
+            # native ``open_router`` provider is keyed off OPENROUTER_API_KEY.
+            # So pass the OpenRouter key under its own name and let forge's
+            # built-in open_router provider (forge.toml provider_id) own it.
+            # ANTHROPIC_* must NOT be set here, or forge migrates an
+            # "anthropic" provider that shadows the requested open_router one.
             or_key = _key("OPENROUTER_API_KEY")
             if not or_key:
                 raise RuntimeError(
                     "ForgecodeDeployer: OPENROUTER_API_KEY is not set in the "
                     "executor env."
                 )
-            env["ANTHROPIC_API_KEY"] = or_key
-            env["ANTHROPIC_BASE_URL"] = "https://openrouter.ai/api/v1"
+            env["OPENROUTER_API_KEY"] = or_key
+            env.pop("ANTHROPIC_API_KEY", None)
+            env.pop("ANTHROPIC_BASE_URL", None)
         else:
             # Direct provider: infer from model prefix
             prefix = cfg.model.split("/", 1)[0].lower()
