@@ -1,0 +1,25 @@
+# Profile: Docker-backed ephemeral containers on the local host.
+# Referenced from a main experiment yaml as:
+#     environment:
+#       provider: docker
+#       profile: configs/environments/docker_kasm.yaml
+#
+# The Docker provider launches one fresh container per run unit from a single
+# image (unlike gcloud, there is no snapshot->image map — every task uses the
+# same image; the task_card's snapshot tag only flavours the container name).
+# So "map cpu-free-ubuntu -> ale-kasm" is automatic here: point `image` at the
+# ale-kasm tag that already has the task eval deps baked in.
+#
+#   image           Docker image to run. Use the eval-deps tag built from the
+#                   ale-kasm Dockerfile's 7b layer (system /usr/bin/python3 has
+#                   the 30 task eval packages: scipy/sklearn/skimage/matplotlib/
+#                   h5py/opencv/rasterio/netCDF4/pydicom/pymedphys/torch/...).
+#   image_family    Logical family key (drives the in-container cua-server port).
+#   shm_size/cpus/memory   Per-container resource knobs.
+
+image: agentslastexam/ale-kasm:eval-deps
+image_family: ale-kasm
+container_prefix: ale-insp
+shm_size: 2g
+# cpus: 0          # 0 = unlimited; set a float (e.g. 4) to cap per container
+# memory: ""       # "" = unlimited; e.g. "8g"
