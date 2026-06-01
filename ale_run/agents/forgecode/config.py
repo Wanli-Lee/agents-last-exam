@@ -10,22 +10,35 @@ multi-key environments cannot accidentally route through the wrong vendor.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import ClassVar
-
-from ale_run.base_interface import BaseAgentConfig
 
 
 @dataclass
-class ForgecodeConfig(BaseAgentConfig):
-    """Tunables for :class:`ForgecodeDeployer`."""
+class ForgecodeConfig:
+    """Tunables for :class:`ForgecodeDeployer`.
+
+    Standalone config (no shared base). The episode wall-budget is
+    orchestration-owned; ``timeout_s`` is no longer an agent knob.
+    """
 
     name: ClassVar[str] = "forgecode"
 
-    model: str = "anthropic/claude-sonnet-4-6"
-    timeout_s: float = 600
+    # agenthle forgecode_openrouter.yaml: anthropic/claude-sonnet-4.6
+    # (direct variant forgecode.yaml uses anthropic/claude-sonnet-4).
+    model: str = "anthropic/claude-sonnet-4.6"
+
+    forge_version: str = "2.13.0"
+    """Pinned forge release tag (without the ``v`` prefix). The deployer
+    downloads ``releases/download/v<forge_version>/forge-...-musl`` instead
+    of ``releases/latest`` so every environment converges on one binary.
+    Pinning matters because forge's agent mode (``-p``) otherwise
+    self-updates to the latest release on startup — see
+    :meth:`render_forge_toml`'s ``[updates]`` block, which also disables that
+    self-update at runtime. 2.13.0 is the validated-working version."""
 
     # Sampling / model knobs surfaced through forge.toml.
+    # agenthle: temperature 0.7 (both openrouter + direct).
     temperature: float | None = 0.7
 
     # Reserved for future use: forge tool names to disable.  forge itself
@@ -86,16 +99,27 @@ class ForgecodeConfig(BaseAgentConfig):
         dump.json on ``TaskComplete``.  Deliberately omits
         ``max_requests_per_turn`` and ``max_tool_failure_per_turn`` so
         forge's interactive "continue anyway?" prompt never fires.
+
+        The ``[updates]`` block disables forge's runtime self-update. In
+        ``-p`` (agent) mode forge otherwise downloads ``releases/latest`` on
+        startup and installs it over its own binary, which both replaces the
+        running process mid-task (so the prompt never executes — rc=0 with no
+        ConversationDump, hence empty usage) and defeats the version pin.
+        ``frequency = "never"`` stops the update check entirely.
         """
         provider = self.forge_provider_id()
         model = self.forge_model_id()
-        lines = [
-            'auto_dump = "json"',
+        lines = ['auto_dump = "json"']
+        if self.temperature is not None:
+            lines.append(f"temperature = {float(self.temperature)}")
+        lines.extend([
+            "",
+            "[updates]",
+            "auto_update = false",
+            'frequency = "never"',
             "",
             "[session]",
             f'provider_id = "{provider}"',
             f'model_id = "{model}"',
-        ]
-        if self.temperature is not None:
-            lines.extend(["", f"temperature = {float(self.temperature)}"])
+        ])
         return "\n".join(lines) + "\n"

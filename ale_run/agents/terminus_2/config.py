@@ -22,8 +22,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import ClassVar
 
-from ale_run.base_interface import BaseAgentConfig
-
 # Pin matching the cua-verse/harbor agenthle fork. Bump deliberately when
 # the fork's terminus_2 / LocalShellEnvironment / CLI shim changes.
 HARBOR_FORK_URL = "https://github.com/cua-verse/harbor.git"
@@ -31,18 +29,24 @@ HARBOR_FORK_REF = "agenthle"
 
 
 @dataclass
-class Terminus2Config(BaseAgentConfig):
-    """Tunables for :class:`Terminus2Deployer`."""
+class Terminus2Config:
+    """Tunables for :class:`Terminus2Deployer`.
+
+    Standalone config (no shared base). The episode wall-budget is
+    orchestration-owned; ``timeout_s`` is no longer an agent knob.
+    """
 
     name: ClassVar[str] = "terminus_2"
 
-    # YAML carries the OpenRouter-native ``vendor/model`` id; for openrouter
-    # mode the deployer prepends ``openrouter/`` before handing it to LiteLLM.
+    # agenthle terminus_2_openrouter.yaml: anthropic/claude-sonnet-4.6 (direct
+    # terminus_2.yaml: anthropic/claude-sonnet-4). YAML carries the
+    # OpenRouter-native ``vendor/model`` id; for openrouter mode the deployer
+    # prepends ``openrouter/`` before handing it to LiteLLM.
     model: str = "anthropic/claude-sonnet-4.6"
-    timeout_s: float = 3600.0
 
-    # terminus_2 has no ``unlimited`` sentinel; default high so wall-clock
-    # ``timeout_s`` is the real cap.
+    # agenthle terminus_2_openrouter.yaml: max_turns: 100000 (direct: 200).
+    # terminus_2 has no ``unlimited`` sentinel; default high so the wall-clock
+    # budget is the real cap.
     max_turns: int | None = 100_000
 
     # Provider routing: "openrouter" (default) | "direct".

@@ -16,8 +16,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import ClassVar
 
-from ale_run.base_interface import BaseAgentConfig
-
 # Native filesystem tools are kept enabled. The agenthle fork forwards their
 # tool-result content correctly over OpenRouter, so the agent can read/write
 # files directly rather than routing everything through run_shell_command.
@@ -59,14 +57,26 @@ _DISABLED_TOOLS = (
 
 
 @dataclass
-class GeminiCliConfig(BaseAgentConfig):
-    """Tunables for :class:`GeminiCliDeployer`."""
+class GeminiCliConfig:
+    """Tunables for :class:`GeminiCliDeployer`.
+
+    Standalone config (no shared base). The episode wall-budget is
+    orchestration-owned; ``timeout_s`` is no longer an agent knob.
+    """
 
     name: ClassVar[str] = "gemini-cli"
 
+    # agenthle gemini_cli.yaml model is ``google/gemini-3.1-pro-preview``;
+    # the cua-verse fork maps the bare ``gemini-*`` name to ``google/gemini-*``
+    # on the OpenRouter request, so we keep the bare id here.
     model: str = "gemini-3.1-pro-preview"
     provider: str = "openrouter"
     approval_mode: str = "yolo"
+
+    # agenthle gemini_cli.yaml: max_session_turns: -1 (unbounded; wall-clock
+    # timeout is the real cap). Written into settings.json as maxSessionTurns.
+    max_session_turns: int = -1
+
     allowed_tools: tuple[str, ...] = _ALLOWED_TOOLS
     disabled_tools: tuple[str, ...] = _DISABLED_TOOLS
     npm_package: str = "https://github.com/cua-verse/gemini-cli/releases/download/v0.38.1-agenthle/google-gemini-cli-0.38.1.tgz"

@@ -14,16 +14,20 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import ClassVar
 
-from ale_run.base_interface import BaseAgentConfig
-
 
 @dataclass
-class OpenHandsCliConfig(BaseAgentConfig):
-    """Tunables for :class:`OpenHandsCliDeployer`."""
+class OpenHandsCliConfig:
+    """Tunables for :class:`OpenHandsCliDeployer`.
+
+    Standalone config (no shared base). The episode wall-budget is
+    orchestration-owned; ``timeout_s`` is no longer an agent knob.
+    """
 
     name: ClassVar[str] = "openhands_cli"
 
-    model: str = "anthropic/claude-sonnet-4-6"
+    # agenthle openhands_cli_openrouter.yaml: openrouter/anthropic/claude-sonnet-4.6
+    # (direct openhands_cli.yaml: anthropic/claude-sonnet-4-6).
+    model: str = "openrouter/anthropic/claude-sonnet-4.6"
     """LiteLLM model id.  For OpenRouter routing, prefix with
     ``openrouter/`` (e.g. ``openrouter/anthropic/claude-sonnet-4.6``);
     the deployer also adds this prefix automatically when
@@ -40,8 +44,6 @@ class OpenHandsCliConfig(BaseAgentConfig):
         LLM_API_KEY=ANTHROPIC_API_KEY, no base URL. Requires
         ANTHROPIC_API_KEY.
     Missing the required key for the chosen provider is a hard error."""
-
-    timeout_s: float = 600.0
 
     cli_version: str = "1.16.0"
     """Version of the ``openhands`` pip package to install."""

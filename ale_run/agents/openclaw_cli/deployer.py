@@ -26,7 +26,6 @@ from typing import ClassVar
 
 from ale_run.base_interface import (
     AgentRunResult,
-    BaseAgentConfig,
     BaseAgentDeployer,
     ContentPart,
     Observation,
@@ -314,7 +313,7 @@ class OpenClawCliDeployer(BaseAgentDeployer):
         tools_also_allow = list(CUA_TOOL_NAMES)
         agent_defaults: dict = {
             "model": {"primary": primary_model},
-            "timeoutSeconds": int(cfg.timeout_s),
+            "timeoutSeconds": int(cfg.agent_timeout_s),
             "models": {primary_model: {}},
         }
         # Only add heartbeat config when a valid duration is specified;
@@ -360,8 +359,22 @@ class OpenClawCliDeployer(BaseAgentDeployer):
             },
         }
         if cfg.vision_model:
+            # openclaw schema (v2026.4.26): tools.media.image.models is an
+            # ARRAY of {provider, model} entries (ordered preference list),
+            # not a map. For openrouter routing the model id stays vendor-
+            # prefixed ("openai/gpt-5.4"); for direct routing we split the
+            # vendor head off and route through it.
+            vm = cfg.vision_model
+            if provider == "openrouter":
+                vision_entry = {"provider": "openrouter", "model": vm}
+            else:
+                head, _, tail = vm.partition("/")
+                if tail:
+                    vision_entry = {"provider": head, "model": tail}
+                else:
+                    vision_entry = {"provider": provider, "model": vm}
             oc_config["tools"]["media"] = {
-                "image": {"models": {"default": self._route_model(cfg.vision_model, provider)}},
+                "image": {"models": [vision_entry]},
             }
         (oc_home / "openclaw.json").write_text(
             json.dumps(oc_config, indent=2), encoding="utf-8",
@@ -652,7 +665,7 @@ class OpenClawCliDeployer(BaseAgentDeployer):
             "--agent", _AGENT_ID,
             "--message", prompt,
             "--json",
-            "--timeout", str(int(cfg.timeout_s)),
+            "--timeout", str(int(cfg.agent_timeout_s)),
             "--thinking", cfg.thinking,
         ]
         env = self._build_env(cfg, env_file)
@@ -673,30 +686,30 @@ class OpenClawCliDeployer(BaseAgentDeployer):
         pid_file.write_text(str(proc.pid), encoding="ascii")
         logger.info("openclaw_cli: spawned pid=%s", proc.pid)
 
-        deadline = t0 + cfg.timeout_s
-        while proc.poll() is None:
-            if time.monotonic() > deadline:
+        # The episode wall budget is orchestration-owned: the executor wraps
+        # launch() in asyncio.wait_for(timeout=timeout_s) (derived from the
+        # task), so we just wait for the child here. (OpenClaw also enforces
+        # its own internal --timeout=agent_timeout_s.) If the orchestration
+        # budget fires we are cancelled mid-await; reap the child before
+        # propagating so it cannot outlive the run.
+        try:
+            while proc.poll() is None:
+                await asyncio.sleep(_POLL_INTERVAL_S)
+        except asyncio.CancelledError:
+            try:
+                proc.terminate()
+            except ProcessLookupError:
+                pass
+            try:
+                await asyncio.wait_for(
+                    asyncio.to_thread(proc.wait), timeout=_TERM_GRACE_S,
+                )
+            except (asyncio.TimeoutError, asyncio.CancelledError):
                 try:
-                    proc.terminate()
+                    proc.kill()
                 except ProcessLookupError:
                     pass
-                try:
-                    await asyncio.wait_for(
-                        asyncio.to_thread(proc.wait), timeout=_TERM_GRACE_S,
-                    )
-                except asyncio.TimeoutError:
-                    try:
-                        proc.kill()
-                    except ProcessLookupError:
-                        pass
-                return AgentRunResult(
-                    status="timeout",
-                    pid=proc.pid,
-                    stderr_path=str(stderr_log),
-                    duration_s=time.monotonic() - t0,
-                    error=f"wall budget {cfg.timeout_s}s exceeded",
-                )
-            await asyncio.sleep(_POLL_INTERVAL_S)
+            raise
 
         duration_s = time.monotonic() - t0
         exit_code = proc.returncode
@@ -809,7 +822,7 @@ class OpenClawCliDeployer(BaseAgentDeployer):
         cls,
         *,
         work_dir: Path,
-        config: BaseAgentConfig,
+        config: OpenClawCliConfig,
         run_result: AgentRunResult,
         builder: TrajectoryBuilder,
     ) -> None:
@@ -868,11 +881,15 @@ class OpenClawCliDeployer(BaseAgentDeployer):
             content_blocks = []
 
         usage = message.get("usage", {})
+        # openclaw reports per-message cost under usage.cost.total (it prices the
+        # call itself); extract it so the trajectory's total_cost_usd is real.
+        _cost = (usage.get("cost") or {}).get("total") if isinstance(usage, dict) else None
         metrics = StepMetrics(
             input_tokens=usage.get("input"),
             output_tokens=usage.get("output"),
             cache_read_tokens=usage.get("cacheRead"),
             cache_creation_tokens=usage.get("cacheWrite"),
+            cost_usd=_cost,
         ) if usage else None
 
         if role == "assistant":

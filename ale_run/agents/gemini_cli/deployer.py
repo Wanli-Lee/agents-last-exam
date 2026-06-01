@@ -17,7 +17,6 @@ from typing import ClassVar
 
 from ale_run.base_interface import (
     AgentRunResult,
-    BaseAgentConfig,
     BaseAgentDeployer,
     ContentPart,
     Observation,
@@ -162,6 +161,7 @@ class GeminiCliDeployer(BaseAgentDeployer):
             "tools": {
                 "exclude": list(cfg.disabled_tools),
             },
+            "maxSessionTurns": cfg.max_session_turns,
             "policyPaths": [str(gemini_home / "agenthle_policy.toml")],
         }
         (gemini_home / "settings.json").write_text(
@@ -218,31 +218,29 @@ class GeminiCliDeployer(BaseAgentDeployer):
         pid_file.write_text(str(proc.pid), encoding="ascii")
         logger.info("gemini_cli: spawned pid=%s", proc.pid)
 
-        deadline = t0 + cfg.timeout_s
-        while proc.poll() is None:
-            if time.monotonic() > deadline:
+        # The episode wall budget is orchestration-owned: the executor
+        # wraps launch() in asyncio.wait_for(timeout=timeout_s) (derived
+        # from the task), so we just wait for the child here. If that
+        # budget fires we are cancelled mid-await; reap the child before
+        # propagating so it cannot outlive the run.
+        try:
+            while proc.poll() is None:
+                await asyncio.sleep(_POLL_INTERVAL_S)
+        except asyncio.CancelledError:
+            try:
+                proc.terminate()
+            except ProcessLookupError:
+                pass
+            try:
+                await asyncio.wait_for(
+                    asyncio.to_thread(proc.wait), timeout=_TERM_GRACE_S,
+                )
+            except (asyncio.TimeoutError, asyncio.CancelledError):
                 try:
-                    proc.terminate()
+                    proc.kill()
                 except ProcessLookupError:
                     pass
-                try:
-                    await asyncio.wait_for(
-                        asyncio.to_thread(proc.wait), timeout=_TERM_GRACE_S,
-                    )
-                except asyncio.TimeoutError:
-                    try:
-                        proc.kill()
-                    except ProcessLookupError:
-                        pass
-                return AgentRunResult(
-                    status="timeout",
-                    pid=proc.pid,
-                    transcript_path=str(transcript_file),
-                    stderr_path=str(stderr_log),
-                    duration_s=time.monotonic() - t0,
-                    error=f"wall budget {cfg.timeout_s}s exceeded",
-                )
-            await asyncio.sleep(_POLL_INTERVAL_S)
+            raise
 
         duration_s = time.monotonic() - t0
         exit_code = proc.returncode
@@ -359,7 +357,7 @@ class GeminiCliDeployer(BaseAgentDeployer):
         cls,
         *,
         work_dir: Path,
-        config: BaseAgentConfig,
+        config: GeminiCliConfig,
         run_result: AgentRunResult,
         builder: TrajectoryBuilder,
     ) -> None:
@@ -466,6 +464,67 @@ class GeminiCliDeployer(BaseAgentDeployer):
         response = event.get("response", "")
         if response:
             builder.add_step(source="agent", message=response)
+
+        # Usage. Gemini CLI reports cumulative token counts on the final
+        # `result` event's `stats`. Two shapes coexist: a per-model breakdown
+        # under stats.models.<model> AND flat top-level fields (input_tokens /
+        # output_tokens / cached) carrying the SAME totals. Prefer the models
+        # breakdown and fall back to the flat fields so we never double-count.
+        # `cached` is the cache-read subset of input_tokens. Gemini CLI does
+        # NOT report cost (no total_cost_usd), so cost is left unset.
+        metrics = GeminiCliDeployer._stats_to_metrics(stats)
+        if metrics is not None:
+            builder.add_step(
+                source="system",
+                message=None,
+                metrics=metrics,
+                extra={"usage_result": True},
+            )
+
+    @staticmethod
+    def _stats_to_metrics(stats: dict) -> StepMetrics | None:
+        if not isinstance(stats, dict) or not stats:
+            return None
+        input_total = output_total = cache_total = 0
+        saw_any = False
+
+        def _toks(d: dict) -> tuple[int, int, int]:
+            inp = d.get("input_tokens")
+            if inp is None:
+                inp = d.get("inputTokens", d.get("prompt", d.get("input", 0)))
+            out = d.get("output_tokens")
+            if out is None:
+                out = d.get("outputTokens", d.get("candidates", 0))
+            cached = d.get("cached")
+            if cached is None:
+                cached = d.get("cachedInputTokens", 0)
+            return int(inp or 0), int(out or 0), int(cached or 0)
+
+        models = stats.get("models", {})
+        if isinstance(models, dict) and models:
+            for model_data in models.values():
+                if not isinstance(model_data, dict):
+                    continue
+                tokens = model_data.get("tokens")
+                src = tokens if isinstance(tokens, dict) else model_data
+                inp, out, cached = _toks(src)
+                input_total += inp
+                output_total += out
+                cache_total += cached
+                saw_any = True
+        else:
+            inp, out, cached = _toks(stats)
+            if inp or out or cached:
+                input_total, output_total, cache_total = inp, out, cached
+                saw_any = True
+
+        if not saw_any:
+            return None
+        return StepMetrics(
+            input_tokens=max(input_total - cache_total, 0),
+            output_tokens=output_total,
+            cache_read_tokens=cache_total or None,
+        )
 
 
 def _read_text_tolerant(path: Path) -> str:

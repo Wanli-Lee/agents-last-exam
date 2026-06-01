@@ -20,7 +20,6 @@ from typing import ClassVar
 
 from ale_run.base_interface import (
     AgentRunResult,
-    BaseAgentConfig,
     BaseAgentDeployer,
     ContentPart,
     Observation,
@@ -323,31 +322,29 @@ class GrokCliDeployer(BaseAgentDeployer):
         pid_file.write_text(str(proc.pid), encoding="ascii")
         logger.info("grok_cli: spawned pid=%s", proc.pid)
 
-        deadline = t0 + cfg.timeout_s
-        while proc.poll() is None:
-            if time.monotonic() > deadline:
+        # The episode wall budget is orchestration-owned: the executor wraps
+        # launch() in asyncio.wait_for(timeout=timeout_s) (derived from the
+        # task), so we just wait for the child here. If that budget fires we
+        # are cancelled mid-await; reap the child before propagating so it
+        # cannot outlive the run.
+        try:
+            while proc.poll() is None:
+                await asyncio.sleep(_POLL_INTERVAL_S)
+        except asyncio.CancelledError:
+            try:
+                proc.terminate()
+            except ProcessLookupError:
+                pass
+            try:
+                await asyncio.wait_for(
+                    asyncio.to_thread(proc.wait), timeout=_TERM_GRACE_S,
+                )
+            except (asyncio.TimeoutError, asyncio.CancelledError):
                 try:
-                    proc.terminate()
+                    proc.kill()
                 except ProcessLookupError:
                     pass
-                try:
-                    await asyncio.wait_for(
-                        asyncio.to_thread(proc.wait), timeout=_TERM_GRACE_S,
-                    )
-                except asyncio.TimeoutError:
-                    try:
-                        proc.kill()
-                    except ProcessLookupError:
-                        pass
-                return AgentRunResult(
-                    status="timeout",
-                    pid=proc.pid,
-                    transcript_path=str(transcript_file),
-                    stderr_path=str(stderr_log),
-                    duration_s=time.monotonic() - t0,
-                    error=f"wall budget {cfg.timeout_s}s exceeded",
-                )
-            await asyncio.sleep(_POLL_INTERVAL_S)
+            raise
 
         duration_s = time.monotonic() - t0
         exit_code = proc.returncode
@@ -448,7 +445,7 @@ class GrokCliDeployer(BaseAgentDeployer):
         cls,
         *,
         work_dir: Path,
-        config: BaseAgentConfig,
+        config: GrokCliConfig,
         run_result: AgentRunResult,
         builder: TrajectoryBuilder,
     ) -> None:
@@ -530,11 +527,30 @@ class GrokCliDeployer(BaseAgentDeployer):
 
     @staticmethod
     def _consume_step_finish(event: dict, builder: TrajectoryBuilder) -> None:
+        # Grok CLI reports reliable per-step usage on each `step_finish` event:
+        # usage.inputTokens / usage.outputTokens, plus usage.costUsdTicks
+        # (one tick == 1e-6 USD). Populate StepMetrics per step so finalize()
+        # sums tokens AND the grok-priced cost.
         usage = event.get("usage", {})
-        if usage:
-            builder.trajectory.extra.setdefault("grok_cli", {}).setdefault(
-                "usage_steps", [],
-            ).append(usage)
+        if not isinstance(usage, dict) or not usage:
+            return
+        builder.trajectory.extra.setdefault("grok_cli", {}).setdefault(
+            "usage_steps", [],
+        ).append(usage)
+        cost_ticks = usage.get("costUsdTicks")
+        timing = event.get("timing", {})
+        duration_ms = timing.get("durationMs") if isinstance(timing, dict) else None
+        builder.add_step(
+            source="system",
+            message=None,
+            metrics=StepMetrics(
+                input_tokens=usage.get("inputTokens"),
+                output_tokens=usage.get("outputTokens"),
+                cost_usd=(cost_ticks / 1_000_000) if cost_ticks else None,
+                duration_ms=duration_ms,
+            ),
+            extra={"usage_step": True, "finish_reason": event.get("finishReason")},
+        )
 
 
 def _diagnose_failure(stderr_log: Path, transcript: Path, exit_code: int | None) -> str:

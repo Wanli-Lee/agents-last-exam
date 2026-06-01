@@ -32,7 +32,6 @@ from typing import ClassVar
 
 from ale_run.base_interface import (
     AgentRunResult,
-    BaseAgentConfig,
     BaseAgentDeployer,
     ContentPart,
     Observation,
@@ -370,31 +369,29 @@ class CursorCliDeployer(BaseAgentDeployer):
         pid_file.write_text(str(proc.pid), encoding="ascii")
         logger.info("cursor_cli: spawned pid=%s", proc.pid)
 
-        deadline = t0 + cfg.timeout_s
-        while proc.poll() is None:
-            if time.monotonic() > deadline:
+        # The episode wall budget is orchestration-owned: the executor
+        # wraps launch() in asyncio.wait_for(timeout=timeout_s) (derived
+        # from the task), so we just wait for the child here. If that
+        # budget fires we are cancelled mid-await; reap the child before
+        # propagating so it cannot outlive the run.
+        try:
+            while proc.poll() is None:
+                await asyncio.sleep(_POLL_INTERVAL_S)
+        except asyncio.CancelledError:
+            try:
+                proc.terminate()
+            except ProcessLookupError:
+                pass
+            try:
+                await asyncio.wait_for(
+                    asyncio.to_thread(proc.wait), timeout=_TERM_GRACE_S,
+                )
+            except (asyncio.TimeoutError, asyncio.CancelledError):
                 try:
-                    proc.terminate()
+                    proc.kill()
                 except ProcessLookupError:
                     pass
-                try:
-                    await asyncio.wait_for(
-                        asyncio.to_thread(proc.wait), timeout=_TERM_GRACE_S,
-                    )
-                except asyncio.TimeoutError:
-                    try:
-                        proc.kill()
-                    except ProcessLookupError:
-                        pass
-                return AgentRunResult(
-                    status="timeout",
-                    pid=proc.pid,
-                    transcript_path=str(transcript_file),
-                    stderr_path=str(stderr_log),
-                    duration_s=time.monotonic() - t0,
-                    error=f"wall budget {cfg.timeout_s}s exceeded",
-                )
-            await asyncio.sleep(_POLL_INTERVAL_S)
+            raise
 
         duration_s = time.monotonic() - t0
         exit_code = proc.returncode
@@ -500,7 +497,7 @@ class CursorCliDeployer(BaseAgentDeployer):
         cls,
         *,
         work_dir: Path,
-        config: BaseAgentConfig,
+        config: CursorCliConfig,
         run_result: AgentRunResult,
         builder: TrajectoryBuilder,
     ) -> None:
@@ -683,6 +680,23 @@ class CursorCliDeployer(BaseAgentDeployer):
         builder.trajectory.extra.setdefault("cursor_cli", {})["result"] = event
         if usage:
             builder.trajectory.extra["cursor_cli"]["usage"] = usage
+            # cursor-agent reports the CUMULATIVE token usage on the final
+            # `result` event (per-step assistant messages carry none), so add a
+            # step carrying it into StepMetrics — otherwise the trajectory's
+            # final_metrics (summed from per-step metrics) stays 0. cursor-agent
+            # does NOT surface a dollar cost (Cursor's own backend prices it
+            # internally), so cost_usd is left unset.
+            builder.add_step(
+                source="system",
+                message=None,
+                metrics=StepMetrics(
+                    input_tokens=usage.get("inputTokens") or usage.get("input_tokens"),
+                    output_tokens=usage.get("outputTokens") or usage.get("output_tokens"),
+                    cache_read_tokens=usage.get("cacheReadTokens") or usage.get("cache_read_input_tokens"),
+                    cache_creation_tokens=usage.get("cacheWriteTokens") or usage.get("cache_creation_input_tokens"),
+                ),
+                extra={"usage_reconciliation": True},
+            )
 
 
 def _diagnose_failure(stderr_log: Path, transcript: Path, exit_code: int | None) -> str:

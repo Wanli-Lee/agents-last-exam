@@ -10,8 +10,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import ClassVar
 
-from ale_run.base_interface import BaseAgentConfig
-
 CUA_TOOL_NAMES = (
     "screenshot",
     "click",
@@ -55,11 +53,16 @@ _TOOLS_DENY = (
 
 
 @dataclass
-class OpenClawCliConfig(BaseAgentConfig):
-    """Tunables for :class:`OpenClawCliDeployer`."""
+class OpenClawCliConfig:
+    """Tunables for :class:`OpenClawCliDeployer`.
+
+    Standalone config (no shared base). The episode wall-budget is
+    orchestration-owned; ``timeout_s`` is no longer an agent knob.
+    """
 
     name: ClassVar[str] = "openclaw-cli"
 
+    # agenthle openclaw_cli_openrouter_gpt-5_4.yaml: openai/gpt-5.4.
     model: str = "openai/gpt-5.4"
 
     # ---- routing (no secrets — API keys come from shell env) ----
@@ -77,8 +80,19 @@ class OpenClawCliConfig(BaseAgentConfig):
         env so it cannot override the chosen direct provider.
     Missing the required key for the chosen provider is a hard error."""
 
+    # OpenClaw's OWN internal run budget, written into openclaw.json
+    # (``timeoutSeconds``) and passed as ``agent --local --timeout <s>``.
+    # This is an agent-consumed knob (the CLI enforces it itself), distinct
+    # from the orchestration episode budget. agenthle
+    # openclaw_cli_openrouter_gpt-5_4.yaml: timeout_seconds: 600.
+    agent_timeout_s: int = 600
+
+    # agenthle openclaw_cli deployer default (_thinking_level): "high".
     thinking: str = "high"
-    vision_model: str | None = None
+    # agenthle openclaw_cli_openrouter_gpt-5_4.yaml sets vision_model to the
+    # same id as model; the dataclass default was None but every operational
+    # openclaw_cli yaml pins it, so default to the gpt-5.4 operational value.
+    vision_model: str | None = "openai/gpt-5.4"
     tools_deny: tuple[str, ...] = _TOOLS_DENY
     # Matches the agenthle openclaw_*_openrouter*.yaml plugins.allow: the
     # `memory-core` plugin provides the harmless `memory_get` file reader

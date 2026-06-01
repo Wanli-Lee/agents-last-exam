@@ -81,9 +81,10 @@ class BaseExecutor(abc.ABC):
 
     # ──────── data fields (deployer reads these) ────────
 
-    # Annotated as ``Any`` to avoid importing :class:`BaseAgentConfig`
-    # here (it lives in ``agent_deployer`` and a real type would create
-    # an interface-package cycle).
+    # Annotated as ``Any``: each agent owns a standalone config dataclass
+    # (claude_code → ClaudeCodeConfig …) with no shared base, so there is
+    # no single type to import here, and importing the concrete classes
+    # would create an interface-package cycle.
     config: Any
     """Per-agent resolved config (claude_code → ClaudeCodeConfig …).
     Concrete dataclass; deployer reads via ``self.config`` alias."""

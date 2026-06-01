@@ -30,7 +30,6 @@ from typing import ClassVar
 
 from ale_run.base_interface import (
     AgentRunResult,
-    BaseAgentConfig,
     BaseAgentDeployer,
     ContentPart,
     Observation,
@@ -109,12 +108,16 @@ class ClaudeCodeDeployer(BaseAgentDeployer):
                 )
         self._claude_path = claude_path
 
-        # 2. Version probe.
+        # 2. Version probe. Pass stdin=DEVNULL so the probe never blocks waiting
+        # on a TTY/stdin (on Windows the freshly-uploaded claude.EXE could hang
+        # the 30s probe on first exec — Defender scan + stdin check); 60s gives
+        # cold-image first-exec headroom.
         try:
             probe = await asyncio.to_thread(
                 subprocess.run,
                 [claude_path, "--version"],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True, text=True, timeout=60,
+                stdin=subprocess.DEVNULL,
             )
         except subprocess.TimeoutExpired as e:
             raise RuntimeError(
@@ -208,34 +211,30 @@ class ClaudeCodeDeployer(BaseAgentDeployer):
         pid_file.write_text(str(proc.pid), encoding="ascii")
         logger.info("claude_code: spawned pid=%s argv0=%s", proc.pid, argv[0])
 
-        # Poll until done or timeout.
-        deadline = t0 + cfg.timeout_s
-        while proc.poll() is None:
-            if time.monotonic() > deadline:
-                # TERM then KILL — give it a moment to flush.
+        # Wait for the child to finish.
+        # The episode wall budget is orchestration-owned: the executor
+        # wraps launch() in asyncio.wait_for(timeout=timeout_s) (derived
+        # from the task), so we just wait for the child here. If that
+        # budget fires we are cancelled mid-await; reap the child before
+        # propagating so it cannot outlive the run.
+        try:
+            while proc.poll() is None:
+                await asyncio.sleep(_POLL_INTERVAL_S)
+        except asyncio.CancelledError:
+            try:
+                proc.terminate()
+            except ProcessLookupError:
+                pass
+            try:
+                await asyncio.wait_for(
+                    asyncio.to_thread(proc.wait), timeout=_TERM_GRACE_S,
+                )
+            except (asyncio.TimeoutError, asyncio.CancelledError):
                 try:
-                    proc.terminate()
+                    proc.kill()
                 except ProcessLookupError:
                     pass
-                try:
-                    await asyncio.wait_for(
-                        asyncio.to_thread(proc.wait), timeout=_TERM_GRACE_S,
-                    )
-                except asyncio.TimeoutError:
-                    try:
-                        proc.kill()
-                    except ProcessLookupError:
-                        pass
-                duration_s = time.monotonic() - t0
-                return AgentRunResult(
-                    status="timeout",
-                    pid=proc.pid,
-                    transcript_path=str(transcript_file),
-                    stderr_path=str(stderr_log),
-                    duration_s=duration_s,
-                    error=f"wall budget {cfg.timeout_s}s exceeded",
-                )
-            await asyncio.sleep(_POLL_INTERVAL_S)
+            raise
 
         duration_s = time.monotonic() - t0
         exit_code = proc.returncode
@@ -361,7 +360,7 @@ class ClaudeCodeDeployer(BaseAgentDeployer):
         cls,
         *,
         work_dir: Path,
-        config: BaseAgentConfig,
+        config: ClaudeCodeConfig,
         run_result: AgentRunResult,
         builder: TrajectoryBuilder,
     ) -> None:
@@ -384,6 +383,39 @@ class ClaudeCodeDeployer(BaseAgentDeployer):
             except json.JSONDecodeError:
                 continue
             cls._consume_event(event, builder)
+
+        # Usage/cost reconciliation. Claude Code reports the AUTHORITATIVE
+        # cumulative usage (`usage`) + `total_cost_usd` on the final `result`
+        # event. Per-message `usage` is frequently all-zero over OpenRouter (the
+        # CLI doesn't get token counts back from a non-Anthropic gateway), so the
+        # per-step sum alone would be 0. Add a reconciliation step carrying the
+        # DELTA between the result-event cumulative and whatever per-step metrics
+        # already summed, plus the full cost — so the trajectory's final_metrics
+        # equal the result-event total on OpenRouter AND don't double-count on a
+        # direct Anthropic run where per-message usage IS populated.
+        result = builder.trajectory.extra.get("result") or {}
+        ru = result.get("usage") or {}
+        if ru or result.get("total_cost_usd") is not None:
+            si = so = scr = scc = 0
+            for s in builder.trajectory.steps:
+                m = s.metrics
+                if m:
+                    si += m.input_tokens or 0
+                    so += m.output_tokens or 0
+                    scr += m.cache_read_tokens or 0
+                    scc += m.cache_creation_tokens or 0
+            builder.add_step(
+                source="system",
+                message=None,
+                metrics=StepMetrics(
+                    input_tokens=max((ru.get("input_tokens") or 0) - si, 0),
+                    output_tokens=max((ru.get("output_tokens") or 0) - so, 0),
+                    cache_read_tokens=max((ru.get("cache_read_input_tokens") or 0) - scr, 0),
+                    cache_creation_tokens=max((ru.get("cache_creation_input_tokens") or 0) - scc, 0),
+                    cost_usd=result.get("total_cost_usd"),
+                ),
+                extra={"usage_reconciliation": True},
+            )
 
         builder.trajectory.extra.setdefault("claude_code", {}).update({
             "exit_code": run_result.exit_code,

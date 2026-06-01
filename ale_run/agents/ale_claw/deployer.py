@@ -18,7 +18,6 @@ copied from ``cua_bench/agents/openclaw/`` upstream).
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 import sys
@@ -29,7 +28,6 @@ from typing import Any, ClassVar
 
 from ale_run.base_interface import (
     AgentRunResult,
-    BaseAgentConfig,
     BaseAgentDeployer,
     TrajectoryBuilder,
 )
@@ -294,7 +292,11 @@ class AleClawDeployer(BaseAgentDeployer):
             if replay_messages else prompt
         )
 
-        # ---- 10. Drive loop with timeout ----
+        # ---- 10. Drive loop ----
+        # The episode wall budget is orchestration-owned: the executor wraps
+        # launch() in asyncio.wait_for(timeout=timeout_s) (derived from the
+        # task), so we drive the loop directly here; a cancellation on the
+        # budget propagates cleanly (no subprocess to reap).
         # litellm reads OPENROUTER_API_KEY / ANTHROPIC_API_KEY etc straight
         # from os.environ — operator populates the shell, no patching needed.
         max_steps = cfg.max_turns or 100
@@ -327,15 +329,7 @@ class AleClawDeployer(BaseAgentDeployer):
                         logger.info("ale-claw: done signal at step %d", step)
                         task_completed = True
                         break
-            await asyncio.wait_for(_drive(), timeout=cfg.timeout_s)
-        except asyncio.TimeoutError:
-            logger.warning("ale-claw: wall budget %.0fs exceeded", cfg.timeout_s)
-            return AgentRunResult(
-                status="timeout",
-                duration_s=time.monotonic() - t0,
-                error=f"wall budget {cfg.timeout_s}s exceeded",
-                transcript_path=str(transcript_path) if transcript_path.exists() else None,
-            )
+            await _drive()
         except Exception as exc:                             # noqa: BLE001
             logger.exception("ale-claw: agent.run threw")
             return AgentRunResult(
@@ -368,7 +362,7 @@ class AleClawDeployer(BaseAgentDeployer):
         cls,
         *,
         work_dir: Path,
-        config: BaseAgentConfig,
+        config: AleClawConfig,
         run_result: AgentRunResult,
         builder: TrajectoryBuilder,
     ) -> None:

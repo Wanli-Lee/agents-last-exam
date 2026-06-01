@@ -31,7 +31,6 @@ from typing import Any, ClassVar
 
 from ale_run.base_interface import (
     AgentRunResult,
-    BaseAgentConfig,
     BaseAgentDeployer,
     ContentPart,
     Observation,
@@ -86,10 +85,15 @@ class ForgecodeDeployer(BaseAgentDeployer):
     async def _auto_install_cli(self) -> None:
         """Download the forge binary from GitHub releases.
 
-        Tries the official releases page at
-        ``https://github.com/tailcallhq/forgecode/releases/``.
+        Downloads a PINNED version (``cfg.forge_version``) from
+        ``releases/download/v<version>/`` — never ``releases/latest`` — so
+        every environment runs the same validated binary. forge's ``-p`` mode
+        self-updates to latest on startup otherwise; the ``[updates]`` block
+        in forge.toml disables that, and this pin governs fresh installs.
         Falls back to cargo install from source if the binary download fails.
         """
+        cfg: ForgecodeConfig = self.config  # type: ignore[assignment]
+        version = cfg.forge_version
         home = os.path.expanduser("~")
         bin_dir = f"{home}/.local/bin"
         os.makedirs(bin_dir, exist_ok=True)
@@ -104,7 +108,7 @@ class ForgecodeDeployer(BaseAgentDeployer):
             [
                 "bash", "-c",
                 f'curl -fsSL '
-                f'"https://github.com/tailcallhq/forgecode/releases/latest/download/forge-x86_64-unknown-linux-musl" '
+                f'"https://github.com/tailcallhq/forgecode/releases/download/v{version}/forge-x86_64-unknown-linux-musl" '
                 f'-o "{bin_dir}/forge.tmp" && chmod +x "{bin_dir}/forge.tmp" '
                 f'&& mv -f "{bin_dir}/forge.tmp" "{bin_dir}/forge"',
             ],
@@ -153,11 +157,27 @@ class ForgecodeDeployer(BaseAgentDeployer):
         # ----------------------------------------------------------
         # 1. Ensure forge binary is available
         # ----------------------------------------------------------
+        # IMPORTANT: prefer a PRE-BAKED forge before downloading. The sandbox
+        # entry runs WITHOUT a login shell, so ~/.local/bin is not on PATH and
+        # shutil.which("forge") misses an image-baked binary — which would make
+        # us re-download forge `latest`. Newer forge (>=2.13.3) DROPPED reading
+        # API keys from env vars and hangs on "Migrating credentials" headless,
+        # so re-downloading silently breaks the agent. Check the baked location
+        # explicitly first.
         forge_path = shutil.which("forge")
         if not forge_path:
-            logger.info("forgecode: 'forge' not on PATH, installing ...")
+            baked = os.path.join(os.path.expanduser("~"), ".local", "bin", "forge")
+            if os.path.isfile(baked) and os.access(baked, os.X_OK):
+                forge_path = baked
+                logger.info("forgecode: using pre-baked forge at %s", baked)
+        if not forge_path:
+            logger.info("forgecode: 'forge' not on PATH or baked dir, installing ...")
             await self._auto_install_cli()
-            forge_path = shutil.which("forge")
+            forge_path = shutil.which("forge") or (
+                os.path.join(os.path.expanduser("~"), ".local", "bin", "forge")
+                if os.path.isfile(os.path.join(os.path.expanduser("~"), ".local", "bin", "forge"))
+                else None
+            )
             if not forge_path:
                 raise RuntimeError(
                     "ForgecodeDeployer: 'forge' still not found after install"
@@ -202,6 +222,38 @@ class ForgecodeDeployer(BaseAgentDeployer):
             cfg.model, cfg.provider,
         )
 
+        # ----------------------------------------------------------
+        # 4. CUA MCP bridge. forge supports MCP via a `.mcp.json` read from the
+        #    project-local cwd AND the global ~/forge/.mcp.json (Anthropic MCP
+        #    schema: mcpServers.<name>.{command,args,env}). Wire the cua server
+        #    the same way every other MCP-capable agent does; CUA_SERVER_URL
+        #    points the bridge at the image's cua-server port. The project-local
+        #    copy (forge's cwd = dump_dir) is written in launch().
+        # ----------------------------------------------------------
+        sandbox = self.executor.sandbox
+        from ale_run.agents._bootstrap import cua_bridge_env, ensure_cua_mcp_server
+        await ensure_cua_mcp_server(sandbox)
+        mcp_index = f"{sandbox.mcp_server_dir.rstrip('/')}/src/index.js"
+        self._mcp_config = {
+            "mcpServers": {
+                "cua": {
+                    "command": sandbox.node,
+                    "args": [mcp_index],
+                    "env": cua_bridge_env(self.executor),
+                },
+            },
+        }
+        # Global config home is ~/.forge (WITH dot) — same dir as .forge.toml.
+        # NB: the forge docs say "~/forge/.mcp.json" but creating a no-dot
+        # ~/forge dir derails forge's config resolution (it then thinks no
+        # provider is set and drops into an interactive provider picker, which
+        # ENXIOs on the missing TTY in headless `-p` mode). The real location is
+        # ~/.forge/.mcp.json.
+        (forge_home / ".mcp.json").write_text(
+            json.dumps(self._mcp_config, indent=2), encoding="utf-8",
+        )
+        logger.info("forgecode: cua MCP bridge wired (~/.forge/.mcp.json)")
+
     # =========================================================================
     # launch
     # =========================================================================
@@ -218,6 +270,14 @@ class ForgecodeDeployer(BaseAgentDeployer):
         exit_code_file = wd / "exit_code.txt"
         dump_dir = wd / "dump_dir"
         dump_dir.mkdir(parents=True, exist_ok=True)
+
+        # Project-local .mcp.json in forge's cwd (dump_dir). Project-local takes
+        # precedence over the global ~/forge/.mcp.json written in install().
+        mcp_cfg = getattr(self, "_mcp_config", None)
+        if mcp_cfg:
+            (dump_dir / ".mcp.json").write_text(
+                json.dumps(mcp_cfg, indent=2), encoding="utf-8",
+            )
 
         # Clean up previous run artifacts
         for f in (transcript_file, stderr_log, pid_file, exit_code_file):
@@ -251,31 +311,29 @@ class ForgecodeDeployer(BaseAgentDeployer):
         pid_file.write_text(str(proc.pid), encoding="ascii")
         logger.info("forgecode: spawned pid=%s, conversation_id=%s", proc.pid, conversation_id)
 
-        deadline = t0 + cfg.timeout_s
-        while proc.poll() is None:
-            if time.monotonic() > deadline:
+        # The episode wall budget is orchestration-owned: the executor
+        # wraps launch() in asyncio.wait_for(timeout=timeout_s) (derived
+        # from the task), so we just wait for the child here. If that
+        # budget fires we are cancelled mid-await; reap the child before
+        # propagating so it cannot outlive the run.
+        try:
+            while proc.poll() is None:
+                await asyncio.sleep(_POLL_INTERVAL_S)
+        except asyncio.CancelledError:
+            try:
+                proc.terminate()
+            except ProcessLookupError:
+                pass
+            try:
+                await asyncio.wait_for(
+                    asyncio.to_thread(proc.wait), timeout=_TERM_GRACE_S,
+                )
+            except (asyncio.TimeoutError, asyncio.CancelledError):
                 try:
-                    proc.terminate()
+                    proc.kill()
                 except ProcessLookupError:
                     pass
-                try:
-                    await asyncio.wait_for(
-                        asyncio.to_thread(proc.wait), timeout=_TERM_GRACE_S,
-                    )
-                except asyncio.TimeoutError:
-                    try:
-                        proc.kill()
-                    except ProcessLookupError:
-                        pass
-                return AgentRunResult(
-                    status="timeout",
-                    pid=proc.pid,
-                    transcript_path=str(transcript_file),
-                    stderr_path=str(stderr_log),
-                    duration_s=time.monotonic() - t0,
-                    error=f"wall budget {cfg.timeout_s}s exceeded",
-                )
-            await asyncio.sleep(_POLL_INTERVAL_S)
+            raise
 
         duration_s = time.monotonic() - t0
         exit_code = proc.returncode
@@ -334,37 +392,40 @@ class ForgecodeDeployer(BaseAgentDeployer):
         For direct providers: exports the appropriate API key env var.
         """
         env = os.environ.copy()
-        for k, v in (self.executor.env or {}).items():
+        exec_env = dict(self.executor.env or {})
+        for k, v in exec_env.items():
             env[k] = v
 
+        # Secrets flow via ``self.executor.env`` (a sidecar writes the keys
+        # into the executor env); resolve from there only, never from
+        # ``os.environ``.
+        def _key(name: str) -> str:
+            return exec_env.get(name, "")
+
         if cfg.is_openrouter:
-            # OpenRouter routing: forge speaks the Anthropic protocol,
-            # so we point it at OpenRouter's v1 endpoint.
-            or_key = os.environ.get("OPENROUTER_API_KEY") or ""
-            for k, v in (self.executor.env or {}).items():
-                if k == "OPENROUTER_API_KEY":
-                    or_key = v
-            if not or_key:
-                or_key = cfg.api_keys.get("OPENROUTER_API_KEY", "")
+            # OpenRouter routing: forge >=2.13 DROPPED the old behaviour of
+            # reading ANTHROPIC_API_KEY + ANTHROPIC_BASE_URL to tunnel the
+            # Anthropic protocol through OpenRouter. It now migrates known
+            # provider env vars into a credentials store on first run; the
+            # native ``open_router`` provider is keyed off OPENROUTER_API_KEY.
+            # So pass the OpenRouter key under its own name and let forge's
+            # built-in open_router provider (forge.toml provider_id) own it.
+            # ANTHROPIC_* must NOT be set here, or forge migrates an
+            # "anthropic" provider that shadows the requested open_router one.
+            or_key = _key("OPENROUTER_API_KEY")
             if not or_key:
                 raise RuntimeError(
-                    "ForgecodeDeployer: OPENROUTER_API_KEY is not set. "
-                    "Export it or pass it via executor env / api_keys."
+                    "ForgecodeDeployer: OPENROUTER_API_KEY is not set in the "
+                    "executor env."
                 )
-            env["ANTHROPIC_API_KEY"] = or_key
-            env["ANTHROPIC_BASE_URL"] = "https://openrouter.ai/api/v1"
+            env["OPENROUTER_API_KEY"] = or_key
+            env.pop("ANTHROPIC_API_KEY", None)
+            env.pop("ANTHROPIC_BASE_URL", None)
         else:
             # Direct provider: infer from model prefix
             prefix = cfg.model.split("/", 1)[0].lower()
             if prefix == "anthropic":
-                key = (
-                    cfg.api_keys.get("ANTHROPIC_API_KEY")
-                    or os.environ.get("ANTHROPIC_API_KEY")
-                    or ""
-                )
-                for k, v in (self.executor.env or {}).items():
-                    if k == "ANTHROPIC_API_KEY":
-                        key = v
+                key = _key("ANTHROPIC_API_KEY")
                 if not key:
                     raise RuntimeError(
                         "ForgecodeDeployer: ANTHROPIC_API_KEY not set for "
@@ -372,14 +433,7 @@ class ForgecodeDeployer(BaseAgentDeployer):
                     )
                 env["ANTHROPIC_API_KEY"] = key
             elif prefix == "openai" or prefix.startswith("gpt"):
-                key = (
-                    cfg.api_keys.get("OPENAI_API_KEY")
-                    or os.environ.get("OPENAI_API_KEY")
-                    or ""
-                )
-                for k, v in (self.executor.env or {}).items():
-                    if k == "OPENAI_API_KEY":
-                        key = v
+                key = _key("OPENAI_API_KEY")
                 if not key:
                     raise RuntimeError(
                         "ForgecodeDeployer: OPENAI_API_KEY not set for "
@@ -448,7 +502,7 @@ class ForgecodeDeployer(BaseAgentDeployer):
         cls,
         *,
         work_dir: Path,
-        config: BaseAgentConfig,
+        config: ForgecodeConfig,
         run_result: AgentRunResult,
         builder: TrajectoryBuilder,
     ) -> None:
@@ -558,6 +612,23 @@ class ForgecodeDeployer(BaseAgentDeployer):
         if cost_seen:
             usage_summary["total_cost_usd"] = total_cost
         builder.trajectory.extra.setdefault("forgecode", {})["usage"] = usage_summary
+
+        # Route the dump-aggregated usage into a StepMetrics so finalize()
+        # sums it. forge's per-message ``usage.prompt_tokens`` is the full
+        # input (cache_read inclusive), so uncached = prompt - cached. Forge
+        # reports cost via usage.cost.
+        if total_input_tokens or total_output_tokens or cost_seen:
+            builder.add_step(
+                source="system",
+                message=None,
+                metrics=StepMetrics(
+                    input_tokens=max(total_input_tokens - total_cached_tokens, 0),
+                    output_tokens=total_output_tokens,
+                    cache_read_tokens=total_cached_tokens or None,
+                    cost_usd=total_cost if cost_seen else None,
+                ),
+                extra={"usage_dump": True},
+            )
 
     @classmethod
     def _consume_text_message(

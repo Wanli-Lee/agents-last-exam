@@ -11,21 +11,31 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import ClassVar
 
-from ale_run.base_interface import BaseAgentConfig
-
 
 @dataclass
-class CursorCliConfig(BaseAgentConfig):
-    """Tunables for :class:`CursorCliDeployer`."""
+class CursorCliConfig:
+    """Tunables for :class:`CursorCliDeployer`.
+
+    Standalone config (no shared base). The episode wall-budget is
+    orchestration-owned; ``timeout_s`` is no longer an agent knob.
+
+    Note: agenthle cursor_cli.yaml also carried ``max_turns: 300``, but
+    cursor-agent exposes no ``--max-turns`` flag, so that value was dead
+    in agenthle and is not carried here (the deployer never read it).
+    """
 
     name: ClassVar[str] = "cursor-cli"
 
+    # Default = "" ("auto"): the deployer omits --model so cursor-agent picks
+    # its own Composer model. agenthle's cursor_cli.yaml pinned the catalog name
+    # ``claude-4.6-sonnet-medium``, but this migration deliberately runs "auto"
+    # because the pinned Sonnet catalog name hits per-model Cursor ACCOUNT
+    # QUOTAS (validated: pinned Sonnet failed on quota; auto passes). Keep "".
     model: str = ""
-    """Empty string = "auto" (cursor-agent picks the model; currently
-    resolves to Cursor's own Composer model). An explicit Cursor catalog
-    name (e.g. ``claude-4.6-sonnet-medium``) pins the model, but those are
-    subject to per-model account quotas. Default is auto for benchmark
-    runs; the deployer omits ``--model`` when this is empty."""
+    """Cursor catalog model id (e.g. ``claude-4.6-sonnet-medium``,
+    ``claude-opus-4-7-thinking-high``, ``gpt-5.5-high``). Empty string =
+    "auto" — the deployer omits ``--model`` and cursor-agent picks its own
+    Composer model."""
 
     provider: str = "cursor"
     """Routing provider. cursor-agent is hard-wired to Cursor's own

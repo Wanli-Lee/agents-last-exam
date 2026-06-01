@@ -35,7 +35,6 @@ import yaml
 
 from ale_run.base_interface import (
     AgentRunResult,
-    BaseAgentConfig,
     BaseAgentDeployer,
     ContentPart,
     Observation,
@@ -603,62 +602,60 @@ disown $CHILD 2>/dev/null || true
         os.chmod(launcher_script, 0o755)
 
         logger.info(
-            "hermes: launching (model=%s, provider=%s, timeout=%.0fs)",
-            cfg.model, cfg.provider, cfg.timeout_s,
+            "hermes: launching (model=%s, provider=%s)",
+            cfg.model, cfg.provider,
         )
         await asyncio.to_thread(_sh_sync, f"bash '{launcher_script}'", 20)
 
-        # Poll until done or timeout
+        # Wait for the agent to finish. The episode wall budget is
+        # orchestration-owned: the executor wraps launch() in
+        # asyncio.wait_for(timeout=timeout_s) (derived from the task). If
+        # that budget fires we are cancelled mid-await; kill the agent
+        # process group before propagating so it cannot outlive the run.
         t0 = time.monotonic()
-        deadline = t0 + cfg.timeout_s
+        try:
+            while True:
+                await asyncio.sleep(_POLL_INTERVAL_S)
 
-        while True:
-            if time.monotonic() > deadline:
-                # Kill the agent process group, then the process.
-                await asyncio.to_thread(
+                # Liveness check. NOTE: ``kill -0 $PID`` is NOT sufficient on
+                # a host whose PID 1 does not reap (the static-provider
+                # container runs `bash -c "sleep infinity"` as PID 1). When
+                # the runner bash finishes, its parent shell has already
+                # `disown`ed it, so it is reparented to PID 1; with no reaper
+                # it lingers as a <defunct> ZOMBIE — which still owns its PID
+                # slot, so `kill -0` reports success and we would poll
+                # "running" forever, hanging the run to the wall budget even
+                # though exit_code was already written. We therefore also
+                # inspect the process state via /proc and treat a zombie ('Z')
+                # as done. (Under a real reaping init the PID is gone
+                # immediately and the `kill -0` path alone already reports
+                # done.)
+                pid_check = await asyncio.to_thread(
                     _sh_sync,
-                    f"PID=$(cat '{pid_file}' 2>/dev/null) && "
-                    f'[ -n "$PID" ] && kill -9 -$PID 2>/dev/null; '
-                    f'[ -n "$PID" ] && kill -9 $PID 2>/dev/null; true',
-                    15,
+                    f"PID=$(cat '{pid_file}' 2>/dev/null); "
+                    f'if [ -z "$PID" ]; then echo no_pid; '
+                    f"elif ! kill -0 $PID 2>/dev/null; then echo done; "
+                    f"else "
+                    f"  ST=$(awk '{{print $3}}' /proc/$PID/stat 2>/dev/null); "
+                    f'  if [ "$ST" = "Z" ]; then echo done; else echo running; fi; '
+                    f"fi",
+                    60,
                 )
-                return AgentRunResult(
-                    status="timeout",
-                    transcript_path=str(session_file),
-                    stderr_path=str(stderr_log),
-                    duration_s=time.monotonic() - t0,
-                    error=f"wall budget {cfg.timeout_s}s exceeded",
-                )
-
-            await asyncio.sleep(_POLL_INTERVAL_S)
-
-            # Liveness check. NOTE: ``kill -0 $PID`` is NOT sufficient on a
-            # host whose PID 1 does not reap (the static-provider container
-            # runs `bash -c "sleep infinity"` as PID 1). When the runner bash
-            # finishes, its parent shell has already `disown`ed it, so it is
-            # reparented to PID 1; with no reaper it lingers as a <defunct>
-            # ZOMBIE — which still owns its PID slot, so `kill -0` reports
-            # success and we would poll "running" forever, hanging the run to
-            # the wall budget even though exit_code was already written. We
-            # therefore also inspect the process state via /proc and treat a
-            # zombie ('Z') as done. (Under a real reaping init the PID is gone
-            # immediately and the `kill -0` path alone already reports done.)
-            pid_check = await asyncio.to_thread(
+                proc_status = (pid_check.stdout or "").strip()
+                if proc_status in ("done", "no_pid", ""):
+                    # Give post-run session export a moment to finish
+                    await asyncio.sleep(_TERM_GRACE_S)
+                    break
+        except asyncio.CancelledError:
+            # Kill the agent process group, then the process.
+            await asyncio.to_thread(
                 _sh_sync,
-                f"PID=$(cat '{pid_file}' 2>/dev/null); "
-                f'if [ -z "$PID" ]; then echo no_pid; '
-                f"elif ! kill -0 $PID 2>/dev/null; then echo done; "
-                f"else "
-                f"  ST=$(awk '{{print $3}}' /proc/$PID/stat 2>/dev/null); "
-                f'  if [ "$ST" = "Z" ]; then echo done; else echo running; fi; '
-                f"fi",
-                60,
+                f"PID=$(cat '{pid_file}' 2>/dev/null) && "
+                f'[ -n "$PID" ] && kill -9 -$PID 2>/dev/null; '
+                f'[ -n "$PID" ] && kill -9 $PID 2>/dev/null; true',
+                15,
             )
-            proc_status = (pid_check.stdout or "").strip()
-            if proc_status in ("done", "no_pid", ""):
-                # Give post-run session export a moment to finish
-                await asyncio.sleep(_TERM_GRACE_S)
-                break
+            raise
 
         duration_s = time.monotonic() - t0
 
@@ -713,7 +710,7 @@ disown $CHILD 2>/dev/null || true
         cls,
         *,
         work_dir: Path,
-        config: BaseAgentConfig,
+        config: HermesConfig,
         run_result: AgentRunResult,
         builder: TrajectoryBuilder,
     ) -> None:
@@ -750,6 +747,29 @@ disown $CHILD 2>/dev/null || true
             "transcript_path": str(session_file),
             "usage": usage,
         })
+
+        # Route the session-export usage into a StepMetrics so finalize() sums
+        # it (per-message usage is not in the export — only these aggregates).
+        # Hermes reports cost via actual_cost_usd / estimated_cost_usd.
+        if usage:
+            uncached = usage.get("uncached_input_tokens") or 0
+            output = usage.get("output_tokens") or 0
+            cache_read = usage.get("cache_read_input_tokens") or 0
+            cache_write = usage.get("cache_write_input_tokens") or 0
+            cost = usage.get("total_cost_usd")
+            if uncached or output or cache_read or cache_write or cost is not None:
+                builder.add_step(
+                    source="system",
+                    message=None,
+                    metrics=StepMetrics(
+                        input_tokens=uncached,
+                        output_tokens=output,
+                        cache_read_tokens=cache_read,
+                        cache_creation_tokens=cache_write,
+                        cost_usd=cost,
+                    ),
+                    extra={"usage_session": True},
+                )
 
     @classmethod
     def _consume_message(cls, msg: dict, builder: TrajectoryBuilder) -> None:

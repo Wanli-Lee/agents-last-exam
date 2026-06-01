@@ -38,7 +38,7 @@ from ..environments.env import ALEEnv
 from ..executors import DockerExecutor, LocalExecutor, SandboxExecutor
 from ..tasks.loader import TaskLoader
 from ..tasks.driver import TaskDriver
-from .factory import build_config, resolve_agent
+from .factory import EnvironmentRouter, build_config, resolve_agent
 from .run_writer import RunWriter, slug_task
 from .experiment_spec import ArtifactsSpec, RunUnit, UnitResult
 from .termination import classify_error, err_dict, redact_config
@@ -66,6 +66,20 @@ def _inject_data_root(task_meta: dict[str, Any], data_root: str) -> None:
     if isinstance(meta, dict):
         for k, v in meta.items():
             meta[k] = _replace(v)
+
+
+def _append_prompt_suffix(task_meta: dict[str, Any], prompt_suffix: str) -> None:
+    """Append the experiment-wide ``prompt_suffix`` to the task description.
+
+    No-op when the suffix is empty/whitespace. The suffix is added as its
+    own paragraph (blank-line separator) after the task prompt, mutating
+    *task_meta* in place so every downstream consumer — the recorded
+    trajectory and the prompt handed to the agent — sees the same text.
+    """
+    if not prompt_suffix or not prompt_suffix.strip():
+        return
+    description = task_meta.get("description", "") or ""
+    task_meta["description"] = f"{description.rstrip()}\n\n{prompt_suffix.strip()}"
 
 
 # Mount-fallback: how many provision attempts before we give up. Matches
@@ -123,14 +137,18 @@ def install_signal_handlers() -> None:
 async def run_one_unit(
     *,
     unit: RunUnit,
-    provider: Provider,
+    router: "EnvironmentRouter",
     output_root: Path,
     artifacts: ArtifactsSpec | None = None,
     sem: asyncio.Semaphore | None = None,
     cleanup_mode: str = "delete",
+    prompt_suffix: str = "",
 ) -> UnitResult:
     started = time.monotonic()
     effective_cleanup_mode = cleanup_mode
+    # `provider` is resolved per unit from the task's snapshot (below), once the
+    # task card has been loaded.
+    provider: Provider | None = None
 
     # ---- 1. Resolve agent + config from the AgentSpec ----
     try:
@@ -201,6 +219,10 @@ async def run_one_unit(
             env_spec = _build_env_spec(task_meta, unit=unit)
             timeout_s = int(task_meta.get("timeout_s") or _DEFAULT_TIMEOUT_S)
 
+            # Resolve the provider for THIS task's snapshot (per-snapshot
+            # routing: an environment can mix backends across snapshots).
+            provider = router.provider_for(env_spec.snapshot)
+
             # ============================================================
             # Phase 0 — provision the sandbox. Single-shot: with task data
             # baked into the image (no separate data disk to mount), there's
@@ -217,6 +239,7 @@ async def run_one_unit(
             )
 
             _inject_data_root(task_meta, env.sandbox.task_data_root)
+            _append_prompt_suffix(task_meta, prompt_suffix)
 
             builder = TrajectoryBuilder(
                 agent_name=getattr(config, "name", unit.agent_spec.class_),
@@ -746,8 +769,14 @@ async def pull_agent_output(
     but never aborts the run (eval still runs on the live env regardless).
     """
     task_data = task_meta.get("task_data")
-    if task_data is None or not task_data.requires_task_data:
-        writer.emit_event("output_gather_skipped", reason="task_requires_no_data")
+    # Output-pull is gated on the task IDENTITY (domain/task/variant), not on
+    # input-data staging: a task can produce output to gather without consuming
+    # any staged input (e.g. tool_smoke, REQUIRES_TASK_DATA=False). Coupling
+    # this to requires_task_data is what silently dropped tool_report.json.
+    if task_data is None or not (
+        task_data.domain_name and task_data.task_name and task_data.variant_name
+    ):
+        writer.emit_event("output_gather_skipped", reason="no_task_identity")
         return
     from ..environments import output_pull
 
