@@ -54,7 +54,7 @@ from urllib.parse import urlparse
 
 from agent.tools.base import BaseTool, register_tool
 
-from .tools_fs import _run_async
+from ._tool_utils import _get_required_str, _run_async
 
 logger = logging.getLogger(__name__)
 
@@ -321,13 +321,6 @@ def _truncate_with_marker(text: str, max_chars: int) -> tuple[str, bool]:
 # ---------------------------------------------------------------------------
 # Param validation helpers
 # ---------------------------------------------------------------------------
-
-
-def _get_required_str(params: dict, key: str, tool_name: str) -> str:
-    value = params.get(key)
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(f'{tool_name}: required parameter "{key}" is missing or empty')
-    return value
 
 
 def _resolve_int(raw: object, default: int, *, min_: int, max_: int) -> int:

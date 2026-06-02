@@ -26,6 +26,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
+from ._paths import _assert_within_workspace
+
 if TYPE_CHECKING:
     from computer.interface import BaseComputerInterface
 
@@ -105,8 +107,6 @@ class VMBackend(FilesystemBackend):
             )
 
     def resolve(self, path: str) -> str:
-        # Imported here to avoid circular import — tools_fs imports fs_backends.
-        from .tools_fs import _assert_within_workspace
         _assert_within_workspace(path, self.workspace_root)
         return path
 

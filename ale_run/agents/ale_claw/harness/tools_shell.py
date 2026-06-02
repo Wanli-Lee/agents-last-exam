@@ -41,12 +41,8 @@ from typing import TYPE_CHECKING, Optional, Union
 
 from agent.tools.base import BaseTool, register_tool
 
-from .tools_fs import (
-    _assert_within_workspace,
-    _get_required_str,
-    _is_windows_path,
-    _run_async,
-)
+from ._paths import _assert_within_workspace, _is_windows_path
+from ._tool_utils import _get_required_str, _run_async
 
 if TYPE_CHECKING:
     from computer.interface import BaseComputerInterface

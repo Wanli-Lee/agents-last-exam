@@ -29,17 +29,14 @@ Dropped:
 
 from __future__ import annotations
 
-import asyncio
 import base64
-import concurrent.futures
 import logging
-import ntpath
-import posixpath
-import re
 from typing import Any, Optional, Union
 
 from agent.tools.base import BaseTool, register_tool
 
+from ._paths import _parent_dir
+from ._tool_utils import _get_required_str, _run_async
 from .fs_backends import FilesystemBackend, FilesystemRegistry
 from .image_sanitization import (
     DEFAULT_LIMITS as _IMAGE_DEFAULT_LIMITS,
@@ -103,53 +100,6 @@ _MIME_MAP: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 
-def _is_windows_path(path: str) -> bool:
-    """Detect Windows-style absolute paths (mirrors milestone.py:95)."""
-    return bool(
-        re.match(r"^[A-Za-z]:[\\/]", path)
-        or path.startswith("\\\\")
-        or "\\" in path
-    )
-
-
-def _normalize_path(path: str) -> str:
-    """Normalize a path using ntpath for Windows, posixpath otherwise."""
-    if _is_windows_path(path):
-        return ntpath.normpath(path)
-    return posixpath.normpath(path)
-
-
-def _parent_dir(path: str) -> str:
-    if _is_windows_path(path):
-        return ntpath.dirname(path)
-    return posixpath.dirname(path)
-
-
-def _assert_within_workspace(path: str, workspace_root: Optional[str]) -> None:
-    """Raise ``ValueError`` if ``path`` is outside ``workspace_root``.
-
-    Permissive no-op when ``workspace_root is None``.
-    On Windows paths comparison is case-insensitive (drive-letter semantics).
-    """
-    if not workspace_root:
-        return
-    is_win = _is_windows_path(workspace_root) or _is_windows_path(path)
-    normalized_path = _normalize_path(path)
-    normalized_root = _normalize_path(workspace_root)
-    sep = "\\" if is_win else "/"
-    if is_win:
-        candidate = normalized_path.lower()
-        root = normalized_root.lower()
-    else:
-        candidate = normalized_path
-        root = normalized_root
-    if candidate == root or candidate.startswith(root + sep):
-        return
-    raise ValueError(
-        f"path '{path}' is outside the task workspace ('{workspace_root}')."
-    )
-
-
 def _mime_from_extension(path: str) -> Optional[str]:
     lower = path.lower()
     for ext, mime in _MIME_MAP.items():
@@ -177,31 +127,6 @@ def _resolve_adaptive_read_max_bytes(context_window_tokens: Optional[int]) -> in
         context_window_tokens * _CHARS_PER_TOKEN_ESTIMATE * _ADAPTIVE_READ_CONTEXT_SHARE
     )
     return max(_DEFAULT_READ_PAGE_MAX_BYTES, min(_MAX_ADAPTIVE_READ_MAX_BYTES, from_context))
-
-
-def _run_async(coro):
-    """Drive an async coroutine from a sync ``BaseTool.call``.
-
-    Mirrors ``AnalyzeImageTool.call`` (analyze_image.py:149-170): spawn a
-    fresh loop in a worker thread when one is already running, otherwise
-    ``asyncio.run`` directly.
-    """
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-    if loop is not None and loop.is_running():
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(asyncio.run, coro)
-            return future.result()
-    return asyncio.run(coro)
-
-
-def _get_required_str(params: dict, key: str, tool_name: str) -> str:
-    value = params.get(key)
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(f'{tool_name}: required parameter "{key}" is missing or empty')
-    return value
 
 
 # ---------------------------------------------------------------------------
