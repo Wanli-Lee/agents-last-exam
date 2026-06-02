@@ -149,22 +149,11 @@ def _ensure_rgb(img: Image.Image) -> Image.Image:
 # ---------------------------------------------------------------------------
 
 
-def sanitize_raw_image_bytes(
-    data: bytes,
-    mime: str,
-    *,
-    label: str,
-    limits: ImageLimits = DEFAULT_LIMITS,
-) -> Union[tuple[bytes, str], str]:
-    """Apply OpenClaw's resize/passthrough policy to raw image bytes.
+def _decode_image(data: bytes, label: str) -> Union[Image.Image, str]:
+    """Decode bytes to a PIL image with EXIF orientation applied.
 
-    Returns ``(out_bytes, out_mime)`` on success (passthrough or transcode)
-    or a placeholder error string on failure. The string carries enough
-    detail for the model to reason about what went wrong.
+    Returns the loaded image, or a placeholder error string on failure.
     """
-    if not data:
-        return _placeholder(label, "empty image payload")
-
     try:
         img = Image.open(io.BytesIO(data))
         img.load()
@@ -179,23 +168,39 @@ def sanitize_raw_image_bytes(
     except Exception:  # noqa: BLE001
         # Bad EXIF — keep the raw image. Matches sharp's failOnError: false.
         pass
+    return img
 
-    width, height = img.size
+
+def _dimension_error(
+    width: int,
+    height: int,
+    label: str,
+    limits: ImageLimits,
+) -> Optional[str]:
+    """Placeholder error string if dimensions are invalid/over the pixel limit, else None."""
     if width <= 0 or height <= 0:
         return _placeholder(label, "invalid image dimensions")
-
     if width * height > limits.max_input_pixels:
         return _placeholder(
             label,
             f"image exceeds pixel limit ({width}x{height} > {limits.max_input_pixels} px)",
         )
+    return None
 
-    # Fidelity passthrough — matches resizeImageBase64IfNeeded:170-183 early-return.
-    over_bytes = len(data) > limits.max_bytes
-    over_dim = max(width, height) > limits.max_dim_px
-    if not over_bytes and not over_dim:
-        return (data, mime)
 
+def _resize_to_budget(
+    img: Image.Image,
+    data: bytes,
+    width: int,
+    height: int,
+    label: str,
+    limits: ImageLimits,
+) -> Union[tuple[bytes, str], str]:
+    """Search the side x quality grid for a JPEG under the byte budget.
+
+    Returns ``(out_bytes, "image/jpeg")`` for the first candidate that fits,
+    or a placeholder error string if none does.
+    """
     side_start = min(limits.max_dim_px, max(width, height))
     sides = build_resize_side_grid(limits.max_dim_px, side_start)
 
@@ -239,6 +244,40 @@ def sanitize_raw_image_bytes(
             f"(got {_format_mb(len(got))})"
         ),
     )
+
+
+def sanitize_raw_image_bytes(
+    data: bytes,
+    mime: str,
+    *,
+    label: str,
+    limits: ImageLimits = DEFAULT_LIMITS,
+) -> Union[tuple[bytes, str], str]:
+    """Apply OpenClaw's resize/passthrough policy to raw image bytes.
+
+    Returns ``(out_bytes, out_mime)`` on success (passthrough or transcode)
+    or a placeholder error string on failure. The string carries enough
+    detail for the model to reason about what went wrong.
+    """
+    if not data:
+        return _placeholder(label, "empty image payload")
+
+    img = _decode_image(data, label)
+    if isinstance(img, str):
+        return img
+
+    width, height = img.size
+    dim_error = _dimension_error(width, height, label, limits)
+    if dim_error is not None:
+        return dim_error
+
+    # Fidelity passthrough — matches resizeImageBase64IfNeeded:170-183 early-return.
+    over_bytes = len(data) > limits.max_bytes
+    over_dim = max(width, height) > limits.max_dim_px
+    if not over_bytes and not over_dim:
+        return (data, mime)
+
+    return _resize_to_budget(img, data, width, height, label, limits)
 
 
 # ---------------------------------------------------------------------------
