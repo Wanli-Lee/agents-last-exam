@@ -881,6 +881,22 @@ def limit_history_turns(
     return messages[cut_index:]
 
 
+def _string_message_item(role: str, content: str) -> dict[str, Any]:
+    """A Responses API message item from a plain string — assistant emits
+    ``output_text``; every other role emits ``input_text``."""
+    if role == "assistant":
+        return {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": content}],
+        }
+    return {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": content}],
+    }
+
+
 def convert_to_responses_api_items(
     messages: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -923,18 +939,7 @@ def convert_to_responses_api_items(
 
         # --- String content ---
         if isinstance(content, str):
-            if role == "assistant":
-                items.append({
-                    "type": "message",
-                    "role": "assistant",
-                    "content": [{"type": "output_text", "text": content}],
-                })
-            else:
-                items.append({
-                    "type": "message",
-                    "role": "user",
-                    "content": [{"type": "input_text", "text": content}],
-                })
+            items.append(_string_message_item(role, content))
             continue
 
         # --- List content (content blocks) ---
@@ -964,11 +969,7 @@ def convert_to_responses_api_items(
             continue
 
         # --- Fallback: wrap as user ---
-        items.append({
-            "type": "message",
-            "role": "user",
-            "content": [{"type": "input_text", "text": str(content)}],
-        })
+        items.append(_string_message_item("user", str(content)))
 
     return _ensure_tool_adjacency(items)
 
@@ -1012,6 +1013,21 @@ def _ensure_tool_adjacency(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return result
 
 
+def _flush_pending_text(
+    items: list[dict[str, Any]],
+    pending_text: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Emit accumulated text blocks as one assistant message (if any) and return
+    a fresh, empty pending-text list."""
+    if pending_text:
+        items.append({
+            "type": "message",
+            "role": "assistant",
+            "content": pending_text,
+        })
+    return []
+
+
 def _unnest_assistant_blocks(
     blocks: list[dict[str, Any]],
     call_type_map: dict[str, str] | None = None,
@@ -1040,13 +1056,7 @@ def _unnest_assistant_blocks(
 
         elif btype == "function_call":
             # Flush pending text before emitting the structured item
-            if pending_text:
-                items.append({
-                    "type": "message",
-                    "role": "assistant",
-                    "content": pending_text,
-                })
-                pending_text = []
+            pending_text = _flush_pending_text(items, pending_text)
             items.append({
                 "type": "function_call",
                 "call_id": block.get("id", block.get("call_id", "")),
@@ -1055,13 +1065,7 @@ def _unnest_assistant_blocks(
             })
 
         elif btype == "computer_call":
-            if pending_text:
-                items.append({
-                    "type": "message",
-                    "role": "assistant",
-                    "content": pending_text,
-                })
-                pending_text = []
+            pending_text = _flush_pending_text(items, pending_text)
             call_id = block.get("id", block.get("call_id", ""))
             if call_id:
                 call_type_map[call_id] = "computer_call"
@@ -1080,13 +1084,7 @@ def _unnest_assistant_blocks(
             signature = _get_openai_reasoning_signature(block.get("thinkingSignature"))
             if signature is None:
                 continue
-            if pending_text:
-                items.append({
-                    "type": "message",
-                    "role": "assistant",
-                    "content": pending_text,
-                })
-                pending_text = []
+            pending_text = _flush_pending_text(items, pending_text)
             summary = []
             if block.get("thinking"):
                 summary = [{
@@ -1104,12 +1102,7 @@ def _unnest_assistant_blocks(
             pending_text.append({"type": "output_text", "text": str(block)})
 
     # Flush remaining text
-    if pending_text:
-        items.append({
-            "type": "message",
-            "role": "assistant",
-            "content": pending_text,
-        })
+    _flush_pending_text(items, pending_text)
 
     return items
 
