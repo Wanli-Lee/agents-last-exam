@@ -690,50 +690,21 @@ the two repair paths can never drift on which stop reasons skip synthesis.
 """
 
 
-def repair_orphaned_pairs(
+def _collect_orphans(
     messages: list[CanonicalMessage],
-    *,
-    synthesize: bool = True,
-) -> list[CanonicalMessage]:
-    """Repair orphaned tool call / result pairs in canonical messages.
+) -> tuple[dict[str, tuple[str, str | None]], set[str], bool]:
+    """Pass 1: scan messages for orphans.
 
-    Sibling of ``context.repair_tool_use_result_pairing`` — same 3-pass shape,
-    but DO NOT merge them: they diverge deliberately and the divergences are
-    test-pinned.
-      - This one operates on ``CanonicalMessage`` (content always a block list);
-        context's takes role-based dicts whose content may be a bare string.
-      - This one DROPS orphaned ``computer_call`` blocks (can't synthesize a
-        screenshot); context SYNTHESIZES a text result for them
-        (test_openclaw_compaction::test_repair_handles_computer_call).
-      - This returns ``list[CanonicalMessage]``; context returns a
-        ``ToolPairingRepairReport`` with drop/synthesize counts.
-    They share ``_SKIP_SYNTHESIS_STOP_REASONS`` (imported from here) so the
-    skip-synthesis policy can't drift; the synthetic-result strings differ on
-    purpose (different audiences).
-
-    Algorithm (3-pass, matching OpenClaw's session-transcript-repair.ts):
-      1. Collect call IDs from assistant messages (FunctionCallBlock/ComputerCallBlock)
-      2. Match ToolResultBlocks by tool_use_id. Drop orphaned results and duplicates.
-      3. Insert synthetic ToolResultBlock for unmatched function_calls (skip if
-         stop_reason is "error"/"aborted"). Drop unmatched computer_calls entirely
-         (can't synthesize valid screenshots).
-
-    Args:
-        messages: Canonical messages to repair.
-        synthesize: If True (default), insert synthetic error results for unmatched
-            function_calls. If False, drop unmatched calls instead (replay mode).
+    Returns ``(orphaned_calls, orphaned_results, has_duplicate_results)`` —
+    orphaned_calls maps call id → (block_type, stop_reason) for calls lacking a
+    matching result; orphaned_results is result ids lacking a matching call.
     """
-    if not messages:
-        return []
-
-    # --- Pass 1: Collect call IDs and result IDs ---
     call_ids: dict[str, tuple[str, str | None]] = {}  # id → (block_type, stop_reason)
     result_ids: set[str] = set()
     has_duplicate_results = False
     _result_id_counts: dict[str, int] = {}
 
     for msg in messages:
-        role = msg.get("role", "")
         stop_reason = msg.get("stop_reason")
         for block in msg.get("content", []):
             btype = block.get("type", "")
@@ -755,12 +726,17 @@ def repair_orphaned_pairs(
         cid: info for cid, info in call_ids.items() if cid not in matched_ids
     }
     orphaned_results = result_ids - valid_call_id_set
+    return orphaned_calls, orphaned_results, has_duplicate_results
 
-    # Fast path: nothing to repair
-    if not orphaned_calls and not orphaned_results and not has_duplicate_results:
-        return messages
 
-    # --- Pass 2: Filter messages, dropping orphaned/duplicate results ---
+def _filter_orphaned_results(
+    messages: list[CanonicalMessage],
+    orphaned_calls: dict[str, tuple[str, str | None]],
+    orphaned_results: set[str],
+    synthesize: bool,
+) -> list[CanonicalMessage]:
+    """Pass 2: drop orphaned/duplicate tool_results; in replay mode
+    (``synthesize=False``) also drop orphaned calls from assistant messages."""
     seen_result_ids: set[str] = set()
     filtered: list[CanonicalMessage] = []
 
@@ -802,11 +778,19 @@ def repair_orphaned_pairs(
                 filtered.append(new_msg)
         else:
             filtered.append(msg)
+    return filtered
 
-    if not synthesize:
-        return filtered
 
-    # --- Pass 3: Insert synthetic results for unmatched calls ---
+def _synthesize_missing_results(
+    filtered: list[CanonicalMessage],
+    orphaned_calls: dict[str, tuple[str, str | None]],
+) -> list[CanonicalMessage]:
+    """Pass 3: after each assistant message, insert a synthetic error
+    tool_result for each unmatched function_call.
+
+    computer_calls are skipped (can't synthesize a screenshot) and error/aborted
+    turns are skipped (``_SKIP_SYNTHESIS_STOP_REASONS``).
+    """
     final: list[CanonicalMessage] = []
     for msg in filtered:
         final.append(msg)
@@ -847,8 +831,14 @@ def repair_orphaned_pairs(
                 role="tool",
                 content=synthetic_blocks,
             ))
+    return final
 
-    # Final cleanup: remove orphaned computer_calls from assistant messages
+
+def _drop_orphaned_computer_calls(
+    final: list[CanonicalMessage],
+    orphaned_calls: dict[str, tuple[str, str | None]],
+) -> list[CanonicalMessage]:
+    """Final cleanup: strip orphaned computer_call blocks from assistant messages."""
     cleaned: list[CanonicalMessage] = []
     for msg in final:
         role = msg.get("role", "")
@@ -867,8 +857,59 @@ def repair_orphaned_pairs(
                 cleaned.append(new_msg)
         else:
             cleaned.append(msg)
-
     return cleaned
+
+
+def repair_orphaned_pairs(
+    messages: list[CanonicalMessage],
+    *,
+    synthesize: bool = True,
+) -> list[CanonicalMessage]:
+    """Repair orphaned tool call / result pairs in canonical messages.
+
+    Sibling of ``context.repair_tool_use_result_pairing`` — same 3-pass shape,
+    but DO NOT merge them: they diverge deliberately and the divergences are
+    test-pinned.
+      - This one operates on ``CanonicalMessage`` (content always a block list);
+        context's takes role-based dicts whose content may be a bare string.
+      - This one DROPS orphaned ``computer_call`` blocks (can't synthesize a
+        screenshot); context SYNTHESIZES a text result for them
+        (test_openclaw_compaction::test_repair_handles_computer_call).
+      - This returns ``list[CanonicalMessage]``; context returns a
+        ``ToolPairingRepairReport`` with drop/synthesize counts.
+    They share ``_SKIP_SYNTHESIS_STOP_REASONS`` (imported from here) so the
+    skip-synthesis policy can't drift; the synthetic-result strings differ on
+    purpose (different audiences).
+
+    Algorithm (3-pass, matching OpenClaw's session-transcript-repair.ts):
+      1. Collect call IDs from assistant messages (FunctionCallBlock/ComputerCallBlock)
+      2. Match ToolResultBlocks by tool_use_id. Drop orphaned results and duplicates.
+      3. Insert synthetic ToolResultBlock for unmatched function_calls (skip if
+         stop_reason is "error"/"aborted"). Drop unmatched computer_calls entirely
+         (can't synthesize valid screenshots).
+
+    Args:
+        messages: Canonical messages to repair.
+        synthesize: If True (default), insert synthetic error results for unmatched
+            function_calls. If False, drop unmatched calls instead (replay mode).
+    """
+    if not messages:
+        return []
+
+    orphaned_calls, orphaned_results, has_duplicate_results = _collect_orphans(messages)
+
+    # Fast path: nothing to repair
+    if not orphaned_calls and not orphaned_results and not has_duplicate_results:
+        return messages
+
+    filtered = _filter_orphaned_results(
+        messages, orphaned_calls, orphaned_results, synthesize
+    )
+    if not synthesize:
+        return filtered
+
+    final = _synthesize_missing_results(filtered, orphaned_calls)
+    return _drop_orphaned_computer_calls(final, orphaned_calls)
 
 
 def ensure_valid_ordering(
