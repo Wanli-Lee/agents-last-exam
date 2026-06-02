@@ -29,6 +29,7 @@ from agent.decorators import register_agent
 from agent.loops.base import AsyncAgentConfig
 from agent.types import AgentCapability, Messages, Tools
 
+from ._message_shapes import _image_url_block
 from .cache_policy import apply_openclaw_cache_markers
 
 
@@ -227,9 +228,7 @@ def _convert_input_to_messages(items: Messages) -> List[Dict[str, Any]]:
                     if isinstance(c, dict) and c.get("type") == "input_image":
                         image_url = c.get("image_url", "")
                         if image_url and image_url != "[omitted]":
-                            converted.append(
-                                {"type": "image_url", "image_url": {"url": image_url}}
-                            )
+                            converted.append(_image_url_block(image_url))
                     elif isinstance(c, dict) and c.get("type") == "input_text":
                         converted.append({"type": "text", "text": c.get("text", "")})
                     elif isinstance(c, dict) and c.get("type") == "tool_result":
@@ -379,7 +378,7 @@ def _convert_input_to_messages(items: Messages) -> List[Dict[str, Any]]:
                     messages.append({
                         "role": "user",
                         "content": [
-                            {"type": "image_url", "image_url": {"url": image_url}},
+                            _image_url_block(image_url),
                         ],
                     })
             else:
@@ -606,10 +605,7 @@ class UnifiedAgentConfig(AsyncAgentConfig):
                             f"Task: Click {instruction}. Output ONLY a click action."
                         ),
                     },
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/png;base64,{image_b64}"},
-                    },
+                    _image_url_block(f"data:image/png;base64,{image_b64}"),
                 ],
             }
         ]

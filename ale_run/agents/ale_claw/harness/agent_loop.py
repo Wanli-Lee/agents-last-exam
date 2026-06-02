@@ -67,6 +67,7 @@ _COMPUTER_ACTION_PARAMS: Dict[str, List[str]] = {
     "terminate": ["status"],
 }
 
+from ._message_shapes import _function_call_output, _image_url_block
 from .canonical import normalize_to_canonical, sanitize_items
 from .computer_handler import OpenClawComputerHandler
 from .context import ContextOverflowCallback, compact_messages, is_context_overflow_error
@@ -129,9 +130,7 @@ def _rewrite_input_image_to_image_url(items: List[Dict[str, Any]]) -> List[Dict[
                 and block.get("type") == "input_image"
                 and isinstance(block.get("image_url"), str)
             ):
-                new_content.append(
-                    {"type": "image_url", "image_url": {"url": block["image_url"]}}
-                )
+                new_content.append(_image_url_block(block["image_url"]))
             else:
                 new_content.append(block)
         item["content"] = new_content
@@ -772,31 +771,20 @@ class OpenClawComputerAgent(ComputerAgent):
             }
             if isinstance(tool_result.get("text"), str):
                 sentinel["text"] = tool_result["text"]
-            call_output = {
-                "type": "function_call_output",
-                "call_id": item.get("call_id"),
-                "output": json.dumps(sentinel),
-            }
+            call_output = _function_call_output(item.get("call_id"), json.dumps(sentinel))
             image_message = {
                 "role": "user",
                 "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{tool_result['mime_type']};base64,{tool_result['data']}",
-                        },
-                    }
+                    _image_url_block(
+                        f"data:{tool_result['mime_type']};base64,{tool_result['data']}"
+                    )
                 ],
             }
             wrapped = [call_output, image_message]
             await self._on_function_call_end(item, wrapped)
             return wrapped
 
-        call_output = {
-            "type": "function_call_output",
-            "call_id": item.get("call_id"),
-            "output": str(tool_result),
-        }
+        call_output = _function_call_output(item.get("call_id"), str(tool_result))
         wrapped = [call_output]
         await self._on_function_call_end(item, wrapped)
         return wrapped
@@ -845,13 +833,7 @@ class OpenClawComputerAgent(ComputerAgent):
 
         if is_terminate:
             output_content = json.dumps(action_result if action_result else {"terminated": True})
-            return [
-                {
-                    "type": "function_call_output",
-                    "call_id": item.get("call_id"),
-                    "output": output_content,
-                }
-            ]
+            return [_function_call_output(item.get("call_id"), output_content)]
 
         # auto_screenshot=False and not an explicit screenshot —
         # return only the textual function_call_output, no image.
@@ -859,13 +841,7 @@ class OpenClawComputerAgent(ComputerAgent):
             output_content = json.dumps(
                 action_result if action_result is not None else {"success": True}
             )
-            return [
-                {
-                    "type": "function_call_output",
-                    "call_id": item.get("call_id"),
-                    "output": output_content,
-                }
-            ]
+            return [_function_call_output(item.get("call_id"), output_content)]
 
         if self.screenshot_delay and self.screenshot_delay > 0:
             await asyncio.sleep(self.screenshot_delay)
@@ -883,18 +859,11 @@ class OpenClawComputerAgent(ComputerAgent):
             output_content = json.dumps({"success": True, "screenshot_captured": True})
         else:
             output_content = json.dumps(action_result)
-        call_output = {
-            "type": "function_call_output",
-            "call_id": item.get("call_id"),
-            "output": output_content,
-        }
+        call_output = _function_call_output(item.get("call_id"), output_content)
         image_message = {
             "role": "user",
             "content": [
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:{sanitized_mime};base64,{sanitized_b64}"},
-                }
+                _image_url_block(f"data:{sanitized_mime};base64,{sanitized_b64}")
             ],
         }
         return [call_output, image_message]
