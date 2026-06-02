@@ -306,38 +306,11 @@ class OpenClawComputerAgent(ComputerAgent):
           _handle_item()
           compaction check
         """
-        # Same initialization as parent run()
-        if not self.agent_config_info:
-            raise ValueError("Agent configuration not found")
-
-        capabilities = self.get_capabilities()
-        if "step" not in capabilities:
-            raise ValueError(
-                f"Agent loop {self.agent_config_info.agent_class.__name__} "
-                "does not support step predictions"
-            )
-
-        await self._initialize_computers()
-
-        # Merge kwargs and thread api credentials
-        merged_kwargs = {**self.kwargs, **additional_generation_kwargs}
-        if (api_key is not None) or (self.api_key is not None):
-            merged_kwargs["api_key"] = api_key if api_key is not None else self.api_key
-        if (api_base is not None) or (self.api_base is not None):
-            merged_kwargs["api_base"] = api_base if api_base is not None else self.api_base
-
         # MUTABLE items list — the key difference from parent run()
-        items = self._process_input(messages)
+        items, run_kwargs, merged_kwargs = await self._run_setup(
+            messages, stream, api_key, api_base, additional_generation_kwargs
+        )
         new_items: List[Dict[str, Any]] = []
-
-        run_kwargs = {
-            "messages": messages,
-            "stream": stream,
-            "model": self.model,
-            "agent_loop": self.agent_config_info.agent_class.__name__,
-            **merged_kwargs,
-        }
-        await self._on_run_start(run_kwargs, items)
 
         # Loop until the model emits an explicit DONE signal (or the outer
         # consumer breaks out via max_steps). The upstream CUA exit condition
@@ -469,29 +442,81 @@ class OpenClawComputerAgent(ComputerAgent):
                 break
 
             # === BARE-TEXT TURN NUDGE (bug-2-nudge) ===
-            # When a turn produces neither a tool call nor a DONE marker,
-            # inject a user-role continuation message so the next predict_step
-            # has a user turn at the tail. Without it, bare-text assistant
-            # turns leave the conversation ending on assistant, which some
-            # providers reject — notably Anthropic-via-Vertex routed through
-            # OpenRouter ("This model does not support assistant message
-            # prefill"). Anthropic-direct and Bedrock tolerate assistant-tail,
-            # so the bug only surfaces under that specific routing.
-            output_items = result.get("output", [])
-            has_tool_call = any(
-                item.get("type") in ("function_call", "computer_call")
-                for item in output_items
-            )
-            if not has_tool_call:
-                nudge_text = (
-                    "Please continue: emit your next tool call to make "
-                    "progress, or output the DONE marker if the task is "
-                    "complete."
-                )
-                new_items.append({"role": "user", "content": nudge_text})
-                self.session_mgr.append_message("user", nudge_text)
+            self._maybe_nudge_bare_text(result, new_items)
 
         await self._on_run_end(loop_kwargs, items, new_items)
+
+    async def _run_setup(
+        self,
+        messages,
+        stream: bool,
+        api_key: Optional[str],
+        api_base: Optional[str],
+        additional_generation_kwargs: Dict[str, Any],
+    ) -> tuple[List[Dict[str, Any]], Dict[str, Any], Dict[str, Any]]:
+        """Validate config, init computers, thread API creds, and fire _on_run_start.
+
+        Returns ``(items, run_kwargs, merged_kwargs)`` — ``items`` is the mutable
+        input list that run()'s loop maintains.
+        """
+        if not self.agent_config_info:
+            raise ValueError("Agent configuration not found")
+
+        capabilities = self.get_capabilities()
+        if "step" not in capabilities:
+            raise ValueError(
+                f"Agent loop {self.agent_config_info.agent_class.__name__} "
+                "does not support step predictions"
+            )
+
+        await self._initialize_computers()
+
+        # Merge kwargs and thread api credentials
+        merged_kwargs = {**self.kwargs, **additional_generation_kwargs}
+        if (api_key is not None) or (self.api_key is not None):
+            merged_kwargs["api_key"] = api_key if api_key is not None else self.api_key
+        if (api_base is not None) or (self.api_base is not None):
+            merged_kwargs["api_base"] = api_base if api_base is not None else self.api_base
+
+        items = self._process_input(messages)
+
+        run_kwargs = {
+            "messages": messages,
+            "stream": stream,
+            "model": self.model,
+            "agent_loop": self.agent_config_info.agent_class.__name__,
+            **merged_kwargs,
+        }
+        await self._on_run_start(run_kwargs, items)
+        return items, run_kwargs, merged_kwargs
+
+    def _maybe_nudge_bare_text(
+        self,
+        result: Dict[str, Any],
+        new_items: List[Dict[str, Any]],
+    ) -> None:
+        """Append a user-role continuation when a turn produced neither a tool
+        call nor a DONE marker.
+
+        Without it, bare-text assistant turns leave the conversation ending on
+        an assistant turn, which some routings reject — notably
+        Anthropic-via-Vertex through OpenRouter ("This model does not support
+        assistant message prefill"). Anthropic-direct and Bedrock tolerate
+        assistant-tail, so the bug only surfaces under that specific routing.
+        """
+        output_items = result.get("output", [])
+        has_tool_call = any(
+            item.get("type") in ("function_call", "computer_call")
+            for item in output_items
+        )
+        if not has_tool_call:
+            nudge_text = (
+                "Please continue: emit your next tool call to make "
+                "progress, or output the DONE marker if the task is "
+                "complete."
+            )
+            new_items.append({"role": "user", "content": nudge_text})
+            self.session_mgr.append_message("user", nudge_text)
 
     async def _maybe_flush_memory(self) -> None:
         """Run memory flush if token or transcript-size threshold is exceeded.
