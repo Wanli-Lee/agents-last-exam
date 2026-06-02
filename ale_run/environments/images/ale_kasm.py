@@ -27,10 +27,10 @@ IMAGE = Image(
     # no GCE machine type — Docker containers are sized by the host
     default_machine_type="",
 
-    # published container image the docker provider boots. The :eval-deps tag has
+    # published container image the docker provider boots. :latest now has
     # the task eval packages baked into /usr/bin/python3 (scipy/sklearn/skimage/
     # opencv/h5py/rasterio/netCDF4/pydicom/pymedphys/torch/...).
-    docker_image="agentslastexam/ale-kasm:eval-deps",
+    docker_image="agentslastexam/ale-kasm:latest",
 
     # cua-computer-server's package default port on this image (vs 5000 on GCE)
     cua_server_port=8000,
