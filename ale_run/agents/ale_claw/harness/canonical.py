@@ -683,7 +683,11 @@ SYNTHETIC_TOOL_RESULT_CONTENT = (
 """Synthetic content for tool results inserted by repair_orphaned_pairs."""
 
 _SKIP_SYNTHESIS_STOP_REASONS = frozenset({"error", "aborted"})
-"""Stop reasons where we skip synthesizing tool results (the call was interrupted)."""
+"""Stop reasons where we skip synthesizing tool results (the call was interrupted).
+
+Single source of truth — context.repair_tool_use_result_pairing imports this so
+the two repair paths can never drift on which stop reasons skip synthesis.
+"""
 
 
 def repair_orphaned_pairs(
@@ -693,9 +697,19 @@ def repair_orphaned_pairs(
 ) -> list[CanonicalMessage]:
     """Repair orphaned tool call / result pairs in canonical messages.
 
-    Consolidates logic from:
-      - context.py:repair_tool_use_result_pairing (role-based, synthesis + stop_reason)
-      - openai.py:_repair_orphaned_calls (flat items, drop computer_calls)
+    Sibling of ``context.repair_tool_use_result_pairing`` — same 3-pass shape,
+    but DO NOT merge them: they diverge deliberately and the divergences are
+    test-pinned.
+      - This one operates on ``CanonicalMessage`` (content always a block list);
+        context's takes role-based dicts whose content may be a bare string.
+      - This one DROPS orphaned ``computer_call`` blocks (can't synthesize a
+        screenshot); context SYNTHESIZES a text result for them
+        (test_openclaw_compaction::test_repair_handles_computer_call).
+      - This returns ``list[CanonicalMessage]``; context returns a
+        ``ToolPairingRepairReport`` with drop/synthesize counts.
+    They share ``_SKIP_SYNTHESIS_STOP_REASONS`` (imported from here) so the
+    skip-synthesis policy can't drift; the synthetic-result strings differ on
+    purpose (different audiences).
 
     Algorithm (3-pass, matching OpenClaw's session-transcript-repair.ts):
       1. Collect call IDs from assistant messages (FunctionCallBlock/ComputerCallBlock)

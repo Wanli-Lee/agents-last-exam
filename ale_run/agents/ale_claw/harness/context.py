@@ -33,6 +33,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from .canonical import _SKIP_SYNTHESIS_STOP_REASONS
 from .model_config import ResolvedModel, resolve_model
 from agent.callbacks.base import AsyncCallbackHandler
 
@@ -563,12 +564,13 @@ class CompactionResult:
 # that arise when messages are split at arbitrary boundaries during compaction.
 # ---------------------------------------------------------------------------
 
+# NOTE: This synthetic string is intentionally distinct from canonical.py's
+# SYNTHETIC_TOOL_RESULT_CONTENT — different audience (the compaction path).
+# The skip-synthesis stop-reason set, by contrast, MUST stay in sync, so it is
+# imported from canonical (single source) rather than re-declared here.
 SYNTHETIC_TOOL_RESULT_CONTENT = (
     "[compaction] missing tool result — synthetic error result for transcript repair."
 )
-
-# Stop reasons that indicate partial/malformed tool calls — skip synthesis
-_SKIP_SYNTHESIS_STOP_REASONS = frozenset({"error", "aborted"})
 
 
 @dataclass
@@ -603,6 +605,11 @@ def repair_tool_use_result_pairing(
     This operates on role-based completion-format messages (after compaction).
     The Responses API counterpart for flat items lives in
     ``agent.loops.openai._repair_orphaned_calls``.
+
+    Sibling of ``canonical.repair_orphaned_pairs`` — same 3-pass shape, but the
+    two deliberately differ (message shape, computer_call handling, return
+    type) and the differences are test-pinned, so DO NOT merge them. See that
+    function's docstring for the full divergence list.
 
     Args:
         messages: List of message dicts with role, content, and optional stop_reason.
