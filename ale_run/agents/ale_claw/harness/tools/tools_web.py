@@ -1,4 +1,4 @@
-"""Web search + web fetch tools (US-OC-056).
+"""Web search + web fetch tools.
 
 Two BaseTool subclasses:
   - :class:`WebSearchTool` — Brave Search API (one provider, env-var key).

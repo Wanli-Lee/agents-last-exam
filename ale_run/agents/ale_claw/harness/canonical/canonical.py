@@ -15,9 +15,6 @@ Field conventions match OpenClaw / Anthropic:
   - ``tool_use_id`` on ToolResultBlock
   - ``call_id`` is Responses API only — adapters map ``id`` → ``call_id``
 
-US-OC-038: Canonical Internal Message Format.
-US-OC-039: sanitize_items() pipeline — repair, ordering, format conversion.
-US-OC-041: TranscriptPolicy + thinking sanitization passes.
 
 Reference:
   - openclaw/src/agents/pi-embedded-runner/google.ts — sanitizeSessionHistory pipeline
@@ -69,7 +66,7 @@ COMPACTION_PREAMBLE = (
 )
 
 # ---------------------------------------------------------------------------
-# TranscriptPolicy (US-OC-041)
+# TranscriptPolicy
 # ---------------------------------------------------------------------------
 
 
@@ -603,7 +600,7 @@ def _ensure_tool_adjacency(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# Sanitize pipeline (US-OC-039)
+# Sanitize pipeline
 # ---------------------------------------------------------------------------
 # The individual sanitize passes (repair_orphaned_pairs, ensure_valid_ordering,
 # drop_thinking_blocks, sanitize_thinking_signatures, downgrade_openai_reasoning,

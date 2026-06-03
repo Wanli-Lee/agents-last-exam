@@ -8,7 +8,6 @@ Design reference:
   - OpenClaw's model.ts resolveModel pattern (provider catalog with format metadata)
   - CUA's @register_agent decorator (regex-based model matching)
 
-US-OC-040: Model Config Registry.
 """
 
 from __future__ import annotations

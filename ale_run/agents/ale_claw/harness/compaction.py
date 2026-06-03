@@ -142,7 +142,7 @@ class CompactionResult:
 
 
 # ---------------------------------------------------------------------------
-# Tool pairing repair (US-OC-013)
+# Tool pairing repair
 #
 # Adapted from openclaw/src/agents/session-transcript-repair.ts
 # (repairToolUseResultPairing). Fixes orphaned tool_use/tool_result pairs
@@ -318,7 +318,7 @@ def repair_tool_use_result_pairing(
 
 
 # ---------------------------------------------------------------------------
-# Recent turns preservation (US-OC-013)
+# Recent turns preservation
 #
 # Adapted from openclaw/src/agents/compaction-safeguard.ts
 # (splitPreservedRecentTurns). Splits out the last N turns so they
@@ -812,7 +812,7 @@ async def compact_messages(
 ) -> CompactionResult:
     """Compact older conversation messages into a summary with budget-aware splitting.
 
-    Budget-aware compaction (US-OC-013): calculates a token budget for kept messages
+    Budget-aware compaction: calculates a token budget for kept messages
     based on context_window * max_history_share, iteratively pruning the kept portion
     until it fits. Recent turns are split out and preserved unconditionally.
 

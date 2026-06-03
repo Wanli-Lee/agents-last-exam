@@ -4,7 +4,7 @@ Overrides run() to manage a mutable message list, enabling in-place compaction
 without agent rebuild. Mirrors OpenClaw's session.agent.replaceMessages() pattern
 adapted for CUA's ComputerAgent lifecycle.
 
-Design rationale (US-OC-017, US-OC-028):
+Design rationale:
   - OpenClaw compacts via replaceMessages() within a persistent session — messages
     are swapped in-place while the agent loop continues.
   - CUA's ComputerAgent.run() uses immutable old_items + new_items lists, requiring
@@ -13,7 +13,7 @@ Design rationale (US-OC-017, US-OC-028):
     When overflow_cb.needs_compaction triggers, _compact_in_place() rewrites the list
     and the loop continues — no agent rebuild needed.
 
-US-OC-028 refactoring:
+Refactoring:
   - Memory flush is called pre-API (before predict_step) via _maybe_flush_memory(),
     matching OpenClaw's runMemoryFlushIfNeeded pattern in agent-runner-memory.ts.
   - Transcript logging moved into run() via _log_step_to_transcript().
@@ -112,7 +112,7 @@ class OpenClawComputerAgent(ComputerAgent):
         registry: SubagentRegistry | None = None,
         auto_screenshot: bool = False,
         context_files: Optional[List[ContextFile]] = None,
-        # Image retention mode (US-OC-072): "openclaw" (default) keeps all
+        # Image retention mode: "openclaw" (default) keeps all
         # images from the last N completed turns (OpenClaw-parity); "cua"
         # keeps the last N images by count (CUA-default). Both modes use
         # sticky placeholder replacement (no message-deletion cache thrash).
@@ -122,7 +122,7 @@ class OpenClawComputerAgent(ComputerAgent):
         image_retention_mode: str = "openclaw",
         **kwargs,  # Pass through to ComputerAgent
     ):
-        # Auto-inject overflow_cb into callbacks (US-OC-028)
+        # Auto-inject overflow_cb into callbacks
         callbacks = kwargs.get("callbacks", []) or []
         if overflow_cb not in callbacks:
             callbacks = [overflow_cb] + list(callbacks)
@@ -174,7 +174,7 @@ class OpenClawComputerAgent(ComputerAgent):
         self.max_compactions = max_compactions
         self._compaction_count = 0
         self._on_compaction = on_compaction
-        # Thinking config for per-call-site params (US-OC-019/020)
+        # Thinking config for per-call-site params
         self.thinking_config = thinking_config
         self.resolved_model = resolved_model
         self.summary_runtime = summary_runtime
@@ -204,7 +204,7 @@ class OpenClawComputerAgent(ComputerAgent):
         but manages items in a mutable list. When overflow_cb.needs_compaction
         triggers, compacts messages in-place and continues — no agent rebuild.
 
-        Per-step flow (US-OC-028):
+        Per-step flow:
           should_continue check
           preprocessed = _on_llm_start()  <- updates current_tokens
           _maybe_flush_memory()            <- PRE-API: uses fresh current_tokens
@@ -237,7 +237,7 @@ class OpenClawComputerAgent(ComputerAgent):
             combined = self._sanitize_runtime_messages(combined)
             preprocessed = await self._on_llm_start(combined)
 
-            # PRE-API memory flush (US-OC-028) — runs after _on_llm_start updates
+            # PRE-API memory flush — runs after _on_llm_start updates
             # current_tokens, before predict_step. Matches OpenClaw's single call
             # site: runMemoryFlushIfNeeded before runAgentTurnWithFallback.
             await self._maybe_flush_memory()
@@ -321,12 +321,12 @@ class OpenClawComputerAgent(ComputerAgent):
                         ).model_dump(),
                     }
 
-            # === SUBAGENT COMPLETION DRAIN (US-SUB-005) ===
+            # === SUBAGENT COMPLETION DRAIN ===
             # Drain before the compaction check so any new user messages from
             # completed general subagents count toward this iteration's token
             # pressure.
             self._drain_completions(new_items)
-            # === POST-DELEGATION SCREENSHOT DRAIN (US-SUB-006) ===
+            # === POST-DELEGATION SCREENSHOT DRAIN ===
             # Runs after completions so the GUI-delegation screenshot is the
             # freshest user turn heading into the next predict_step.
             self._drain_post_delegation(new_items)
@@ -492,7 +492,7 @@ class OpenClawComputerAgent(ComputerAgent):
         """Drain the registry's post-delegation queue into ``new_items``.
 
         Messages are pushed by ``DelegateGUITool`` after an async GUI
-        subagent run completes (US-SUB-006). They carry a fresh VM
+        subagent run completes. They carry a fresh VM
         screenshot as ``{role: user, content: [text, image_url]}`` so the
         main agent's next ``predict_step`` sees the updated state. Pre-built
         shapes — extend verbatim, do not reformat.
@@ -618,7 +618,7 @@ class OpenClawComputerAgent(ComputerAgent):
            result as plain text.
         2. ``function_call`` returning ``{type: "image", data, mime_type}``:
            emit a sentinel function_call_output and a separate user message
-           with ``image_url`` content (used by ``ReadFileTool`` / US-OC-055).
+           with ``image_url`` content (used by ``ReadFileTool``).
 
         Other item types (``message``, ``computer_call``) delegate to
         ``super()._handle_item``, then any SDK-emitted ``input_image`` blocks
@@ -779,7 +779,7 @@ class OpenClawComputerAgent(ComputerAgent):
         if self.screenshot_delay and self.screenshot_delay > 0:
             await asyncio.sleep(self.screenshot_delay)
         screenshot_base64 = await computer.screenshot()
-        # US-OC-073: resize/transcode if the screenshot exceeds OpenClaw's
+        # resize/transcode if the screenshot exceeds OpenClaw's
         # 5 MB / 1200 px / 25 MP limits before it enters the transcript.
         sanitized_b64, sanitized_mime = _maybe_sanitize_screenshot(screenshot_base64)
         await self._on_screenshot(sanitized_b64, "screenshot_after")
@@ -841,7 +841,7 @@ class OpenClawComputerAgent(ComputerAgent):
         """Log a step's output to the session transcript.
 
         Groups output into assistant/tool turns and appends to transcript.
-        Moved from perform_task() to run() (US-OC-028).
+        Moved from perform_task() to run().
         """
         from .transcript import group_step_output
 
@@ -1069,7 +1069,7 @@ class OpenClawComputerAgent(ComputerAgent):
 
         Repair runs on untyped dicts BEFORE canonical normalization — the
         existing algorithm uses stop_reason at the message level and is
-        well-tested.  The sanitize_items() pipeline (US-OC-039) then applies
+        well-tested.  The sanitize_items() pipeline then applies
         canonical-level repair, ordering, and format conversion.
 
         Args:
@@ -1078,7 +1078,7 @@ class OpenClawComputerAgent(ComputerAgent):
                 original message list (the recent portion preserved by compaction).
 
         Returns:
-            Typed canonical messages (US-OC-038).  The caller
+            Typed canonical messages.  The caller
             (``_compact_in_place``) runs ``sanitize_items()`` to convert
             to provider-specific format.
         """
@@ -1104,6 +1104,6 @@ class OpenClawComputerAgent(ComputerAgent):
             items.extend(normalize_to_canonical(repair_result.messages))
 
         # Note: trailing-assistant check moved to ensure_valid_ordering()
-        # in the sanitize_items() pipeline (US-OC-039).
+        # in the sanitize_items() pipeline.
 
         return items

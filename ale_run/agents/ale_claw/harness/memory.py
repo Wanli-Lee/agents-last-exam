@@ -10,7 +10,6 @@ Manages per-task persistent memory with the layout:
         └── ...
 
 Reference implementation: memory/store.py (AgentHLE prototype)
-Design rationale: docs/plan/US-OC-002-memory-store.md
 """
 
 from __future__ import annotations

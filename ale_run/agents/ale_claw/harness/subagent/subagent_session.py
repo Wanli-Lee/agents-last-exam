@@ -1,4 +1,4 @@
-"""General subagent persistent session engine (US-SUB-008).
+"""General subagent persistent session engine.
 
 Replaces the flat 5-step ``run_general_subagent`` loop with a session-backed
 engine that owns its own ``SessionManager``, ``ContextOverflowCallback``, and
@@ -131,7 +131,7 @@ def _build_initial_user_content(
     """Build the subagent's initial user-message content.
 
     With no screenshots attached, returns the task as a plain string so the
-    no-screenshot path (the original US-SUB-008 behavior) is byte-identical.
+    no-screenshot path (the original behavior) is byte-identical.
     With screenshots, returns a list-content block with the text + one
     ``image_url`` entry per path; unreadable paths become a
     ``[screenshot unavailable: <basename>]`` text fallback so a single bad
@@ -262,7 +262,7 @@ class GeneralSubagentSession:
         return self._inbox
 
     def _poll_inbox(self) -> None:
-        """Consume at most one steer message from the inbox (US-SUB-009).
+        """Consume at most one steer message from the inbox.
 
         Called once per loop iteration so the single-message-per-turn guard
         is enforced structurally. Additional queued messages are consumed on

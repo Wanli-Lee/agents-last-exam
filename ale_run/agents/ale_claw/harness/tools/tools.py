@@ -3,8 +3,8 @@
 Centralizes tool assembly (previously inline in openclaw_agent.py) and provides
 a ToolLoggingCallback that uses CUA's AsyncCallbackHandler for observability.
 
-Design rationale (US-OC-007):
-  - Tool assembly: extracted from inline list to build_tools() for reuse by US-OC-008
+Design rationale:
+  - Tool assembly: extracted from inline list to build_tools() for reuse
   - Tool summaries: extracted to get_tool_summaries() for prompt builder
   - Logging callback: adapted from OpenClaw's wrapToolWithBeforeToolCallHook
     (pi-tools.before-tool-call.ts) — observe-only via CUA callbacks, no blocking/modification
@@ -176,7 +176,7 @@ def build_tools(
     is no longer exposed to the main agent — its journaling role is covered
     by ``write(target='host')``; the class lives in ``memory.py`` and is
     still consumed by ``memory_flush.py`` and the GUI subagent. When
-    ``registry`` and ``parent_session_dir`` are supplied (US-SUB-005), also
+    ``registry`` and ``parent_session_dir`` are supplied, also
     appends [DelegateGeneralTool, DelegateGUITool, SubagentsTool].
     ``DelegateGUITool`` is suppressed when ``disable_delegate_gui=True``
     (mirrors OpenClaw's filterToolsByPolicy pattern — absence is the signal).
@@ -212,14 +212,14 @@ def build_tools(
             actions. The agent can observe the VM and idle (keeping the loop
             alive) but cannot perform interactive GUI work — that must go
             through ``delegate_gui``. Useful for forcing GUI delegation in
-            validation runs (US-SUB-006 Level 2 coverage).
+            validation runs (Level 2 coverage).
         disable_delegate_gui: When True, omit ``DelegateGUITool`` from the
             returned list. ``DelegateGeneralTool`` and ``SubagentsTool``
             remain. GUI interactions must go through the main ``computer``
             tool. Conflicts with ``disable_main_computer`` — guarded at
             agent construction.
         workspace_root: Absolute path on the VM that bounds read/write/edit
-            file access (US-OC-055). When ``None``, path policy is permissive
+            file access. When ``None``, path policy is permissive
             (matches MilestoneTool / AnalyzeImageTool behavior).
         host_workspace_root: Absolute path on the local host that bounds
             ``target='host'`` file access. When ``None`` (or missing/invalid),

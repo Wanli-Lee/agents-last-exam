@@ -21,7 +21,7 @@ Three extensions on top of the SDK's ``ImageRetentionCallback``:
    strips older image blocks, and replaces them with a stable text
    placeholder when the message is image-only.
 
-3. **Sticky placeholder + selectable threshold mode** (US-OC-072).
+3. **Sticky placeholder + selectable threshold mode**.
    When the SDK's per-block strip empties a user message, the original
    behavior dropped the message entirely. That deletion shifts every
    subsequent message index, busting Anthropic's prefix cache from the
@@ -81,7 +81,7 @@ mirrors:
     "openclaw" — OpenClaw-parity last-N-completed-turns threshold
                  (mirrors ``pruneProcessedHistoryImages``).
 
-Both modes share the sticky-placeholder fix from US-OC-072. The OpenClaw
+Both modes share the sticky-placeholder fix. The OpenClaw
 threshold became the default after on-task verification (see
 ``develop-doc/cache-thrash-image-retention.md`` in the agenthle repo).
 """
@@ -109,7 +109,7 @@ class OpenClawImageRetentionCallback(ImageRetentionCallback):
             Pass ``None`` to disable pruning entirely.
         mode: ``"openclaw"`` (default, OpenClaw-parity) or ``"cua"``
             (CUA-compatible). Default flipped from ``"cua"`` to ``"openclaw"``
-            after US-OC-072 verification — see
+            after verification — see
             ``develop-doc/cache-thrash-image-retention.md``.
     """
 
@@ -161,7 +161,7 @@ class OpenClawImageRetentionCallback(ImageRetentionCallback):
         return self._apply_drops(messages, drop)
 
     # ------------------------------------------------------------------
-    # openclaw mode (OpenClaw-parity — default since US-OC-072 verification)
+    # openclaw mode (OpenClaw-parity — the default)
     # ------------------------------------------------------------------
 
     def _apply_openclaw_retention(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

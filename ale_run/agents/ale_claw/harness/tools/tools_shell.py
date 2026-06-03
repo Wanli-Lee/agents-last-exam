@@ -1,4 +1,4 @@
-"""Remote-VM shell execution tool: exec (US-OC-057).
+"""Remote-VM shell execution tool: exec.
 
 One BaseTool subclass — :class:`ExecTool` — that runs a single shell command
 inside the remote VM via ``session.interface.run_command`` (computer-server
@@ -17,7 +17,7 @@ Kept from OpenClaw (``openclaw/src/agents/bash-tools.exec.ts``,
 
 Dropped:
   - Background / ``yieldMs`` paths (need a per-task process registry —
-    deferred to US-OC-061).
+    deferred ).
   - PTY mode (no computer-server PTY RPC).
   - Elevated / sudo, approvals/allowlists, exec-host routing, docker sandbox.
   - Script-preflight shell-bleed validation (``run_command`` RPC takes a
@@ -28,7 +28,7 @@ Dropped:
 Key difference from OpenClaw:
   - ``timeout`` is **client-side only**. ``asyncio.wait_for`` cancels our
     await; the VM-side subprocess may keep running until process management
-    lands (US-OC-061). The tool surfaces ``timed_out=True`` so the agent
+    lands. The tool surfaces ``timed_out=True`` so the agent
     doesn't silently assume the process is dead.
 """
 

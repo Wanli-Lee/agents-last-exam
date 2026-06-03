@@ -288,8 +288,7 @@ class SubagentRegistry:
     def kill(self, run_id: str) -> None:
         """Mark a run as killed.
 
-        Does NOT cancel the asyncio.Task — that's the caller's responsibility
-        (US-SUB-002/005). This only updates the registry record.
+        Does NOT cancel the asyncio.Task — that's the caller's responsibility. This only updates the registry record.
         """
         run = self._runs.get(run_id)
         if run is None or run.status in _TERMINAL_STATUSES:
@@ -302,15 +301,14 @@ class SubagentRegistry:
     def attach_task(self, run_id: str, task: asyncio.Task) -> None:
         """Associate an asyncio.Task with a run so ``kill_run`` can cancel it.
 
-        Idempotent: silently ignores unknown run_ids so the caller (US-SUB-005
-        ``DelegateGeneralTool``) does not need to re-check the registry after
+        Idempotent: silently ignores unknown run_ids so the caller (``DelegateGeneralTool``) does not need to re-check the registry after
         ``register``.
         """
         if run_id in self._runs:
             self._tasks[run_id] = task
 
     def attach_inbox(self, run_id: str, inbox: "asyncio.Queue[str]") -> None:
-        """Associate a steer inbox with a run (US-SUB-009).
+        """Associate a steer inbox with a run.
 
         Idempotent: silently ignores unknown run_ids.
         """
@@ -379,8 +377,7 @@ class SubagentRegistry:
         """Enqueue a pre-built user-message dict for post-delegation injection.
 
         Used by ``DelegateGUITool`` to hand a fresh VM screenshot back to the
-        main agent as a ``{role: user, content: [text, image_url]}`` message
-        (US-SUB-006). The main agent loop drains this queue at the same seam
+        main agent as a ``{role: user, content: [text, image_url]}`` message. The main agent loop drains this queue at the same seam
         as ``drain_completions`` so the message lands in ``new_items`` before
         the next ``predict_step``.
         """

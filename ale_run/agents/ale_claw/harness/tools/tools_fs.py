@@ -1,4 +1,4 @@
-"""Remote-VM filesystem tools: read, write, edit (US-OC-055).
+"""Remote-VM filesystem tools: read, write, edit.
 
 Three BaseTool subclasses that route all file I/O through
 ``session.interface`` (computer-server RPCs) — never the host ``open()``.

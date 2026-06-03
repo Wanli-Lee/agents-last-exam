@@ -1,4 +1,4 @@
-"""Transcript Replay — cross-run continuity (US-OC-012).
+"""Transcript Replay — cross-run continuity.
 
 Split out of ``session.py`` (one of its four concerns). Converts transcript
 entries to API messages, sanitizes stale data, repairs tool pairing, limits
@@ -347,7 +347,6 @@ def convert_to_responses_api_items(
     limit_history_turns) so that orphaned-pair repair still works on the nested
     format with ``id`` / ``tool_use_id`` fields.
 
-    US-OC-022: Replay Format Fix.
     """
     items: list[dict[str, Any]] = []
     # Track call types so tool results emit the correct output type

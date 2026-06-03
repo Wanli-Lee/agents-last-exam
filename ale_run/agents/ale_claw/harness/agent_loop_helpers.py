@@ -158,7 +158,7 @@ def _extract_messages_for_compaction(session_mgr: SessionManager) -> list[dict[s
     Converts TranscriptEntry objects into the {role, content, stop_reason} format
     expected by the compaction pipeline. Propagates stop_reason from transcript
     entries so repair_tool_use_result_pairing() can skip synthesis for
-    error/aborted turns (US-OC-013).
+    error/aborted turns.
 
     Image content blocks (base64 screenshots) are replaced with lightweight
     text placeholders so the compaction budget matches the post-normalization

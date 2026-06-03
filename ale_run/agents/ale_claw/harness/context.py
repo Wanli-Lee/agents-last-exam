@@ -6,11 +6,11 @@ estimating token usage and truncating oversized tool results before the API call
 Reactive detection: is_context_overflow_error() catches API rejections when proactive
 detection underestimates.
 
-Compaction pipeline (US-OC-006): When overflow is detected, compact_messages() summarizes
+Compaction pipeline: When overflow is detected, compact_messages() summarizes
 older conversation history while preserving key identifiers, producing a CompactionResult
 that the agent loop uses to restart with a compacted context.
 
-Budget-aware compaction (US-OC-013): compact_messages() calculates a token budget for
+Budget-aware compaction: compact_messages() calculates a token budget for
 kept messages based on context_window * max_history_share, iteratively pruning the kept
 portion until it fits. Recent turns are split out and preserved unconditionally.
 Tool pairing repair ensures orphaned tool_use/tool_result pairs are fixed after splits.
@@ -273,7 +273,7 @@ class ContextOverflowCallback(AsyncCallbackHandler):
     messages before image stripping (conservative — overestimates, which is safer).
 
     After each ``on_llm_start``, check ``needs_compaction`` to decide whether to
-    trigger the compaction pipeline (US-OC-006).
+    trigger the compaction pipeline.
     """
 
     def __init__(
@@ -424,7 +424,7 @@ class ContextOverflowCallback(AsyncCallbackHandler):
 
 
 # ===========================================================================
-# Compaction Pipeline (US-OC-006)
+# Compaction Pipeline
 #
 # Adapted from openclaw/src/agents/compaction.ts.
 # Key differences from OpenClaw:

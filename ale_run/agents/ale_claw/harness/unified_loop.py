@@ -5,8 +5,6 @@ Uses function-calling computer tools (not native hosted tools) and OpenRouter's
 unified reasoning parameter. Designed to replace per-provider loops when routing
 through OpenRouter.
 
-US-OC-051: Unified Agent Loop via OpenRouter.
-Design reference: docs/plan/US-OC-050-054-unified-loop.md
 
 Vendored into the openclaw subpackage (single source of truth) so sparse-checkout
 consumers that only pull ``cua_bench/agents/openclaw/`` — and would otherwise

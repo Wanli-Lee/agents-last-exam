@@ -1,6 +1,6 @@
 """Transcript helpers — group CUA step output into assistant/tool content blocks.
 
-Moved from openclaw_agent.py (US-OC-028) to break a cross-package import
+Moved from openclaw_agent.py to break a cross-package import
 (agent_loop.py was importing from ..openclaw_agent).
 
 Reference:

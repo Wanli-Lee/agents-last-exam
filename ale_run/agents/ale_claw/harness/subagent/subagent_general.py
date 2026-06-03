@@ -1,19 +1,18 @@
 """General subagent — thin wrapper around the persistent session engine.
 
-US-SUB-002 introduced this module as a flat 5-step ``litellm.acompletion``
-loop. US-SUB-008 swapped the engine for a session-backed
-``GeneralSubagentSession`` (``subagent_session.py``) with its own compaction
+Originally a flat 5-step ``litellm.acompletion`` loop; later swapped for a
+session-backed ``GeneralSubagentSession`` (``subagent_session.py``) with its own compaction
 pipeline and on-disk transcript. This module is now a thin wrapper that
 handles registry lifecycle and cooperative cancellation.
 
 The wrapper preserves the public contract used by the upcoming
-``DelegateGeneralTool`` (US-SUB-005): spawn an asyncio task, get a final
+``DelegateGeneralTool``: spawn an asyncio task, get a final
 text back via the registry completion queue.
 
 Tool-filter helpers (``_filter_tools``, ``_build_subagent_system_prompt``,
 ``_tools_to_litellm_schema``, ``ALLOWED_TOOL_NAMES``,
 ``EXCLUDED_TOOL_NAMES``) now live in ``subagent_session.py`` and are
-re-exported here for backwards compatibility with US-SUB-002 callers and
+re-exported here for backwards compatibility with callers and
 tests.
 """
 
@@ -66,7 +65,7 @@ async def run_general_subagent(
 
     Drives ``GeneralSubagentSession`` end-to-end and reports lifecycle
     transitions back to the registry. ``CancelledError`` is treated as
-    cooperative cancellation (the US-SUB-005 ``SubagentsTool.kill`` path)
+    cooperative cancellation (the ``SubagentsTool.kill`` path)
     and surfaces as a ``KILLED`` registry transition.
 
     Args:
@@ -84,7 +83,7 @@ async def run_general_subagent(
         thinking_params: Optional provider-specific thinking kwargs.
         initial_screenshot_paths: Optional list of absolute file paths to
             PNG screenshots to attach to the subagent's initial user
-            message (US-SUB-006). Each readable path becomes an
+            message. Each readable path becomes an
             ``image_url`` block alongside the text task; unreadable paths
             degrade to a ``[screenshot unavailable: ...]`` text block.
     """
@@ -122,7 +121,7 @@ async def run_general_subagent(
         )
         registry.complete(run_id, result_text, session.usage)
     except asyncio.CancelledError:
-        # Cooperative cancellation — US-SUB-005's SubagentsTool.kill path.
+        # Cooperative cancellation — SubagentsTool.kill path.
         # Mark the registry KILLED but re-raise so the asyncio.Task surfaces
         # as cancelled to the supervising tool.
         logger.info("[Subagent] General subagent %s cancelled", run_id)
