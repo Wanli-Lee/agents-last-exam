@@ -39,7 +39,7 @@ from .memory_flush_policy import (  # re-exported for back-compat
     should_run_memory_flush,
 )
 from .prompt_report import build_system_prompt_report  # re-exported for back-compat
-from .replay import (  # re-exported for back-compat
+from .context.replay import (  # re-exported for back-compat
     build_replay_messages,
     convert_to_responses_api_items,
     limit_history_turns,

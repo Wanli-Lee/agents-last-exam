@@ -64,7 +64,7 @@ _COMPUTER_ACTION_PARAMS: Dict[str, List[str]] = {
 from ._message_shapes import _function_call_output, _image_url_block
 from .canonical.canonical import normalize_to_canonical, sanitize_items
 from .computer_handler import OpenClawComputerHandler
-from .context import ContextOverflowCallback, compact_messages, is_context_overflow_error
+from .context.context import ContextOverflowCallback, compact_messages, is_context_overflow_error
 from .memory import MemoryStore
 from .memory_flush import run_memory_flush
 from .prompt import ContextFile
@@ -843,7 +843,7 @@ class OpenClawComputerAgent(ComputerAgent):
         Groups output into assistant/tool turns and appends to transcript.
         Moved from perform_task() to run().
         """
-        from .transcript import group_step_output
+        from .context.transcript import group_step_output
 
         step_input = result["usage"].get("input_tokens", 0)
         step_output = result["usage"].get("output_tokens", 0)
@@ -889,7 +889,7 @@ class OpenClawComputerAgent(ComputerAgent):
         `partial_items`, so they must be appended separately or the transcript
         loses call/result pairing.
         """
-        from .transcript import group_step_output
+        from .context.transcript import group_step_output
 
         assistant_content, tool_results = group_step_output(
             output_items, self.trajectory_dir
@@ -1099,7 +1099,7 @@ class OpenClawComputerAgent(ComputerAgent):
 
         # Kept messages: repair (role-based dicts) then normalize to canonical
         if kept_messages:
-            from .context import repair_tool_use_result_pairing
+            from .context.context import repair_tool_use_result_pairing
             repair_result = repair_tool_use_result_pairing(kept_messages)
             items.extend(normalize_to_canonical(repair_result.messages))
 

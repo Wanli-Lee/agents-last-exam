@@ -1190,7 +1190,7 @@ class TestCompactionImageRoundTrip:
 
     def test_normalize_strips_base64_from_image_url(self):
         """Token estimate after normalization must not include raw base64."""
-        from ale_run.agents.ale_claw.harness.context import estimate_messages_tokens
+        from ale_run.agents.ale_claw.harness.context.context import estimate_messages_tokens
 
         b64 = "A" * 200_000  # ~150KB fake screenshot
         raw_msgs = [

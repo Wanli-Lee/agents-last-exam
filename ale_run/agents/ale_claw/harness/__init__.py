@@ -50,7 +50,7 @@ from .canonical.canonical import (
     repair_orphaned_pairs,
     sanitize_items,
 )
-from .context import (
+from .context.context import (
     CompactionResult,
     ContextOverflowCallback,
     ToolPairingRepairReport,
@@ -99,7 +99,7 @@ from .tools.tools import ToolLoggingCallback, build_tools, get_tool_summaries
 from .tools.tools_fs import EditFileTool, ReadFileTool, WriteFileTool
 from .tools.tools_shell import ExecTool
 from .tools.tools_web import WebFetchTool, WebSearchTool
-from .transcript import group_step_output
+from .context.transcript import group_step_output
 
 # Side-effect import — registers the OpenRouter unified loop with
 # agent.decorators._AGENT_REGISTRY. Lives here (rather than agent/loops/)
