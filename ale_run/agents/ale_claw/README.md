@@ -9,12 +9,11 @@ long-horizon assistant does — canonical message history, tool-result
 truncation, automatic compaction, durable memory, and subagent delegation.
 
 It is ALE's first **native** deployer: the agent runs in-process in the ALE
-host's Python interpreter (no subprocess, no container, not inside the VM). By
-default it reaches the VM over **MCP bridge servers** — the same substrate ALE's
-installed agents use — with a direct CUA Computer SDK session as the alternative
-transport (see [VM transport](#vm-transport)). Per-turn transcripts, `state.json`,
-and raw API result dumps are written to a host tempdir and mirrored back into the
-run directory, then translated into an ALE `Trajectory`.
+host's Python interpreter (no subprocess, no container, not inside the VM),
+driving the test VM through a pluggable transport (see
+[VM transport](#vm-transport)). Per-turn transcripts, `state.json`, and raw API
+result dumps are written to a host tempdir and mirrored back into the run
+directory, then translated into an ALE `Trajectory`.
 
 ## What's inside
 
@@ -41,31 +40,29 @@ lifecycle. The pieces that make it more than a thin tool-calling loop:
 
 ## VM transport
 
-ALE Claw keeps its thick `read` / `write` / `edit` / `exec` / `computer` tools,
-but the I/O *underneath* them runs over one of two interchangeable transports,
-chosen per concern:
+ALE Claw keeps its thick `read` / `write` / `edit` / `exec` / `computer` tools;
+only the I/O *underneath* them changes, per concern:
 
-| Concern | `session` (direct) | `mcp` (bridge) |
+| Concern | `session` (direct) | `mcp` (bridge, default) |
 |---|---|---|
-| Non-GUI I/O — `read`/`write`/`edit`/`exec` | CUA `RemoteDesktopSession` | `vm_mcp_server` bridge |
+| Non-GUI — `read`/`write`/`edit`/`exec` | CUA `RemoteDesktopSession` | `vm_mcp_server` bridge |
 | GUI — `computer` | `session.computer` | `cua_mcp_server` bridge |
 
-- **`substrate_transport`** (default `mcp`) picks the non-GUI transport. In `mcp`
-  mode the file/shell tools route through the `vm_mcp_server` Node bridge — the
-  agent consumes the same MCP substrate as ALE's installed agents — instead of
-  `RemoteDesktopSession`. Tool granularity and all the value-add logic (adaptive
-  paging, image sanitize, `edit` exact-match recovery, `exec`
-  truncation/timeout/cwd) are unchanged; only the I/O moves.
-- **`gui_transport`** (default `session`) picks the GUI transport. Set it to
-  `mcp` (requires `substrate_transport=mcp`) to route the `computer` tool through
-  the `cua_mcp_server` bridge; `MCPComputerHandler` converts the model's pixel
-  coordinates to/from the bridge's normalized `[0,1000]` space. With both knobs
-  on `mcp`, ALE Claw never touches `RemoteDesktopSession` for tool I/O.
+- **`substrate_transport`** (default `mcp`) — non-GUI transport. `mcp` routes the
+  file/shell tools through the `vm_mcp_server` bridge, the same MCP substrate ALE's
+  installed agents use. Tool granularity and value-add logic (adaptive paging,
+  image sanitize, `edit` recovery, `exec` truncation/timeout/cwd) are unchanged.
+- **`gui_transport`** (default `mcp`, requires `substrate_transport=mcp`) — GUI
+  transport. `mcp` routes `computer` through the `cua_mcp_server` bridge;
+  `MCPComputerHandler` converts pixel coords ↔ the bridge's `[0,1000]` space.
 
-The bridges are Node MCP servers installed on the host per episode (under
-`<work_dir>/mcp/`) by the deployer and driven by a thin async client
-(`harness/tools/mcp_runtime.py::MCPRuntime`). The harness consumes MCP as a
-*backend* — it does not expose MCP tools to the model.
+At the default (both `mcp`) ALE Claw never touches `RemoteDesktopSession` for tool
+I/O — but either transport ultimately drives the same **CUA computer-server** in
+the VM (the MCP bridges are thin adapters over its HTTP API), so ALE Claw stays
+built on CUA regardless. The bridges are Node MCP servers the deployer installs on
+the host per episode (`<work_dir>/mcp/`), driven by a thin client
+(`harness/tools/mcp_runtime.py::MCPRuntime`) that consumes MCP as a backend, not
+exposed to the model.
 
 ## Running it
 
@@ -78,9 +75,8 @@ harness: ale_claw
 model: openrouter/anthropic/claude-sonnet-4.6
 config:
   max_turns: 100
-  substrate_transport: mcp   # non-GUI tools via the vm_mcp_server bridge (default)
-  gui_transport: mcp         # computer tool via the cua_mcp_server bridge (default: session)
   thinking_level: "off"
+  # VM transport defaults to mcp; see "VM transport" to switch to session.
 ```
 
 ```bash

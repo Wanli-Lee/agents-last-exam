@@ -86,17 +86,19 @@ class AleClawConfig:
 
     GUI (the ``computer`` tool) is governed separately by :attr:`gui_transport`."""
 
-    gui_transport: str = "session"
+    gui_transport: str | None = None
     """How the GUI ``computer`` tool reaches the VM (Phase 2).
 
-    - ``"session"`` (default): the cua ``RemoteDesktopSession`` handler (pixel
-      coords), unchanged.
+    - ``None`` (default): follow :attr:`substrate_transport` — so GUI is ``"mcp"``
+      by default, and a ``substrate_transport="session"`` run stays all-session
+      without having to flip this too.
     - ``"mcp"``: route GUI through the ``cua_mcp_server`` bridge — clicks/keys/
-      screenshots become MCP tool calls (pixel→[0,1000] conversion in the
+      screenshots become MCP tool calls (pixel↔[0,1000] conversion in the
       handler). Requires ``substrate_transport="mcp"``.
+    - ``"session"``: the cua ``RemoteDesktopSession`` handler (pixel coords).
 
-    Default ``"session"`` keeps GUI behavior identical until the MCP GUI path is
-    validated; set ``"mcp"`` to fully decouple from ``RemoteDesktopSession``."""
+    With both transports on ``"mcp"`` (the default), ale_claw never touches
+    ``RemoteDesktopSession`` for tool I/O."""
 
     # ---- thinking levels (off | low | medium | high) ----
     thinking_level: str | None = None
@@ -140,14 +142,18 @@ class AleClawConfig:
                 f"AleClawConfig.substrate_transport={self.substrate_transport!r} "
                 "not in {mcp, session}"
             )
-        if self.gui_transport not in ("mcp", "session"):
+        if self.gui_transport is not None and self.gui_transport not in ("mcp", "session"):
             raise ValueError(
-                f"AleClawConfig.gui_transport={self.gui_transport!r} not in {{mcp, session}}"
+                f"AleClawConfig.gui_transport={self.gui_transport!r} not in {{mcp, session, None}}"
             )
+        # An explicit gui=mcp on a session substrate is a genuine conflict; the
+        # None default instead *follows* substrate (so session mode just works).
         if self.gui_transport == "mcp" and self.substrate_transport != "mcp":
             raise ValueError(
                 "AleClawConfig.gui_transport='mcp' requires substrate_transport='mcp'"
             )
+        if self.gui_transport is None:
+            self.gui_transport = self.substrate_transport
         for level_field, value in [
             ("thinking_level", self.thinking_level),
             ("flush_thinking_level", self.flush_thinking_level),
