@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ale_run.agents.ale_claw.harness.tools import (
+from ale_run.agents.ale_claw.harness.tools.tools import (
     COMPUTER_TOOL_SUMMARY,
     ToolLoggingCallback,
     _extract_result_summary,
@@ -193,7 +193,7 @@ class TestBuildTools:
         # read, write, edit, exec, web_search, web_fetch, memory_search,
         # memory_get = 11). memory_write is no longer exposed to the main
         # agent — superseded by write(target='host').
-        from ale_run.agents.ale_claw.harness.tools import _RestrictedComputerHandler
+        from ale_run.agents.ale_claw.harness.tools.tools import _RestrictedComputerHandler
 
         assert len(tools) == 11
         assert isinstance(tools[0], _RestrictedComputerHandler)

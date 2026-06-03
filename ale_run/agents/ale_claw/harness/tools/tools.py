@@ -26,9 +26,9 @@ from agent.tools.base import BaseTool
 from agent.types import ToolError
 
 from .fs_backends import FilesystemRegistry, HostBackend, VMBackend
-from .memory import MemoryGetTool, MemorySearchTool, MemoryStore  # MemoryWriteTool retained in memory.py; intentionally not exposed to the main agent (write(target='host') covers journaling).
-from .subagent.subagent_registry import SubagentRegistry
-from .subagent.subagent_tools import DelegateGeneralTool, DelegateGUITool, SubagentsTool
+from ..memory import MemoryGetTool, MemorySearchTool, MemoryStore  # MemoryWriteTool retained in memory.py; intentionally not exposed to the main agent (write(target='host') covers journaling).
+from ..subagent.subagent_registry import SubagentRegistry
+from ..subagent.subagent_tools import DelegateGeneralTool, DelegateGUITool, SubagentsTool
 from .tools_fs import EditFileTool, ReadFileTool, WriteFileTool
 from .tools_shell import ExecTool
 from .tools_web import WebFetchTool, WebSearchTool
@@ -230,8 +230,8 @@ def build_tools(
             0.10, 32 KB, 128 KB) — matches OpenClaw
             ``resolveAdaptiveReadMaxBytes``).
     """
-    from .analyze_image import AnalyzeImageTool
-    from .milestone import MilestoneTool
+    from ..analyze_image import AnalyzeImageTool
+    from ..milestone import MilestoneTool
 
     milestone_tool = MilestoneTool(session.interface)
     analyze_image_tool = AnalyzeImageTool(
