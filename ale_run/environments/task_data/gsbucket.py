@@ -8,9 +8,12 @@ Behavior:
 * ``stage_reference``: always wipe + fresh rsync. Reference is the eval
   truth; we don't trust any baked / partial state on the sandbox.
 
-GCS auth is assumed pre-configured on the sandbox (ambient SA via
-metadata server, or ``gcloud auth`` done at image-bake time). If you
-need to push a SA key at run time, do it out-of-band.
+GCS auth: the images carry NO baked credential and the GCE metadata SA is
+not provisioned on them, so all in-VM gsutil/gcloud calls authenticate via
+the SA key the provider injects at run time (``gcs_sa_key`` → pushed into the
+VM, surfaced as ``sandbox.metadata['gcs_key_path']`` and added by ``_gsutil``
+as ``-o Credentials:gs_service_key_file=...``). Reads (staging/reference) and
+writes (output push) share this one path.
 """
 from __future__ import annotations
 

@@ -84,24 +84,34 @@ async def push_to_gcs(
 
     cp -r preserves the trailing src dir name (``output``) under dst, so
     dst is the run prefix; final landing is ``<bucket>/<run_id>/output/``.
+
+    Uses ``gsutil`` with the injected SA key (via ``_gsutil`` — same path the
+    read/staging side uses) rather than ``gcloud storage cp``. The VMs carry NO
+    baked credential: ``gcloud``'s ambient auth falls back to the GCE metadata
+    SA, which isn't provisioned on these images, so ``gcloud storage cp`` fails
+    with a metadata-server token error. The injected key authenticates writes
+    consistently with reads.
     """
+    from .task_data.gsbucket import _gsutil
+
     src = _output_dir(sandbox, task_data)
     run_prefix = f"{bucket.rstrip('/')}/{run_id}/"
     gcs_dst = f"{run_prefix}output/"
+    gsutil = _gsutil(sandbox)
 
     if sandbox.is_linux:
-        cmd = f"gcloud storage cp -r {shlex.quote(src)} {shlex.quote(run_prefix)}"
+        cmd = f"{gsutil} -m cp -r {shlex.quote(src)} {shlex.quote(run_prefix)}"
     else:
         cmd = (
             'powershell -NoProfile -Command "'
-            f"gcloud storage cp -r '{src}' '{run_prefix}'"
+            f"{gsutil} -m cp -r '{src}' '{run_prefix}'"
             '"'
         )
     logger.info("push_to_gcs: %s → %s", src, gcs_dst)
     r = await sandbox.run_command(cmd, timeout=600)
     if r.returncode != 0:
         raise RuntimeError(
-            f"gcloud storage cp failed (rc={r.returncode}): "
+            f"gsutil cp failed (rc={r.returncode}): "
             f"{(r.stderr or '')[:300]}"
         )
     return {"transport": "gcs", "gcs_path": gcs_dst}
