@@ -208,9 +208,25 @@ class MCPComputerHandler:
 
     # -- helpers --
 
+    async def _call_cua(self, tool: str, args: dict):
+        """Call a cua bridge tool, mapping tool failures to ``ToolError``.
+
+        A GUI op can fail for recoverable, environment-dependent reasons (e.g.
+        the desktop is locked, a window isn't focused). The harness loop turns
+        ``ToolError`` into a ``function_call_output`` the model sees next turn, so
+        the run adapts instead of crashing — matching the session handler's
+        semantics. Without this, the raw ``MCPToolError`` (a ``RuntimeError``)
+        would propagate and abort the episode.
+        """
+        from .tools.mcp_runtime import MCPToolError
+        try:
+            return await self._runtime.call("cua", tool, args)
+        except MCPToolError as e:
+            raise ToolError(str(e)) from e
+
     async def _dimensions(self) -> Tuple[int, int]:
         if self._dims is None:
-            res = await self._runtime.call("cua", "get_screen_size", {})
+            res = await self._call_cua("get_screen_size", {})
             sc = res.structuredContent or {}
             self._dims = (int(sc["width"]), int(sc["height"]))
         return self._dims
@@ -234,7 +250,7 @@ class MCPComputerHandler:
         return await self._dimensions()
 
     async def screenshot(self, text: Optional[str] = None) -> str:
-        res = await self._runtime.call("cua", "screenshot", {})
+        res = await self._call_cua("screenshot", {})
         for block in res.content:
             if getattr(block, "type", None) == "image":
                 return block.data  # base64 str
@@ -247,25 +263,19 @@ class MCPComputerHandler:
 
     async def click(self, x: Any, y: Any = None, button: str = "left") -> None:
         nx, ny = self._require_xy("click", x, y)
-        await self._runtime.call(
-            "cua", "click", {"coordinate": await self._to_norm(nx, ny), "button": button}
-        )
+        await self._call_cua("click", {"coordinate": await self._to_norm(nx, ny), "button": button})
 
     async def double_click(self, x: Any, y: Any = None) -> None:
         nx, ny = self._require_xy("double_click", x, y)
-        await self._runtime.call(
-            "cua", "click", {"coordinate": await self._to_norm(nx, ny), "clicks": 2}
-        )
+        await self._call_cua("click", {"coordinate": await self._to_norm(nx, ny), "clicks": 2})
 
     async def right_click(self, x: Any, y: Any = None) -> None:
         nx, ny = self._require_xy("right_click", x, y)
-        await self._runtime.call(
-            "cua", "click", {"coordinate": await self._to_norm(nx, ny), "button": "right"}
-        )
+        await self._call_cua("click", {"coordinate": await self._to_norm(nx, ny), "button": "right"})
 
     async def move(self, x: Any, y: Any = None) -> None:
         nx, ny = self._require_xy("move", x, y)
-        await self._runtime.call("cua", "mouse_move", {"coordinate": await self._to_norm(nx, ny)})
+        await self._call_cua("mouse_move", {"coordinate": await self._to_norm(nx, ny)})
 
     async def scroll(self, x: Any, y: Any = None, scroll_x: Any = 0, scroll_y: Any = 0) -> None:
         nx, ny = self._require_xy("scroll", x, y)
@@ -273,10 +283,10 @@ class MCPComputerHandler:
         sx = _coerce_int(scroll_x) or 0
         sy = _coerce_int(scroll_y) or 0
         if sy:
-            await self._runtime.call("cua", "scroll", {
+            await self._call_cua("scroll", {
                 "direction": "down" if sy > 0 else "up", "amount": abs(sy), "coordinate": coord})
         if sx:
-            await self._runtime.call("cua", "scroll", {
+            await self._call_cua("scroll", {
                 "direction": "right" if sx > 0 else "left", "amount": abs(sx), "coordinate": coord})
 
     async def drag(
@@ -293,7 +303,7 @@ class MCPComputerHandler:
         else:
             sx, sy = self._require_xy("drag (start)", start_x, start_y)
             ex, ey = self._require_xy("drag (end)", end_x, end_y)
-        await self._runtime.call("cua", "drag", {
+        await self._call_cua("drag", {
             "start_coordinate": await self._to_norm(sx, sy),
             "coordinate": await self._to_norm(ex, ey),
             "button": "left",
@@ -302,30 +312,30 @@ class MCPComputerHandler:
     async def left_mouse_down(self, x: Any = None, y: Any = None) -> None:
         if x is not None and y is not None:
             await self.move(x, y)
-        await self._runtime.call("cua", "mouse_down", {"button": "left"})
+        await self._call_cua("mouse_down", {"button": "left"})
 
     async def left_mouse_up(self, x: Any = None, y: Any = None) -> None:
         if x is not None and y is not None:
             await self.move(x, y)
-        await self._runtime.call("cua", "mouse_up", {"button": "left"})
+        await self._call_cua("mouse_up", {"button": "left"})
 
     # -- keyboard --
 
     async def type(self, text: str) -> None:
-        await self._runtime.call("cua", "type", {"text": text})
+        await self._call_cua("type", {"text": text})
 
     async def keypress(self, keys: Union[List[str], str]) -> None:
         if isinstance(keys, str):
             # chord: split "ctrl+shift+s" / legacy "ctrl-shift-s"
             parts = [p for p in keys.replace("-", "+").split("+") if p] or [keys]
-            await self._runtime.call("cua", "key", {"keys": [_normalize_key(k) for k in parts]})
+            await self._call_cua("key", {"keys": [_normalize_key(k) for k in parts]})
             return
         # list: sequence of independent presses, in order
         for k in keys:
-            await self._runtime.call("cua", "key", {"keys": [_normalize_key(k)]})
+            await self._call_cua("key", {"keys": [_normalize_key(k)]})
 
     async def wait(self, ms: int = 1000) -> None:
-        await self._runtime.call("cua", "wait", {"duration": (ms or 0) / 1000})
+        await self._call_cua("wait", {"duration": (ms or 0) / 1000})
 
     # -- misc --
 
