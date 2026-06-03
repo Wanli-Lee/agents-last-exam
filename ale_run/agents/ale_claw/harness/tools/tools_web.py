@@ -1,4 +1,4 @@
-"""Web search + web fetch tools (US-OC-056).
+"""Web search + web fetch tools.
 
 Two BaseTool subclasses:
   - :class:`WebSearchTool` — Brave Search API (one provider, env-var key).
@@ -54,7 +54,7 @@ from urllib.parse import urlparse
 
 from agent.tools.base import BaseTool, register_tool
 
-from .tools_fs import _run_async
+from ._tool_utils import _get_required_str, _run_async
 
 logger = logging.getLogger(__name__)
 
@@ -321,13 +321,6 @@ def _truncate_with_marker(text: str, max_chars: int) -> tuple[str, bool]:
 # ---------------------------------------------------------------------------
 # Param validation helpers
 # ---------------------------------------------------------------------------
-
-
-def _get_required_str(params: dict, key: str, tool_name: str) -> str:
-    value = params.get(key)
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(f'{tool_name}: required parameter "{key}" is missing or empty')
-    return value
 
 
 def _resolve_int(raw: object, default: int, *, min_: int, max_: int) -> int:
@@ -653,9 +646,44 @@ class WebFetchTool(BaseTool):
         extract_mode: str,
         max_chars: int,
     ) -> dict:
+        t0 = time.monotonic()
+        status, content_type, final_url, body_bytes, truncated_body = await self._http_get(url)
+
+        body_text = _decode_best_effort(body_bytes)
+        normalized_ct = content_type.split(";", 1)[0].strip().lower()
+        text, title, extractor = self._extract_content(
+            body_text, normalized_ct, content_type, final_url, extract_mode
+        )
+
+        truncated_output, marker_applied = _truncate_with_marker(text, max_chars)
+        truncated_text_flag = truncated_body or marker_applied
+
+        took_ms = int((time.monotonic() - t0) * 1000)
+        return {
+            "success": True,
+            "url": url,
+            "finalUrl": final_url,
+            "status": status,
+            "contentType": normalized_ct,
+            "title": title,
+            "extractMode": extract_mode,
+            "extractor": extractor,
+            "text": truncated_output,
+            "truncated": truncated_text_flag,
+            "length": len(truncated_output),
+            "rawLength": len(body_text),
+            "fetchedAt": _dt.datetime.now(tz=_dt.timezone.utc).isoformat(),
+            "tookMs": took_ms,
+        }
+
+    async def _http_get(self, url: str) -> tuple[int, str, str, bytes, bool]:
+        """GET ``url`` and stream up to ``self.max_response_bytes``.
+
+        Returns ``(status, content_type, final_url, body_bytes, truncated_body)``.
+        Raises ``RuntimeError`` on HTTP >= 400 with a decoded error snippet.
+        """
         import aiohttp
 
-        t0 = time.monotonic()
         headers = {
             "User-Agent": self.user_agent,
             "Accept": "text/markdown, text/html;q=0.9, */*;q=0.1",
@@ -703,13 +731,21 @@ class WebFetchTool(BaseTool):
                         f"web_fetch failed (HTTP {status}) for {url}: {detail_truncated}"
                     )
 
-        body_text = _decode_best_effort(bytes(body_bytes))
-        normalized_ct = content_type.split(";", 1)[0].strip().lower()
+        return status, content_type, final_url, bytes(body_bytes), truncated_body
 
-        title: Optional[str] = None
-        extractor = "raw"
-        text = body_text
+    @staticmethod
+    def _extract_content(
+        body_text: str,
+        normalized_ct: str,
+        content_type: str,
+        final_url: str,
+        extract_mode: str,
+    ) -> tuple[str, Optional[str], str]:
+        """Extract ``(text, title, extractor)`` from a fetched body by content type.
 
+        HTML routes through readability (then a basic-HTML fallback); JSON is
+        pretty-printed; everything else is returned raw.
+        """
         if _is_html_content_type(normalized_ct) or _looks_like_html(body_text, content_type):
             extracted = _extract_with_readability(body_text, final_url)
             if extracted is not None:
@@ -720,55 +756,21 @@ class WebFetchTool(BaseTool):
                 else:
                     basic = _extract_basic_html(html_fragment)
                     text = (basic or {}).get("text", body_text)
-                extractor = "readability"
-            else:
-                basic = _extract_basic_html(body_text)
-                if basic is not None:
-                    title = basic["title"]
-                    text = basic["text"]
-                    extractor = "basic-html"
-                else:
-                    raise RuntimeError(
-                        "web_fetch extraction failed: readability and basic-HTML "
-                        "fallback both returned empty content."
-                    )
-        elif normalized_ct == "application/json" or normalized_ct.endswith("+json"):
+                return text, title, "readability"
+            basic = _extract_basic_html(body_text)
+            if basic is not None:
+                return basic["text"], basic["title"], "basic-html"
+            raise RuntimeError(
+                "web_fetch extraction failed: readability and basic-HTML "
+                "fallback both returned empty content."
+            )
+        if normalized_ct == "application/json" or normalized_ct.endswith("+json"):
             try:
-                text = json.dumps(json.loads(body_text), indent=2)
-                extractor = "json"
+                return json.dumps(json.loads(body_text), indent=2), None, "json"
             except (ValueError, json.JSONDecodeError):
-                text = body_text
-                extractor = "raw"
-        elif normalized_ct in ("text/markdown", "text/plain") or normalized_ct.startswith("text/"):
-            text = body_text
-            extractor = "raw"
-        else:
-            text = body_text
-            extractor = "raw"
-
-        truncated_text_flag = False
-        if truncated_body:
-            truncated_text_flag = True
-        truncated_output, marker_applied = _truncate_with_marker(text, max_chars)
-        truncated_text_flag = truncated_text_flag or marker_applied
-
-        took_ms = int((time.monotonic() - t0) * 1000)
-        return {
-            "success": True,
-            "url": url,
-            "finalUrl": final_url,
-            "status": status,
-            "contentType": normalized_ct,
-            "title": title,
-            "extractMode": extract_mode,
-            "extractor": extractor,
-            "text": truncated_output,
-            "truncated": truncated_text_flag,
-            "length": len(truncated_output),
-            "rawLength": len(body_text),
-            "fetchedAt": _dt.datetime.now(tz=_dt.timezone.utc).isoformat(),
-            "tookMs": took_ms,
-        }
+                return body_text, None, "raw"
+        # text/* and any other content type → raw passthrough
+        return body_text, None, "raw"
 
 
 def _decode_best_effort(data: bytes) -> str:

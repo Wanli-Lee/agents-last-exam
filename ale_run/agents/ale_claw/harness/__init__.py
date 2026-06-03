@@ -1,25 +1,25 @@
 """OpenClaw agent modules — modular components for the OpenClaw agent harness.
 
 Components:
-  - OpenClawComputerAgent: ComputerAgent subclass with mid-loop compaction (US-OC-017)
+  - OpenClawComputerAgent: ComputerAgent subclass with mid-loop compaction
   - PromptBuilder: assembles structured system instructions from composable sections
   - PromptConfig / SectionConfig: section toggle configuration
   - ContextFile: bootstrap file injection container
   - MemoryStore / SearchResult: task-workspace persistent memory storage
   - MemorySearchTool / MemoryGetTool / MemoryWriteTool: agent memory tools
   - SessionManager / SessionState / TokenUsage / TranscriptEntry: session persistence
-  - has_already_flushed_for_current_compaction / should_run_memory_flush: memory flush guards (US-OC-005a)
+  - has_already_flushed_for_current_compaction / should_run_memory_flush: memory flush guards
   - MEMORY_FLUSH_PROMPT / MEMORY_FLUSH_SYSTEM_PROMPT / SILENT_REPLY_TOKEN: flush prompts
-  - ContextOverflowCallback / is_context_overflow_error: context overflow detection (US-OC-005)
-  - CompactionResult / compact_messages: compaction pipeline (US-OC-006, US-OC-013)
-  - ToolPairingRepairReport / repair_tool_use_result_pairing: tool pairing repair (US-OC-013)
-  - split_preserved_recent_turns: recent turns preservation (US-OC-013)
-  - build_tools / get_tool_summaries / ToolLoggingCallback: tool registry & logging (US-OC-007)
-  - build_replay_messages / sanitize_history / limit_history_turns: transcript replay (US-OC-012)
-  - run_memory_flush: standalone memory flush module (US-OC-028)
-  - ThinkLevel / ThinkingConfig / resolve_thinking_default: thinking level system (US-OC-019)
-  - CanonicalMessage / ContentBlock types / converters: canonical message format (US-OC-038)
-  - sanitize_items / repair_orphaned_pairs / ensure_valid_ordering: sanitize pipeline (US-OC-039)
+  - ContextOverflowCallback / is_context_overflow_error: context overflow detection
+  - CompactionResult / compact_messages: compaction pipeline
+  - ToolPairingRepairReport / repair_tool_use_result_pairing: tool pairing repair
+  - split_preserved_recent_turns: recent turns preservation
+  - build_tools / get_tool_summaries / ToolLoggingCallback: tool registry & logging
+  - build_replay_messages / sanitize_history / limit_history_turns: transcript replay
+  - run_memory_flush: standalone memory flush module
+  - ThinkLevel / ThinkingConfig / resolve_thinking_default: thinking level system
+  - CanonicalMessage / ContentBlock types / converters: canonical message format
+  - sanitize_items / repair_orphaned_pairs / ensure_valid_ordering: sanitize pipeline
 """
 
 from .adapters import (
@@ -34,7 +34,7 @@ from .cache_policy import (
     supports_anthropic_cache,
 )
 from .computer_handler import OpenClawComputerHandler
-from .canonical import (
+from .canonical.canonical import (
     CanonicalMessage,
     CompactionSummaryBlock,
     ComputerCallBlock,
@@ -85,7 +85,7 @@ from .session import (
     sanitize_history,
     should_run_memory_flush,
 )
-from .subagent_registry import (
+from .subagent.subagent_registry import (
     SubagentLimitError,
     SubagentRegistry,
     SubagentRun,
@@ -93,12 +93,12 @@ from .subagent_registry import (
     SubagentType,
     SubagentUsage,
 )
-from .subagent_tools import DelegateGeneralTool, DelegateGUITool, SubagentsTool
+from .subagent.subagent_tools import DelegateGeneralTool, DelegateGUITool, SubagentsTool
 from .thinking import ThinkingConfig, ThinkLevel, resolve_thinking_default
-from .tools import ToolLoggingCallback, build_tools, get_tool_summaries
-from .tools_fs import EditFileTool, ReadFileTool, WriteFileTool
-from .tools_shell import ExecTool
-from .tools_web import WebFetchTool, WebSearchTool
+from .tools.tools import ToolLoggingCallback, build_tools, get_tool_summaries
+from .tools.tools_fs import EditFileTool, ReadFileTool, WriteFileTool
+from .tools.tools_shell import ExecTool
+from .tools.tools_web import WebFetchTool, WebSearchTool
 from .transcript import group_step_output
 
 # Side-effect import — registers the OpenRouter unified loop with

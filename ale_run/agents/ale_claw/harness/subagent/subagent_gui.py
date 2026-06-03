@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -28,16 +29,22 @@ from typing import Any
 from agent import ComputerAgent
 from agent.callbacks.base import AsyncCallbackHandler
 
-from .memory import MemoryGetTool, MemorySearchTool, MemoryStore, MemoryWriteTool
-from .subagent_registry import SubagentRegistry, SubagentUsage
+from ..memory import MemoryGetTool, MemorySearchTool, MemoryStore, MemoryWriteTool
+from .subagent_registry import (
+    SubagentRegistry,
+    SubagentUsage,
+    _subagent_transcript_path,
+)
 
 DEFAULT_MAX_STEPS = 15
 DEFAULT_MODEL = "openrouter/openai/gpt-5.4"
 DEFAULT_IMAGE_HISTORY = 3
 
+logger = logging.getLogger(__name__)
+
 
 # ---------------------------------------------------------------------------
-# Steer inbox callback (US-SUB-009)
+# Steer inbox callback
 # ---------------------------------------------------------------------------
 
 
@@ -296,6 +303,77 @@ class _TranscriptWriter:
 # ---------------------------------------------------------------------------
 
 
+def _build_gui_agent(
+    session: Any,
+    model: str,
+    thinking_params: dict[str, Any] | None,
+    memory_store: MemoryStore | None,
+    inbox: "asyncio.Queue[str]",
+) -> ComputerAgent:
+    """Construct the lightweight GUI ComputerAgent (computer tool + optional memory)."""
+    tools: list[Any] = [session._computer]
+    if memory_store is not None:
+        tools.extend([
+            MemorySearchTool(memory_store),
+            MemoryGetTool(memory_store),
+            MemoryWriteTool(memory_store),
+        ])
+    return ComputerAgent(
+        model=model,
+        tools=tools,
+        instructions=_build_system_prompt(),
+        only_n_most_recent_images=DEFAULT_IMAGE_HISTORY,
+        telemetry_enabled=False,
+        callbacks=[SteerInboxCallback(inbox)],
+        **(thinking_params or {}),
+    )
+
+
+async def _relay_until_done(
+    agent: ComputerAgent,
+    instruction: str,
+    run_id: str,
+    max_steps: int,
+    usage: SubagentUsage,
+    transcript: "_TranscriptWriter",
+) -> str:
+    """Drive ``ComputerAgent.run()``, recording turns/usage, and return the summary.
+
+    Stops on a ``terminate`` action or when ``max_steps`` is reached.
+    """
+    step = 0
+    terminated = False
+    last_text = ""
+
+    async for result in agent.run(instruction):
+        output_items = result.get("output", [])
+        _accumulate_usage(usage, result.get("usage"))
+
+        actions = _extract_actions_from_output(output_items)
+        text = _extract_text(output_items)
+        if text:
+            last_text = text
+        is_done = _is_terminated(output_items)
+
+        if actions:
+            logger.info("  [GUI %s] step %d: %s", run_id, step, actions)
+            transcript.write_turn(step, actions, output_items, is_done)
+            step += 1
+
+        if is_done:
+            terminated = True
+            break
+
+        if step >= max_steps:
+            break
+
+    if terminated:
+        return last_text or "(no summary)"
+    if step >= max_steps:
+        return f"max_steps ({max_steps}) reached without completion"
+    return last_text or "(completed)"
+
+
 async def run_gui_subagent(
     *,
     instruction: str,
@@ -326,9 +404,7 @@ async def run_gui_subagent(
     """
     transcript_path: Path | None = None
     if parent_session_dir is not None:
-        transcript_path = (
-            Path(parent_session_dir) / "subagents" / run_id / "transcript.jsonl"
-        )
+        transcript_path = _subagent_transcript_path(Path(parent_session_dir), run_id)
     transcript = _TranscriptWriter(transcript_path)
 
     usage = SubagentUsage()
@@ -337,57 +413,10 @@ async def run_gui_subagent(
     registry.attach_inbox(run_id, inbox)
 
     try:
-        tools: list[Any] = [session._computer]
-        if memory_store is not None:
-            tools.extend([
-                MemorySearchTool(memory_store),
-                MemoryGetTool(memory_store),
-                MemoryWriteTool(memory_store),
-            ])
-
-        agent = ComputerAgent(
-            model=model,
-            tools=tools,
-            instructions=_build_system_prompt(),
-            only_n_most_recent_images=DEFAULT_IMAGE_HISTORY,
-            telemetry_enabled=False,
-            callbacks=[SteerInboxCallback(inbox)],
-            **(thinking_params or {}),
+        agent = _build_gui_agent(session, model, thinking_params, memory_store, inbox)
+        summary = await _relay_until_done(
+            agent, instruction, run_id, max_steps, usage, transcript
         )
-
-        step = 0
-        terminated = False
-        last_text = ""
-
-        async for result in agent.run(instruction):
-            output_items = result.get("output", [])
-            _accumulate_usage(usage, result.get("usage"))
-
-            actions = _extract_actions_from_output(output_items)
-            text = _extract_text(output_items)
-            if text:
-                last_text = text
-            is_done = _is_terminated(output_items)
-
-            if actions:
-                print(f"  [GUI {run_id}] step {step}: {actions}")
-                transcript.write_turn(step, actions, output_items, is_done)
-                step += 1
-
-            if is_done:
-                terminated = True
-                break
-
-            if step >= max_steps:
-                break
-
-        if terminated:
-            summary = last_text or "(no summary)"
-        elif step >= max_steps:
-            summary = f"max_steps ({max_steps}) reached without completion"
-        else:
-            summary = last_text or "(completed)"
-
         registry.complete(run_id, summary, usage)
         return summary
 

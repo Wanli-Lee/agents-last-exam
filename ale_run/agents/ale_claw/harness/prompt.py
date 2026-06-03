@@ -1,9 +1,8 @@
 """PromptBuilder — modular system prompt assembly for the OpenClaw agent harness.
 
-Design rationale: docs/plan/US-OC-001-system-prompt-builder.md
 Reference implementation: openclaw/src/agents/system-prompt.ts (buildAgentSystemPrompt)
 
-Authoring rule for tool-specific prose (enforced by US-OC-068):
+Authoring rule for tool-specific prose:
     Non-obvious operational rules for a tool (polling guardrails, `target=`
     argument semantics, concurrency caps, patch-format rules, etc.) belong
     in a gated `_build_<tool>()` method here — NOT in AGENTS.md. AGENTS.md
@@ -201,7 +200,7 @@ class PromptBuilder:
     def _build_exec(self, tool_summaries: dict[str, str]) -> list[str]:
         """Build the Shell Execution section. Only included if ``exec`` is registered.
 
-        Layer 2 operational prose for the exec tool — per US-OC-068 the
+        Layer 2 operational prose for the exec tool — the
         tool-specific guardrails live in this gated builder, not AGENTS.md.
         Mirrors OpenClaw's ``describeExecTool`` prose (bash-tools.descriptions.ts)
         plus CUA-specific divergence notes (client-side timeout, cwd emulation,

@@ -55,8 +55,8 @@ class ThinkingConfig:
 
     Attributes:
         level: Thinking level for the main agent loop.
-        flush_level: Thinking level for memory flush LLM calls (US-OC-020).
-        compaction_level: Thinking level for compaction summarization calls (US-OC-020).
+        flush_level: Thinking level for memory flush LLM calls.
+        compaction_level: Thinking level for compaction summarization calls.
         vision_level: Thinking level for vision helper calls. Defaults to off unless
             explicitly configured, so VLM analysis does not opt into helper thinking
             by inheritance.

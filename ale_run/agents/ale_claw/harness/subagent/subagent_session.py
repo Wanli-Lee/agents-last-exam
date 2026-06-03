@@ -1,4 +1,4 @@
-"""General subagent persistent session engine (US-SUB-008).
+"""General subagent persistent session engine.
 
 Replaces the flat 5-step ``run_general_subagent`` loop with a session-backed
 engine that owns its own ``SessionManager``, ``ContextOverflowCallback``, and
@@ -29,23 +29,26 @@ from __future__ import annotations
 import asyncio
 import base64
 import json as _json
+import logging
 import os
 from pathlib import Path
 from typing import Any
 
-from .model_config import ResolvedModel, resolve_model
+from ..model_config import ResolvedModel, resolve_model
 from agent.tools.base import BaseTool
 
-from .context import (
+from ..context import (
     ContextOverflowCallback,
     compact_messages,
     is_context_overflow_error,
 )
-from .session import SessionManager
+from ..session import SessionManager
 from .subagent_registry import SubagentRegistry, SubagentUsage
 
 DEFAULT_MAX_STEPS = 50
 DEFAULT_MAX_COMPACTIONS = 10**9
+
+logger = logging.getLogger(__name__)
 
 
 def _build_subagent_system_prompt(task: str) -> str:
@@ -128,7 +131,7 @@ def _build_initial_user_content(
     """Build the subagent's initial user-message content.
 
     With no screenshots attached, returns the task as a plain string so the
-    no-screenshot path (the original US-SUB-008 behavior) is byte-identical.
+    no-screenshot path (the original behavior) is byte-identical.
     With screenshots, returns a list-content block with the text + one
     ``image_url`` entry per path; unreadable paths become a
     ``[screenshot unavailable: <basename>]`` text fallback so a single bad
@@ -259,7 +262,7 @@ class GeneralSubagentSession:
         return self._inbox
 
     def _poll_inbox(self) -> None:
-        """Consume at most one steer message from the inbox (US-SUB-009).
+        """Consume at most one steer message from the inbox.
 
         Called once per loop iteration so the single-message-per-turn guard
         is enforced structurally. Additional queued messages are consumed on
@@ -508,7 +511,8 @@ class GeneralSubagentSession:
 
         self.overflow_cb.reset_after_compaction()
         self.compaction_count += 1
-        print(
-            f"[Subagent {self._run_id}] In-place compaction "
-            f"#{self.compaction_count} ({result.tokens_before}->~{result.tokens_after} tokens)"
+        logger.info(
+            "[Subagent %s] In-place compaction #%d (%d->~%d tokens)",
+            self._run_id, self.compaction_count,
+            result.tokens_before, result.tokens_after,
         )

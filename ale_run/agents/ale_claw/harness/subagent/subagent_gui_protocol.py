@@ -5,8 +5,7 @@ Uses the same ``computer`` function tool schema as the main agent
 termination.  Dispatches to cuaComputerHandler via
 ``getattr(handler, action_type)(**params)`` — identical to agent.py:798-828.
 
-US-SUB-010: Unified Computer Tool Schema.
-Replaces the custom gui_action schema (US-SUB-003) with the main agent's
+Replaces the custom gui_action schema with the main agent's
 computer tool schema for full schema parity.
 """
 

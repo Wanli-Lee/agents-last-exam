@@ -1,4 +1,4 @@
-"""Remote-VM shell execution tool: exec (US-OC-057).
+"""Remote-VM shell execution tool: exec.
 
 One BaseTool subclass — :class:`ExecTool` — that runs a single shell command
 inside the remote VM via ``session.interface.run_command`` (computer-server
@@ -17,7 +17,7 @@ Kept from OpenClaw (``openclaw/src/agents/bash-tools.exec.ts``,
 
 Dropped:
   - Background / ``yieldMs`` paths (need a per-task process registry —
-    deferred to US-OC-061).
+    deferred ).
   - PTY mode (no computer-server PTY RPC).
   - Elevated / sudo, approvals/allowlists, exec-host routing, docker sandbox.
   - Script-preflight shell-bleed validation (``run_command`` RPC takes a
@@ -28,7 +28,7 @@ Dropped:
 Key difference from OpenClaw:
   - ``timeout`` is **client-side only**. ``asyncio.wait_for`` cancels our
     await; the VM-side subprocess may keep running until process management
-    lands (US-OC-061). The tool surfaces ``timed_out=True`` so the agent
+    lands. The tool surfaces ``timed_out=True`` so the agent
     doesn't silently assume the process is dead.
 """
 
@@ -41,12 +41,8 @@ from typing import TYPE_CHECKING, Optional, Union
 
 from agent.tools.base import BaseTool, register_tool
 
-from .tools_fs import (
-    _assert_within_workspace,
-    _get_required_str,
-    _is_windows_path,
-    _run_async,
-)
+from ._paths import _assert_within_workspace, _is_windows_path
+from ._tool_utils import _get_required_str, _run_tool_execute
 
 if TYPE_CHECKING:
     from computer.interface import BaseComputerInterface
@@ -208,11 +204,11 @@ class ExecTool(BaseTool):
         except ValueError as e:
             return {"success": False, "error": f"Error: {e}"}
 
-        try:
-            return _run_async(self._execute(command, cwd, timeout_seconds))
-        except Exception as e:  # noqa: BLE001 — surface RPC errors as tool errors
-            logger.error("exec tool failure for %r: %s", command, e)
-            return {"success": False, "error": f"Error: {e}"}
+        return _run_tool_execute(
+            self._execute(command, cwd, timeout_seconds),
+            logger,
+            f"exec tool failure for {command!r}",
+        )
 
     async def _execute(
         self,

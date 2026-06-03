@@ -18,6 +18,7 @@ from __future__ import annotations
 import json as _json
 from typing import TYPE_CHECKING, Any
 
+from .canonical.canonical import _normalize_actions
 from .model_config import ResolvedModel, resolve_model
 
 from .helper_runtime import call_helper_model
@@ -99,14 +100,10 @@ async def run_memory_flush(
 
     print(f"[MemoryFlush] Running pre-compaction memory flush turn ({len(conversation_text)} chars context)")
     try:
-        # Budget rationale: flush turns routinely chain multiple memory_write
-        # calls (session log + TASK_MEMORY), and with thinking_params set
-        # reasoning tokens share the output budget. 1024 was too tight — seen
-        # in practice to truncate a second tool call's JSON args mid-string
-        # ("Unterminated string starting at: line 1 column 12 char 11") after
-        # the first write consumed most of the budget. 4096 gives comfortable
-        # headroom; the model still stops naturally when it's out of things
-        # to persist, so the nominal cost per flush doesn't grow.
+        # Budget: flush turns chain multiple memory_write calls and (with
+        # thinking enabled) reasoning shares the output budget, so a tight cap
+        # can truncate a later call's JSON args mid-string. 4096 gives headroom;
+        # the model still stops when done, so cost per flush doesn't grow.
         response = await call_helper_model(
             resolved_summary,
             purpose="memory_flush",
@@ -209,10 +206,7 @@ def _serialize_content_blocks(content: Any) -> str:
             parts.append(block.get("text", ""))
         elif block.get("type") == "computer_call":
             # Handle both "action" (computer-use-preview) and "actions" (GPT 5.4)
-            actions_list = block.get("actions")  # GPT 5.4: array
-            if actions_list is None:
-                single = block.get("action", {})
-                actions_list = [single] if single else []
+            actions_list = _normalize_actions(block)
             for action in actions_list:
                 action_type = action.get("type", "unknown")
                 detail = ""

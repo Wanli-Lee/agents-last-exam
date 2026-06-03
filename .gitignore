@@ -47,6 +47,8 @@ hf_token
 
 # claude code
 .claude/
+# Agent/dev working instructions — local-only, not part of the public repo.
+CLAUDE.md
 # Per-task secret store (real values ignored; .example templates tracked)
 secret/eval_time/gemini.env
 secret/eval_time/openai.env

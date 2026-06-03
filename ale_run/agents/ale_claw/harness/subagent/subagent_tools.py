@@ -1,13 +1,13 @@
-"""Delegation tools — BaseTool subclasses that spawn subagent runs (US-SUB-005).
+"""Delegation tools — BaseTool subclasses that spawn subagent runs.
 
 Three tools are exposed to the main agent:
   - ``delegate_general``: async one-shot planning/analysis subagent driven by
-    the US-SUB-008 ``GeneralSubagentSession`` persistent engine. Returns
+    the ``GeneralSubagentSession`` persistent engine. Returns
     immediately with ``{"status": "accepted", "run_id": ...}``; the final
     result is delivered later as a ``[Subagent Result]`` user message via
     ``OpenClawComputerAgent._drain_completions``.
   - ``delegate_gui``: blocking vision-to-action relay driving the VM via the
-    US-SUB-004 ``run_gui_subagent`` loop. Returns the final summary
+    ``run_gui_subagent`` loop. Returns the final summary
     synchronously so the main agent can resume with fresh VM state.
   - ``subagents``: ``list`` active/recent runs or ``kill`` a runaway general
     subagent via ``registry.kill_run``.
@@ -35,11 +35,11 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from typing import Any, Union
+from typing import Any
 
 from agent.tools.base import BaseTool, register_tool
 
-from .memory import MemoryStore
+from ..memory import MemoryStore
 from .subagent_general import DEFAULT_MAX_STEPS as GENERAL_DEFAULT_MAX_STEPS
 from .subagent_general import run_general_subagent
 from .subagent_gui import DEFAULT_MAX_STEPS as GUI_DEFAULT_MAX_STEPS
@@ -219,7 +219,7 @@ class DelegateGeneralTool(BaseTool):
             "required": ["task"],
         }
 
-    def call(self, params: Union[str, dict], **kwargs) -> dict:
+    def call(self, params: str | dict, **kwargs) -> dict:
         params_dict = self._verify_json_format_args(params)
 
         task = params_dict.get("task", "")
@@ -357,7 +357,7 @@ class DelegateGUITool(BaseTool):
             "required": ["instruction"],
         }
 
-    def call(self, params: Union[str, dict], **kwargs) -> dict:
+    def call(self, params: str | dict, **kwargs) -> dict:
         params_dict = self._verify_json_format_args(params)
 
         instruction = params_dict.get("instruction", "")
@@ -436,7 +436,7 @@ class DelegateGUITool(BaseTool):
         for trajectory inspection, then pushes a pre-built
         ``{role: user, content: [text, image_url]}`` dict to the registry's
         post-delegation queue for ``_drain_post_delegation`` to fold into the
-        next main-agent turn (US-SUB-006).
+        next main-agent turn.
         """
         try:
             target_dir = self._parent_session_dir / "subagents" / run_id
@@ -481,7 +481,7 @@ def _resolve_steer_target(
     registry: SubagentRegistry,
     target: str,
 ) -> SubagentRun | None:
-    """Resolve a steer target to a SubagentRun (US-SUB-009).
+    """Resolve a steer target to a SubagentRun.
 
     Searches ALL runs (active + terminal) so the caller can produce
     specific error messages (e.g. "already finished" vs "unknown").
@@ -569,7 +569,7 @@ class SubagentsTool(BaseTool):
             "required": [],
         }
 
-    def call(self, params: Union[str, dict], **kwargs) -> dict:
+    def call(self, params: str | dict, **kwargs) -> dict:
         params_dict = self._verify_json_format_args(params)
         action = params_dict.get("action", "list")
 

@@ -14,7 +14,9 @@ Design reference: openclaw/src/agents/tools/image-tool.ts
 
 from __future__ import annotations
 
+import asyncio
 import base64
+import concurrent.futures
 import logging
 import re
 from pathlib import PurePosixPath, PureWindowsPath
@@ -150,9 +152,6 @@ class AnalyzeImageTool(BaseTool):
 
     def call(self, params: Union[str, dict], **kwargs) -> Union[str, dict]:
         """Execute image analysis (sync wrapper around async implementation)."""
-        import asyncio
-        import concurrent.futures
-
         params_dict = self._verify_json_format_args(params)
 
         try:
@@ -254,7 +253,7 @@ class AnalyzeImageTool(BaseTool):
         if not image_bytes:
             return f"Error: file is empty: {image_ref}"
 
-        # Resize/transcode oversized images instead of hard-rejecting (US-OC-073).
+        # Resize/transcode oversized images instead of hard-rejecting.
         # Per-call max_bytes overrides the OpenClaw default (5 MB); other limits
         # (1200 px, 25 MP) come from ImageLimits defaults.
         limits = (
