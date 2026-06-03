@@ -47,6 +47,11 @@ logger = logging.getLogger(__name__)
 
 
 _DEFAULT_TIMEOUT_S = 7200
+# Wall-clock ceiling for the evaluation phase. Without it, a wedged cua RPC
+# inside a task's evaluate() (e.g. a long eval whose result never returns)
+# hangs the whole unit until the episode budget — minutes-to-hours of a held
+# VM. Bound it so a stuck eval fails cleanly instead.
+_EVAL_TIMEOUT_S = 3600
 
 
 def _append_prompt_suffix(task_meta: dict[str, Any], prompt_suffix: str) -> None:
@@ -410,7 +415,9 @@ async def run_one_unit(
             env.set_phase("evaluation")
             eval_start = time.monotonic()
             try:
-                eval_out = await task_driver.evaluate()
+                eval_out = await asyncio.wait_for(
+                    task_driver.evaluate(), timeout=_EVAL_TIMEOUT_S,
+                )
                 eval_duration_s = round(time.monotonic() - eval_start, 4)
                 if eval_out is None or eval_out.get("error"):
                     eval_status = "failed"
@@ -423,6 +430,14 @@ async def run_one_unit(
                 else:
                     eval_status = "success"
                     score = _extract_score(eval_out)
+            except asyncio.TimeoutError:
+                eval_duration_s = round(time.monotonic() - eval_start, 4)
+                eval_status = "failed"
+                eval_error = {
+                    "type": "TimeoutError",
+                    "message": f"evaluate() exceeded {_EVAL_TIMEOUT_S}s wall-clock",
+                }
+                logger.error("evaluate timed out after %ds for %s", _EVAL_TIMEOUT_S, unit.slug)
             except Exception as e:
                 eval_duration_s = round(time.monotonic() - eval_start, 4)
                 eval_status = "failed"
