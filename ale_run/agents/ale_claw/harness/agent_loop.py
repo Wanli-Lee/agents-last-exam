@@ -75,7 +75,7 @@ from .session import (
     SessionManager,
     should_run_memory_flush,
 )
-from .subagent_registry import SubagentRegistry
+from .subagent.subagent_registry import SubagentRegistry
 
 from .agent_loop_helpers import (  # has_done_signal re-exported for deployer; rest used/re-exported
     _extract_messages_for_compaction,

@@ -34,15 +34,15 @@ import os
 from pathlib import Path
 from typing import Any
 
-from .model_config import ResolvedModel, resolve_model
+from ..model_config import ResolvedModel, resolve_model
 from agent.tools.base import BaseTool
 
-from .context import (
+from ..context import (
     ContextOverflowCallback,
     compact_messages,
     is_context_overflow_error,
 )
-from .session import SessionManager
+from ..session import SessionManager
 from .subagent_registry import SubagentRegistry, SubagentUsage
 
 DEFAULT_MAX_STEPS = 50

@@ -85,7 +85,7 @@ from .session import (
     sanitize_history,
     should_run_memory_flush,
 )
-from .subagent_registry import (
+from .subagent.subagent_registry import (
     SubagentLimitError,
     SubagentRegistry,
     SubagentRun,
@@ -93,7 +93,7 @@ from .subagent_registry import (
     SubagentType,
     SubagentUsage,
 )
-from .subagent_tools import DelegateGeneralTool, DelegateGUITool, SubagentsTool
+from .subagent.subagent_tools import DelegateGeneralTool, DelegateGUITool, SubagentsTool
 from .thinking import ThinkingConfig, ThinkLevel, resolve_thinking_default
 from .tools import ToolLoggingCallback, build_tools, get_tool_summaries
 from .tools_fs import EditFileTool, ReadFileTool, WriteFileTool
