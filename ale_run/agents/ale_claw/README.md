@@ -91,7 +91,6 @@ ale_run/agents/ale_claw/
 ├── config.py                   — AleClawConfig (standalone dataclass)
 ├── deployer.py                 — AleClawDeployer (install → launch → parse_artifacts)
 ├── transcript_to_trajectory.py — on-disk transcripts → ALE Trajectory (ATIF) steps
-├── CLAUDE.md                   — dev workflow + code map for this harness
 ├── README.md                   — this file
 └── harness/                    — the OpenClaw agent, in-tree and ALE-owned
     ├── AGENTS.md               — system-prompt context file
@@ -109,6 +108,6 @@ ale_run/agents/ale_claw/
 The harness reproduces OpenClaw's agent-side architecture but is **fully
 ALE-owned** — no vendored namespace, no submodule, no upstream sync. The
 `upstream_version` field in `config.py` records the OpenClaw commit the design
-was adapted from, for provenance only. Develop here directly; see `CLAUDE.md`
-for the workflow and verification rules, and `harness/AGENTS.md` for the agent's
-own system-prompt context.
+was adapted from, for provenance only. Develop here directly; see
+`harness/AGENTS.md` for the agent's own system-prompt context and the repo-root
+`AGENTS.md` for the general deployer-author workflow.
