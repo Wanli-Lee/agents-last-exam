@@ -74,6 +74,18 @@ class AleClawConfig:
     set to ``[]`` to opt back in (and ensure ``BRAVE_API_KEY`` is exported in
     your shell)."""
 
+    # ---- substrate transport ----
+    substrate_transport: str = "mcp"
+    """How the non-GUI tools (``read``/``write``/``edit``/``exec``) reach the VM.
+
+    - ``"mcp"`` (default): route through the ``vm_mcp_server`` bridge — the agent
+      consumes the same MCP substrate as installed agents. Tool granularity is
+      unchanged; only the transport moves off ``RemoteDesktopSession``.
+    - ``"session"``: legacy direct ``session.interface`` RPC. Retained as a
+      debug / parity escape hatch; may be removed once the MCP path is validated.
+
+    GUI (the ``computer`` tool) stays on ``session`` regardless (Phase 1)."""
+
     # ---- thinking levels (off | low | medium | high) ----
     thinking_level: str | None = None
     """Base thinking level. None → resolved-default for the model
@@ -110,6 +122,11 @@ class AleClawConfig:
             raise ValueError(
                 "Both disable_main_computer and disable_delegate_gui set — "
                 "agent has no way to interact with the VM."
+            )
+        if self.substrate_transport not in ("mcp", "session"):
+            raise ValueError(
+                f"AleClawConfig.substrate_transport={self.substrate_transport!r} "
+                "not in {mcp, session}"
             )
         for level_field, value in [
             ("thinking_level", self.thinking_level),

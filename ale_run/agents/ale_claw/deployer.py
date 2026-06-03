@@ -23,6 +23,7 @@ import os
 import sys
 import time
 import uuid
+from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -165,6 +166,34 @@ class AleClawDeployer(BaseAgentDeployer):
         )
         await session.check_status()
 
+        # ---- 1b. MCP substrate (non-GUI tools route through the vm bridge) ----
+        # Build the runtime object now (so build_tools can wire the backends to
+        # it); it is *connected* later, around the drive loop, and torn down with
+        # it. GUI stays on `session` in Phase 1. For the `local`/`docker`
+        # executor the bridge runs on the host and points at the same cua-server
+        # endpoint the harness already uses (cua_bridge_url == sb.endpoint), so
+        # there is no extra network hop.
+        mcp_runtime = None
+        if cfg.substrate_transport == "mcp":
+            from ale_run.agents._bootstrap import (
+                ensure_node_npm,
+                ensure_vm_mcp_server,
+                vm_bridge_env,
+            )
+            from mcp.client.stdio import StdioServerParameters
+
+            from .harness.tools.mcp_runtime import MCPRuntime
+
+            node_path, _ = await ensure_node_npm()
+            vm_bridge_dir = await ensure_vm_mcp_server(str(work_dir / "mcp" / "vm"))
+            vm_params = StdioServerParameters(
+                command=node_path,
+                args=[os.path.join(vm_bridge_dir, "src", "index.js")],
+                env={**os.environ, **vm_bridge_env(self.executor)},
+            )
+            mcp_runtime = MCPRuntime({"vm": vm_params})
+            logger.info("ale-claw: substrate_transport=mcp (vm bridge at %s)", vm_bridge_dir)
+
         # ---- 2. Memory + session + subagent registry ----
         memory_store = MemoryStore(task_id=task_id, base_dir=str(memory_base))
         memory_store.init_session()
@@ -224,6 +253,7 @@ class AleClawDeployer(BaseAgentDeployer):
             host_workspace_root=host_workspace_root,
             context_window_tokens=context_window_tokens,
             computer_handler=computer_handler,
+            mcp_runtime=mcp_runtime,
         )
         if cfg.disabled_tools:
             tools = [t for t in tools if getattr(t, "name", "") not in cfg.disabled_tools]
@@ -309,7 +339,15 @@ class AleClawDeployer(BaseAgentDeployer):
         task_completed = False
         transcript_path = work_dir / "openclaw_sessions" / task_id / "transcript.jsonl"
 
+        # Connect the MCP bridge(s) for the duration of the drive loop and tear
+        # them down (terminating the node children) on any exit — success,
+        # exception, or wall-budget cancellation. A startup failure here is
+        # caught by the except below and surfaced as a failed run.
+        mcp_stack = AsyncExitStack()
         try:
+            if mcp_runtime is not None:
+                await mcp_stack.enter_async_context(mcp_runtime)
+
             async def _drive() -> None:
                 nonlocal step, task_completed
                 async for result in agent.run(run_input):
@@ -338,6 +376,8 @@ class AleClawDeployer(BaseAgentDeployer):
                 error=f"{type(exc).__name__}: {exc}",
                 transcript_path=str(transcript_path) if transcript_path.exists() else None,
             )
+        finally:
+            await mcp_stack.aclose()
 
         # Outcome mapping
         if task_completed:
