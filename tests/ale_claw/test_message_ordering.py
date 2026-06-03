@@ -8,7 +8,7 @@ Updated for US-OC-038: _build_compacted_items now returns list[CanonicalMessage]
 with typed content blocks instead of untyped dicts.
 """
 
-from ale_run.agents.ale_claw.harness.canonical import (
+from ale_run.agents.ale_claw.harness.canonical.canonical import (
     CanonicalMessage,
     CompactionSummaryBlock,
     TextBlock,

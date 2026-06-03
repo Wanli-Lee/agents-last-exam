@@ -14,7 +14,7 @@ import json
 import re
 from typing import TYPE_CHECKING, Any
 
-from .canonical import _normalize_actions
+from .canonical.canonical import _normalize_actions
 
 if TYPE_CHECKING:
     from .session import TranscriptEntry

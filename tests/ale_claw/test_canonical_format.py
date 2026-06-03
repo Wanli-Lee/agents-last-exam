@@ -16,7 +16,7 @@ import json
 
 from ale_run.agents.ale_claw.harness.model_config import resolve_model
 
-from ale_run.agents.ale_claw.harness.canonical import (
+from ale_run.agents.ale_claw.harness.canonical.canonical import (
     COMPACTION_PREAMBLE,
     CanonicalMessage,
     CompactionSummaryBlock,

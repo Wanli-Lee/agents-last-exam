@@ -215,7 +215,7 @@ class TestPayoff:
 
     def test_gpt6_config_with_sanitize_items(self):
         """Register gpt-6, build canonical messages, sanitize — no code changes needed."""
-        from ale_run.agents.ale_claw.harness.canonical import (
+        from ale_run.agents.ale_claw.harness.canonical.canonical import (
             CanonicalMessage,
             FunctionCallBlock,
             TextBlock,

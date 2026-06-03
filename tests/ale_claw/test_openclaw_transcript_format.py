@@ -384,7 +384,7 @@ class TestSessionReasoningRetention:
         Anthropic: thinking blocks are dropped (drop_thinking_blocks=True).
         OpenAI: orphaned reasoning blocks are downgraded; non-orphaned kept.
         """
-        from ale_run.agents.ale_claw.harness.canonical import (
+        from ale_run.agents.ale_claw.harness.canonical.canonical import (
             CanonicalMessage,
             TextBlock,
             ThinkingBlock,
@@ -421,7 +421,7 @@ class TestSessionReasoningRetention:
 
     def test_orphaned_openai_reasoning_dropped_on_replay(self):
         """Orphaned OpenAI reasoning (no following content) is dropped on replay."""
-        from ale_run.agents.ale_claw.harness.canonical import (
+        from ale_run.agents.ale_claw.harness.canonical.canonical import (
             CanonicalMessage,
             TextBlock,
             ThinkingBlock,

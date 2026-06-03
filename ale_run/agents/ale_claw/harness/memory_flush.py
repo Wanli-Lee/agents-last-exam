@@ -18,7 +18,7 @@ from __future__ import annotations
 import json as _json
 from typing import TYPE_CHECKING, Any
 
-from .canonical import _normalize_actions
+from .canonical.canonical import _normalize_actions
 from .model_config import ResolvedModel, resolve_model
 
 from .helper_runtime import call_helper_model

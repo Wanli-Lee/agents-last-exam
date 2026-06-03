@@ -62,7 +62,7 @@ _COMPUTER_ACTION_PARAMS: Dict[str, List[str]] = {
 }
 
 from ._message_shapes import _function_call_output, _image_url_block
-from .canonical import normalize_to_canonical, sanitize_items
+from .canonical.canonical import normalize_to_canonical, sanitize_items
 from .computer_handler import OpenClawComputerHandler
 from .context import ContextOverflowCallback, compact_messages, is_context_overflow_error
 from .memory import MemoryStore
@@ -1082,7 +1082,7 @@ class OpenClawComputerAgent(ComputerAgent):
             (``_compact_in_place``) runs ``sanitize_items()`` to convert
             to provider-specific format.
         """
-        from .canonical import (
+        from .canonical.canonical import (
             CanonicalMessage,
             CompactionSummaryBlock,
             normalize_to_canonical,

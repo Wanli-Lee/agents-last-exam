@@ -34,7 +34,7 @@ from .cache_policy import (
     supports_anthropic_cache,
 )
 from .computer_handler import OpenClawComputerHandler
-from .canonical import (
+from .canonical.canonical import (
     CanonicalMessage,
     CompactionSummaryBlock,
     ComputerCallBlock,
