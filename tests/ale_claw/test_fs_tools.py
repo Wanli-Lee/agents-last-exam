@@ -1,4 +1,4 @@
-"""Tests for Remote-VM File I/O tools (US-OC-055).
+"""Tests for Remote-VM File I/O tools.
 
 Covers ReadFileTool / WriteFileTool / EditFileTool:
   - Registration & schema
@@ -77,7 +77,7 @@ def _make_interface(
 
 
 def _make_png(width: int = 4, height: int = 4, color=(255, 0, 0)) -> bytes:
-    """Real PNG bytes — needed since the sanitizer (US-OC-073) decodes via Pillow."""
+    """Real PNG bytes — needed since the sanitizer decodes via Pillow."""
     import io as _io
 
     from PIL import Image as _PILImage
@@ -346,7 +346,7 @@ class TestReadImage:
         assert "treated as image/png" in result["error"]
 
     def test_oversize_png_resized_to_jpeg(self):
-        # US-OC-073: a real >1200px PNG is resized & transcoded to JPEG
+        # a real >1200px PNG is resized & transcoded to JPEG
         # (was previously rejected with "image too large").
         big = _make_png(2400, 1800, color=(80, 160, 240))
         iface = _make_interface(read_bytes=big)

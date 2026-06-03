@@ -1,4 +1,4 @@
-"""Tests for AnalyzeImageTool (US-OC-033).
+"""Tests for AnalyzeImageTool.
 
 Covers:
   - Tool registration and schema validation
@@ -27,7 +27,7 @@ from agent.tools.base import TOOL_REGISTRY
 
 
 def _real_png(width: int = 4, height: int = 4, color=(255, 0, 0)) -> bytes:
-    """Real PNG bytes for tests — sanitizer (US-OC-073) decodes via Pillow,
+    """Real PNG bytes for tests — sanitizer decodes via Pillow,
     so placeholder bytes like ``b"fakepng"`` no longer survive the loader."""
     buf = io.BytesIO()
     _PILImage.new("RGB", (width, height), color).save(buf, format="PNG")
@@ -345,7 +345,7 @@ class TestUnsupportedSchemes:
 
 class TestSizeEnforcement:
     def test_oversized_image_unreachable_budget(self):
-        # US-OC-073: tiny maxBytesMb forces resize budget below any
+        # tiny maxBytesMb forces resize budget below any
         # reachable JPEG output → sanitizer exhausts grid → placeholder
         # error surfaced as a tool-level Error string.
         tool = _make_tool()

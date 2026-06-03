@@ -1,4 +1,4 @@
-"""Unit tests for openclaw.image_sanitization (US-OC-073).
+"""Unit tests for openclaw.image_sanitization.
 
 Covers the resize / passthrough / placeholder decision tree, EXIF orientation,
 the pixel-count guardrail, and the side-grid construction. Mirrors the
@@ -138,8 +138,8 @@ class TestPassthrough:
 
     def test_small_bmp_passthrough_fidelity(self):
         # FIDELITY check: OpenClaw passes small non-allowlisted MIMEs through
-        # unchanged. US-OC-073 deliberately preserves this behavior; the fix
-        # is tracked as US-OC-074.
+        # unchanged. deliberately preserves this behavior; the fix
+        # is tracked .
         data = _bmp(100, 100)
         out = sanitize_raw_image_bytes(data, "image/bmp", label="t")
         assert isinstance(out, tuple)

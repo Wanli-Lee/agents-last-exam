@@ -7,7 +7,7 @@ Reproduces OpenClaw's anthropic-payload-policy.ts expectations:
   - Non-Anthropic models get all markers stripped, none added.
   - openrouter/anthropic/* honored; openrouter/openai/* skipped.
 
-History: originally landed as ``CachePolicyCallback`` (US-OC-070). The
+History: originally landed as ``CachePolicyCallback``. The
 orchestration team's commit ``af38574b`` discovered that
 ``agent.py:_on_api_start`` deep-copies kwargs via ``get_json`` before
 invoking callbacks, so any cache_control mutation in ``on_api_start``

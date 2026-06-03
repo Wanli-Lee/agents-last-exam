@@ -1,4 +1,4 @@
-"""Tests for Remote-VM shell execution tool (US-OC-057).
+"""Tests for Remote-VM shell execution tool.
 
 Covers ExecTool:
   - Registration & schema

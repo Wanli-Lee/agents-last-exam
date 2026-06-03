@@ -1,4 +1,4 @@
-"""Tests for sticky placeholder + turn-mode (US-OC-072).
+"""Tests for sticky placeholder + turn-mode.
 
 Covers behavior added on top of test_image_retention.py:
   - Sticky placeholder replaces image-only messages (cache-thrash fix).
@@ -239,7 +239,7 @@ class TestModeWiring:
     def test_default_mode_is_openclaw(self):
         # Harness default flipped from count-by-image to OpenClaw-parity
         # turn-based retention (renamed "count"->"cua", "turn"->"openclaw";
-        # default flipped to "openclaw" after US-OC-072 verification).
+        # default flipped to "openclaw" after verification).
         cb = OpenClawImageRetentionCallback(only_n_most_recent_images=2)
         assert cb.mode == "openclaw"
 

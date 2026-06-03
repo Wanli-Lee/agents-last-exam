@@ -1,6 +1,6 @@
 """Tests for OpenClaw memory tools (MemorySearchTool, MemoryGetTool, MemoryWriteTool).
 
-These tools wrap the task-scoped MemoryStore (US-OC-002) with BaseTool subclasses
+These tools wrap the task-scoped MemoryStore with BaseTool subclasses
 so CUA agents can search, read, and write memory files during task execution.
 """
 

@@ -1,4 +1,4 @@
-"""Tests for the sanitize_items() pipeline (US-OC-039).
+"""Tests for the sanitize_items() pipeline.
 
 Covers:
   - normalize_to_canonical() with flat Responses API items

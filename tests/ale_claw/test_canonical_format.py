@@ -1,4 +1,4 @@
-"""Tests for US-OC-038/041: Canonical internal message format + TranscriptPolicy.
+"""Tests for Canonical internal message format + TranscriptPolicy.
 
 Covers:
   - normalize_to_canonical: untyped dicts → CanonicalMessage
@@ -710,7 +710,7 @@ class TestBuildCompactedItemsCanonical:
 
 
 # =========================================================================
-# TranscriptPolicy (US-OC-041)
+# TranscriptPolicy
 # =========================================================================
 
 
@@ -793,7 +793,7 @@ class TestGetTranscriptPolicy:
 
 
 # =========================================================================
-# drop_thinking_blocks (US-OC-041)
+# drop_thinking_blocks
 # =========================================================================
 
 
@@ -862,7 +862,7 @@ class TestDropThinkingBlocks:
 
 
 # =========================================================================
-# sanitize_thinking_signatures (US-OC-041)
+# sanitize_thinking_signatures
 # =========================================================================
 
 
@@ -919,7 +919,7 @@ class TestSanitizeThinkingSignatures:
 
 
 # =========================================================================
-# downgrade_openai_reasoning (US-OC-041)
+# downgrade_openai_reasoning
 # =========================================================================
 
 
@@ -1044,7 +1044,7 @@ class TestDowngradeOpenaiReasoning:
 
 
 # =========================================================================
-# sanitize_items with policy (US-OC-041)
+# sanitize_items with policy
 # =========================================================================
 
 

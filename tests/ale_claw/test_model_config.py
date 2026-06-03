@@ -1,4 +1,4 @@
-"""Tests for US-OC-040: Model Config Registry.
+"""Tests for Model Config Registry.
 
 Verifies:
   - get_model_config() returns correct config for known models

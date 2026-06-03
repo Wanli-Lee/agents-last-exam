@@ -1,4 +1,4 @@
-"""Tests for transcript replay — cross-run continuity (US-OC-012, US-OC-022).
+"""Tests for transcript replay — cross-run continuity.
 
 Tests build_replay_messages, sanitize_history, limit_history_turns,
 and convert_to_responses_api_items.
@@ -523,7 +523,7 @@ class TestReplayIntegration:
 
 
 # ---------------------------------------------------------------------------
-# convert_to_responses_api_items (US-OC-022)
+# convert_to_responses_api_items
 # ---------------------------------------------------------------------------
 
 

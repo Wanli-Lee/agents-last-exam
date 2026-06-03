@@ -1,4 +1,4 @@
-"""Tests for PromptBuilder — US-OC-001: System Prompt Builder."""
+"""Tests for PromptBuilder —: System Prompt Builder."""
 
 from ale_run.agents.ale_claw.harness import ContextFile, PromptBuilder, PromptConfig, SectionConfig
 
@@ -199,7 +199,7 @@ class TestMemorySection:
 
 
 class TestExecSection:
-    """Test the Shell Execution (_build_exec) section — US-OC-057."""
+    """Test the Shell Execution (_build_exec) section."""
 
     def test_exec_section_appears_when_exec_registered(self):
         builder = PromptBuilder()

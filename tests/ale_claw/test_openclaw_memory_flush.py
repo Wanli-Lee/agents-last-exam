@@ -1,4 +1,4 @@
-"""Tests for memory flush helper wiring (US-OC-020)."""
+"""Tests for memory flush helper wiring."""
 
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch

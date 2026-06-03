@@ -1,4 +1,4 @@
-"""Tests for US-SUB-005 delegation tools (subagent_tools.py).
+"""Tests for delegation tools (subagent_tools.py).
 
 Covers:
   * DelegateGeneralTool: schema, accepted path (task scheduled + attached),
@@ -452,7 +452,7 @@ class TestDelegateGUITool:
         tool = _make_gui_tool(parent_session_dir=tmp_path)
         assert tool._parent_session_dir == tmp_path
 
-    # ---- Post-delegation screenshot injection (US-SUB-006) ----
+    # ---- Post-delegation screenshot injection ----
 
     def test_post_delegation_message_enqueued_on_complete(self, tmp_path):
         registry = SubagentRegistry()
@@ -661,7 +661,7 @@ class TestSubagentsTool:
 
 
 # ---------------------------------------------------------------------------
-# SubagentsTool — steer action (US-SUB-009)
+# SubagentsTool — steer action
 # ---------------------------------------------------------------------------
 
 

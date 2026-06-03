@@ -294,9 +294,9 @@ def test_shim_strips_image_block_keeps_text_in_same_message():
 
 def test_shim_treats_input_image_blocks_as_images_too():
     """Defensive: pre-rewrite ``input_image`` shape (e.g. cross-run replay)
-    counts as an image and is pruned to a placeholder (US-OC-072).
+    counts as an image and is pruned to a placeholder.
 
-    Pre-US-OC-072: the old image-only message was deleted entirely, which
+    Pre-change: the old image-only message was deleted entirely, which
     shifted every subsequent message index and busted the Anthropic prefix
     cache. The fix replaces the image with a stable text placeholder so
     the message structure is preserved.

@@ -1,13 +1,13 @@
-"""Tests for the compaction pipeline (US-OC-006, US-OC-013).
+"""Tests for the compaction pipeline.
 
 Covers:
   - Chunk splitting (by token share, by max tokens, adaptive ratio)
   - Message serialization for summarization
   - LLM-based summarization (mocked litellm)
   - Fallback tiers
-  - compact_messages() entry point (budget-aware, US-OC-013)
-  - Tool pairing repair (US-OC-013)
-  - Recent turns preservation (US-OC-013)
+  - compact_messages() entry point (budget-aware,)
+  - Tool pairing repair
+  - Recent turns preservation
   - Agent loop helpers (_extract_messages_for_compaction)
 """
 
@@ -537,7 +537,7 @@ class TestSummarizeWithFallback:
 
 
 # ---------------------------------------------------------------------------
-# US-OC-018: Verify removed symbols
+# Verify removed symbols
 # ---------------------------------------------------------------------------
 
 class TestRemovedSymbols:
@@ -663,7 +663,7 @@ class TestExtractMessagesForCompaction:
         assert len(messages) == 0
 
 # ===========================================================================
-# US-OC-013: Tool pairing repair
+# Tool pairing repair
 # ===========================================================================
 
 def _make_assistant_with_call(call_id: str, call_type: str = "function_call", stop_reason: str | None = None) -> dict:
@@ -789,7 +789,7 @@ class TestRepairToolUseResultPairing:
 
 
 # ===========================================================================
-# US-OC-013: Recent turns preservation
+# Recent turns preservation
 # ===========================================================================
 
 class TestSplitPreservedRecentTurns:
@@ -880,7 +880,7 @@ class TestSplitPreservedRecentTurns:
 
 
 # ===========================================================================
-# US-OC-013: Budget-aware compaction
+# Budget-aware compaction
 # ===========================================================================
 
 class TestBudgetAwareCompaction:
@@ -1013,7 +1013,7 @@ class TestBudgetAwareCompaction:
 
 
 # ===========================================================================
-# US-OC-013: End-to-end compact + repair
+# End-to-end compact + repair
 # ===========================================================================
 
 class TestCompactAppliesRepairToKept:
@@ -1041,7 +1041,7 @@ class TestCompactAppliesRepairToKept:
 
 
 # ===========================================================================
-# US-OC-013: _extract_messages_for_compaction propagates stop_reason
+# _extract_messages_for_compaction propagates stop_reason
 # ===========================================================================
 
 class TestExtractMessagesStopReason:
@@ -1080,7 +1080,7 @@ class TestExtractMessagesStopReason:
 
 
 # ===========================================================================
-# US-OC-013: CUA-pattern compaction (1 user + N assistant/tool pairs)
+# CUA-pattern compaction (1 user + N assistant/tool pairs)
 # ===========================================================================
 
 class TestCuaPatternCompaction:

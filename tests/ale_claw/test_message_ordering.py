@@ -1,10 +1,10 @@
-"""Tests for US-OC-036: Post-compaction message ordering.
+"""Tests for Post-compaction message ordering.
 
 Ensures _build_compacted_items never produces a list ending with role=assistant,
 which would cause API errors for models that don't support assistant prefill
 (e.g., Opus 4.6).
 
-Updated for US-OC-038: _build_compacted_items now returns list[CanonicalMessage]
+Updated for: _build_compacted_items now returns list[CanonicalMessage]
 with typed content blocks instead of untyped dicts.
 """
 
@@ -46,7 +46,7 @@ def _build_compacted_items_standalone(
 
 
 class TestPostCompactionMessageOrdering:
-    """US-OC-036: Post-compaction message list must not end with role=assistant."""
+    """Post-compaction message list must not end with role=assistant."""
 
     def test_trailing_assistant_gets_user_appended(self):
         """When kept_messages ends with assistant, a user message is appended."""

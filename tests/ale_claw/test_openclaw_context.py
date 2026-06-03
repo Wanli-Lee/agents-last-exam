@@ -1,4 +1,4 @@
-"""Tests for context overflow detection and tool result truncation (US-OC-005).
+"""Tests for context overflow detection and tool result truncation.
 
 Covers:
   - Token estimation (chars/4, image substitution)

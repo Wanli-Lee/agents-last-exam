@@ -1,9 +1,9 @@
-"""Tests for transcript JSONL format correctness (US-OC-004b, US-OC-046).
+"""Tests for transcript JSONL format correctness.
 
 Exercises the group_step_output() and _find_latest_screenshot() helpers from
 openclaw/transcript.py without requiring a VM. All tests are pure unit tests.
 
-US-OC-046 additions: session reasoning retention tests — verifies thinking
+additions: session reasoning retention tests — verifies thinking
 blocks + thinkingSignature are retained in session logs and sanitized
 differently per provider on replay.
 """
@@ -340,14 +340,14 @@ class TestFindLatestScreenshot:
 
 
 # ---------------------------------------------------------------------------
-# Session reasoning retention (US-OC-046 AC7)
+# Session reasoning retention (AC7)
 # ---------------------------------------------------------------------------
 
 
 class TestSessionReasoningRetention:
     """Verify thinking blocks + thinkingSignature are retained in session logs.
 
-    US-OC-046 AC7: Session persistence behavior for reasoning is explicit.
+    AC7: Session persistence behavior for reasoning is explicit.
     Policy: thinking blocks are retained at write time; sanitization
     (drop/preserve/downgrade) is applied at replay time via TranscriptPolicy.
     """

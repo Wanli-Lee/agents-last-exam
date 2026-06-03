@@ -1,4 +1,4 @@
-"""Tests for post-compaction context re-injection (Gap A from US-OC-070).
+"""Tests for post-compaction context re-injection (Gap A).
 
 Mirrors OpenClaw's readPostCompactionContext (post-compaction-context.ts):
 after a compaction event, a fresh user-role message is appended that
