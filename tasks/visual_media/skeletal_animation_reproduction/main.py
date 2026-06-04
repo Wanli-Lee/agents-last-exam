@@ -187,7 +187,7 @@ class SkeletalAnimationTaskConfig(GeneralTaskConfig):
 
     @property
     def task_dir(self) -> str:
-        return _remote_child(self.REMOTE_ROOT_DIR, self.DOMAIN_NAME, self.REMOTE_TASK_DIR_NAME)
+        return _remote_child(self.REMOTE_ROOT_DIR, self.DOMAIN_NAME, self.TASK_NAME, self.REMOTE_TASK_DIR_NAME)
 
     @property
     def input_obj(self) -> str:
