@@ -63,6 +63,7 @@ _TOP_LEVEL_KEYS = frozenset({
     "concurrency",
     "cleanup_mode",
     "prompt_suffix",
+    "wall_time_s",
 })
 
 
@@ -198,6 +199,11 @@ def _build_experiment(raw: dict[str, Any], *, base_dir: Path) -> ExperimentSpec:
     concurrency = _build_concurrency(raw)
     cleanup_mode = _build_cleanup_mode(raw)
     prompt_suffix = str(raw.get("prompt_suffix") or "")
+    wall_time_s = raw.get("wall_time_s")
+    if wall_time_s is not None:
+        wall_time_s = int(wall_time_s)
+        if wall_time_s <= 0:
+            raise ValueError(f"wall_time_s must be a positive integer, got {wall_time_s}")
 
     if "agent" in raw and "agents" in raw:
         raise ValueError("set either `agent:` (single path) or `agents:` (list of paths), not both")
@@ -233,6 +239,7 @@ def _build_experiment(raw: dict[str, Any], *, base_dir: Path) -> ExperimentSpec:
         concurrency=concurrency,
         cleanup_mode=cleanup_mode,
         prompt_suffix=prompt_suffix,
+        wall_time_s=wall_time_s,
     )
 
 

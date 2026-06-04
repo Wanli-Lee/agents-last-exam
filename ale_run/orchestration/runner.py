@@ -95,6 +95,7 @@ class Runner:
                 sem=sem,
                 cleanup_mode=self._spec.cleanup_mode,
                 prompt_suffix=self._spec.prompt_suffix,
+                wall_time_s=self._spec.wall_time_s,
             )
             logger.info("[%s] done: status=%s score=%s duration=%.1fs",
                         u.slug, result.status, result.score, result.duration_s or 0)

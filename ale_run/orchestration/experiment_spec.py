@@ -153,6 +153,12 @@ class ExperimentSpec:
     exactly what the agent saw. Set via the top-level ``prompt_suffix:``
     yaml key — a yaml ``|`` block scalar is convenient for multi-line text."""
 
+    wall_time_s: int | None = None
+    """Experiment-wide agent wall-clock budget (seconds), overriding each
+    task card's ``vm.timeout``. ``None`` (default) ⇒ use the per-task value
+    (or the framework default). Set via the top-level ``wall_time_s:`` yaml
+    key — e.g. ``18000`` for a uniform 5h budget across all tasks."""
+
 
 # =============================================================================
 # Derived run units (one per agent × task × variant combination)
