@@ -50,6 +50,23 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# gather_dir guardrails: dependency/cache trees are huge (a single .venv can be
+# 10k+ files), never useful in host logs, and pulling them file-by-file over cua
+# can wedge a run for hours. Skip them by path component, and cap the overall
+# pull so a pathological output dir can never block completion.
+_GATHER_EXCLUDE_DIRS = frozenset({
+    "__pycache__", "node_modules", ".git", ".venv", "venv",
+    "site-packages", ".conda", ".cache", ".mypy_cache", ".pytest_cache",
+})
+_GATHER_MAX_FILES = 5000
+_GATHER_DEADLINE_S = 300.0
+
+
+def _gather_skip(rel: str) -> bool:
+    """True if ``rel`` lives under a dependency/cache dir we never gather."""
+    parts = Path(rel.replace("\\", "/")).parts
+    return any(p in _GATHER_EXCLUDE_DIRS or p.startswith(".venv") for p in parts)
+
 
 # Convention: ale_run source ships to ``<home>/.ale-src/`` on the sandbox,
 # where <home> is the parent of work_dir_base (e.g. /home/user/.ale → /home/user).
@@ -313,10 +330,16 @@ class SandboxExecutor(BaseExecutor):
         file_count = 0
         total_bytes = 0
         last_error: str | None = None
+        capped: str | None = None
+        deadline = time.monotonic() + _GATHER_DEADLINE_S
         sep = "/" if self.sandbox.is_linux else "\\"
 
         for entry in entries:
             rel = entry["relpath"]
+            # Skip dependency/cache trees (.venv, __pycache__, node_modules, ...):
+            # huge, useless in logs, and pulling them over cua can wedge for hours.
+            if _gather_skip(rel):
+                continue
             # Never pull secret-bearing control files to host logs.
             if Path(rel.replace("\\", "/")).name in SECRET_GATHER_EXCLUDES:
                 continue
@@ -324,6 +347,11 @@ class SandboxExecutor(BaseExecutor):
             if entry["is_dir"]:
                 local.mkdir(parents=True, exist_ok=True)
                 continue
+            # Overall guardrail: never let a pathological output dir block the run.
+            if file_count >= _GATHER_MAX_FILES or time.monotonic() > deadline:
+                capped = ("max_files" if file_count >= _GATHER_MAX_FILES
+                          else f"deadline_{_GATHER_DEADLINE_S:.0f}s")
+                break
             local.parent.mkdir(parents=True, exist_ok=True)
             remote_path = f"{src.rstrip(sep)}{sep}{rel.replace('/', sep)}"
             ok = await _download_with_retry(self.sandbox, remote_path, local)
@@ -336,6 +364,10 @@ class SandboxExecutor(BaseExecutor):
             else:
                 last_error = f"download failed: {rel}"
                 logger.warning("gather_dir: %s", last_error)
+
+        if capped:
+            last_error = f"gather capped ({capped}) after {file_count} files"
+            logger.warning("gather_dir: %s — skipped remainder of %s", last_error, src)
 
         return GatherReport(
             transport="cua",
