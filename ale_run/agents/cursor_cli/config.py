@@ -35,17 +35,11 @@ class CursorCliConfig:
     """Cursor catalog model id (e.g. ``claude-4.6-sonnet-medium``,
     ``claude-opus-4-7-thinking-high``, ``gpt-5.5-high``, ``composer-2.5``).
     Empty string = "auto" — the deployer omits ``--model`` and cursor-agent
-    picks its own Composer model."""
-
-    composer_fast: bool = False
-    """Composer tier selector (Composer models only). ``False`` = **Standard**
-    (model id ``composer-2.5``); ``True`` = **Fast** (``composer-2.5-fast``).
-    Both serve the SAME weights — Fast is merely inference on hotter hardware
-    (lower latency / higher tok-per-sec) at ~6× the per-token price
-    ($3/$15 vs $0.50/$2.50 per M) with no quality gain, so **Standard is the
-    right default for batch / non-interactive runs**. When ``True`` the deployer
-    appends ``-fast`` to a bare ``composer-*`` model id; non-composer models
-    and ids already ending in ``-fast`` are left untouched."""
+    picks its own Composer model. Tiers/variants are encoded in the id itself
+    (the deployer passes it through verbatim), e.g. ``composer-2.5`` (Standard)
+    vs ``composer-2.5-fast`` (Fast: same weights, ~6× price — $3/$15 vs
+    $0.50/$2.50 per M — only lower latency, no quality gain; use Standard for
+    batch)."""
 
     provider: str = "cursor"
     """Routing provider. cursor-agent is hard-wired to Cursor's own

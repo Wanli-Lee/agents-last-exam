@@ -343,14 +343,10 @@ class CursorCliDeployer(BaseAgentDeployer):
         else:
             argv = [self._cursor_path, "-p"]
         # Empty/None model => omit --model so cursor-agent picks "auto".
-        # composer_fast maps a bare composer-* id to its 6x-priced "-fast"
-        # (lower-latency) tier; default False keeps Standard (composer-2.5).
-        model = cfg.model
-        if (model and cfg.composer_fast
-                and model.startswith("composer") and not model.endswith("-fast")):
-            model = f"{model}-fast"
-        if model:
-            argv += ["--model", model]
+        # Tier/variant (e.g. composer-2.5 Standard vs composer-2.5-fast) is
+        # part of the model id, passed through verbatim.
+        if cfg.model:
+            argv += ["--model", cfg.model]
         argv += [
             "--output-format", "stream-json",
             "--force", "--approve-mcps", "--trust",
