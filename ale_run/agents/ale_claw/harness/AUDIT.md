@@ -62,16 +62,23 @@ tool `call()` template (#5). One function per PR, each behind its tests.
 boundaries), then canonical/context/agent_loop. Land after the in-place decompositions so
 moves are mechanical.
 
-## Flagged for owner — possible BUGS, NOT readability (do NOT silently "fix")
+## Flagged for owner — possible BUGS, NOT readability — ALL RESOLVED
 
-- `model_config.py:193` and `thinking.py:281`: `model_lower.startswith("o")` for the OpenAI
-  reasoning family matches *any* `o*` model (`ollama/…`, `openchat`, …). Likely meant `o1/o3/o4`.
-- `analyze_image.py:216-233`: `C:/foo` passes the drive-letter guard but `_is_remote_path`
-  (backslash-only) routes it to the local-`open()` branch — latent inconsistency.
-- `memory.py:363`: path-traversal guard uses string-prefix compare (`/base` vs `/base-evil`
-  false-negative); prefer `Path.is_relative_to`.
-- `session.py:94`: `contextTokens` (camelCase) attribute contradicts its own docstring
-  (`context_tokens`); confirm before renaming (grep all readers).
+All four items below have been confirmed with the owner and fixed; kept here as a
+record. None remain open.
+
+- ✅ **OpenAI-family detection** (`model/model_config.py`, `model/thinking.py`):
+  `startswith("o")` matched any `o*` model (`ollama/…`, `openchat`) and mis-routed
+  `openrouter/google/*`. Fixed to key off the provider segment
+  (`"openai" in …` + narrow `startswith(("o1","o3","o4"))`).
+- ✅ **`analyze_image` Windows-path routing**: `_is_remote_path` now accepts both
+  separators (`^[A-Za-z]:[\\/]`), consistent with the upstream guard — `C:/foo` is
+  routed remotely. (Was already fixed in tree by the time of this pass.)
+- ✅ **`memory.py` path-traversal guard**: replaced the string-prefix compare with
+  `Path.is_relative_to`, closing the `<base>` vs `<base>-evil` sibling false-negative.
+- ✅ **`session.py` `contextTokens`**: Python attribute renamed to snake_case
+  `context_tokens` (matches the docstring); the on-disk `state.json` key stays
+  `"contextTokens"` for OpenClaw compatibility.
 
 ## Note on adapter files
 
