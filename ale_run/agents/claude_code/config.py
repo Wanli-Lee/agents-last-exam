@@ -86,6 +86,16 @@ class ClaudeCodeConfig:
     disabled_tools: tuple[str, ...] = _DISABLED_TOOLS
     dangerously_skip_permissions: bool = True
 
+    max_thinking_tokens: int = 31999
+    """Extended-thinking token budget, passed to the CLI via the
+    ``MAX_THINKING_TOKENS`` env var (Claude Code's documented knob —
+    see https://code.claude.com/docs/en/costs#adjust-extended-thinking).
+    Claude Code enables extended thinking by default; ``31999`` is the
+    default-high ("ultrathink") cap. We set it explicitly so the reasoning
+    level is pinned + visible rather than relying on the CLI default
+    (parity with codex's ``reasoning_effort=high``). Lower it (e.g. 8000)
+    to cut cost, or set 0 to disable thinking."""
+
     # ---- documentation ----
     cli_version: str = "@anthropic-ai/claude-code@2.1.85"
     """Full npm spec the deployer installs when ``claude`` is not already on

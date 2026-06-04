@@ -303,6 +303,12 @@ class ClaudeCodeDeployer(BaseAgentDeployer):
         for k, v in (self.executor.env or {}).items():
             env[k] = v
 
+        # Extended-thinking budget — pin it explicitly via Claude Code's
+        # documented MAX_THINKING_TOKENS env var. The CLI already defaults to
+        # extended thinking (31999 cap); setting it makes the reasoning level
+        # explicit + tunable (parity with codex's reasoning_effort=high).
+        env["MAX_THINKING_TOKENS"] = str(cfg.max_thinking_tokens)
+
         # Provider-driven routing (explicit, not key-presence heuristic).
         if cfg.provider == "openrouter":
             or_key = env.get("OPENROUTER_API_KEY")
