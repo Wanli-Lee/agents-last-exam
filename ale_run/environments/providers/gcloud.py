@@ -61,6 +61,9 @@ _GCP_RETRYABLE_TRANSIENT = [
     "500", "502", "503", "service unavailable", "bad gateway",
     "internal error", "backend error",
     "connection reset", "connection refused", "timed out", "deadline exceeded",
+    # local gcloud CLI losing its connection to the API mid-create under a
+    # concurrent burst — transient, retry w/ backoff instead of failing the unit.
+    "connection aborted", "remotedisconnected", "gcloud crashed",
 ]
 _GCP_RETRYABLE_ZONE = [
     "quota", "resource_exhausted", "cpus_per_vm_family", "stockout",
