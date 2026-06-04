@@ -27,7 +27,7 @@ from .adapters import (
     OpenClawTrajectorySaverCallback,
 )
 from .agent_loop import OpenClawComputerAgent
-from .analyze_image import AnalyzeImageTool
+from .tools.analyze_image import AnalyzeImageTool
 from .inference.cache_policy import (
     OPENCLAW_CACHE_BOUNDARY,
     apply_openclaw_cache_markers,
