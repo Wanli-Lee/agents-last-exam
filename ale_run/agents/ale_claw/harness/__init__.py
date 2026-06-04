@@ -33,7 +33,7 @@ from .inference.cache_policy import (
     apply_openclaw_cache_markers,
     supports_anthropic_cache,
 )
-from .computer_handler import OpenClawComputerHandler
+from .computer.computer_handler import OpenClawComputerHandler
 from .canonical.canonical import (
     CanonicalMessage,
     CompactionSummaryBlock,
