@@ -1,0 +1,62 @@
+__pycache__/
+*.pyc
+*.pyo
+
+# Node deps — installed on the substrate / in the image, never checked in
+# (e.g. the cua MCP bridge's node_modules under ale_run/agents/_assets/).
+node_modules/
+
+.venv/
+.uv/
+uv.lock
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# On-disk run artifacts — never check in
+.logs/
+.final_logs/
+.temp_repos/
+sample_run/
+
+# Per-developer experiment configs (workflow notes, model-swap probes).
+# Templates for users live at the top-level example_exp.yaml; anything
+# under experiments/ is treated as local-only state.
+experiments/
+
+# Local-only smoke configs that hardcode a developer's VM IP / model choice —
+# never check in (see ale_claw VM-smoke workflow). Templates are documented inline.
+configs/agents/ale_claw_sonnet_or.yaml
+configs/environments/static_ale_vm.yaml
+
+# Per-session working notes / planning docs — not part of the public repo.
+docs/sessions/
+docs/dev
+docs/.deprecated-opus4-7/
+
+# Local-only scratchpad
+/context.md
+
+# Secrets — checked-in template lives at secret/.env.example.
+# `.env` matches at any depth, so it also covers `secret/.env`.
+.env
+secret/*.json
+hf_token
+
+# claude code
+.claude/
+# Agent/dev working instructions — local-only, not part of the public repo.
+CLAUDE.md
+# Per-task secret store (real values ignored; .example templates tracked)
+secret/eval_time/gemini.env
+secret/eval_time/openai.env
+
+# Stray cua-bench eval artifacts written to cwd during host-side task eval
+trycua/
