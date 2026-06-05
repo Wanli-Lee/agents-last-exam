@@ -26,7 +26,7 @@ Led by **[UC Berkeley RDI](https://rdi.berkeley.edu/)** × **RDI Foundation**
 Agents' Last Exam aims to build the **broadest-coverage agent
 evaluation benchmark to date**, measuring performance on long-horizon,
 economically valuable tasks with verifiable outcomes. Co-led by Berkeley RDI and
-300+ industry experts, dALE covers non-physical industries defined with
+300+ industry experts, ALE covers non-physical industries defined with
 reference to O*NET / SOC 2018 (the U.S. federal occupational taxonomy). 
 
 <table align="center">
@@ -55,7 +55,7 @@ This is the open evaluation framework for ALE. It ships:
 
 - The `ale_run` orchestration toolkit: provision sandboxes, run agents, evaluate.
 - **147 reference tasks** across 55 industries, the current public subset of a 1,500+ task corpus. Many tasks need private data or licensed software and stay in a separate private pool. ALE uses rolling evaluation: every ~6 months we publish a new public subset with fresh instances; private tasks rotate in and retired public tasks rotate out, to limit benchmark leakage.
-- Two reference agent harnesses: the official Claude Code CLI and the in-tree OpenClaw harness. 
+- Two reference agent harnesses: the official Claude Code CLI and the in-tree ALE Claw harness. 
 - Curated leaderboard slices: `cli`, `near-term`, `full-spectrum`, `last-exam`, plus an `unlicensed` track.
 
 The full corpus, the live leaderboard, and the contributor program live at
