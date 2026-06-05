@@ -123,15 +123,6 @@ class AleClawConfig:
     """``openclaw`` (default — last N completed turns) or ``cua`` (last N images
     by count). OpenClaw mode reduces cache thrash on multi-screenshot turns."""
 
-    # ---- documentation ----
-    upstream_version: str = "openclaw-cua@a830cae2"
-    """Source upstream commit for the vendored ``harness/`` tree.
-    Surfaced via :attr:`AleClawDeployer.version`."""
-
-    # ---- v2 (NOT in v1 — always per-run) ----
-    # memory_base_dir: str | None = None
-    # session_base_dir: str | None = None
-
     def __post_init__(self) -> None:
         if self.disable_main_computer and self.disable_delegate_gui:
             raise ValueError(
