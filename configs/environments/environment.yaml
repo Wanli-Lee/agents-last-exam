@@ -24,12 +24,12 @@ snapshots:
       project: ${env:GCP_PROJECT}
       service_account_key: ${env:GCP_SA_KEY}
       instance_prefix: ale
-      network: agenthle-vpc
-      subnet: agenthle-vpc
+      network: ale-vpc
+      subnet: ale-vpc
       zones: [us-central1-a, us-east1-b, us-west1-a]
-    # ALTERNATIVE — run Ubuntu tasks in a local Docker container instead:
+    # TODO: ALTERNATIVE — run Ubuntu tasks in a local Docker container instead:
     #   provider: docker
-    #   image: ale-kasm           # container ref + port (8000) come from the Image entry
+    #   image: ale-ubuntu22-docker          # container ref + port (8000) come from the Image entry
     #   docker:                   # docker-only knobs: container sizing
     #     cpus: 4
     #     memory: 16g
@@ -42,8 +42,8 @@ snapshots:
       project: ${env:GCP_PROJECT}
       service_account_key: ${env:GCP_SA_KEY}
       instance_prefix: ale
-      network: agenthle-vpc
-      subnet: agenthle-vpc
+      network: ale-vpc
+      subnet: ale-vpc
       zones: [us-central1-a, us-central1-b, us-east1-b]
 
   cpu-license:                # Windows requiring a licensed image
@@ -53,8 +53,8 @@ snapshots:
       project: ${env:GCP_PROJECT}
       service_account_key: ${env:GCP_SA_KEY}
       instance_prefix: ale
-      network: agenthle-vpc
-      subnet: agenthle-vpc
+      network: ale-vpc
+      subnet: ale-vpc
       zones: [us-east1-b, us-central1-a]
 
   gpu-free:                   # Windows + GPU
@@ -64,8 +64,8 @@ snapshots:
       project: ${env:GCP_PROJECT}
       service_account_key: ${env:GCP_SA_KEY}
       instance_prefix: ale
-      network: agenthle-vpc
-      subnet: agenthle-vpc
+      network: ale-vpc
+      subnet: ale-vpc
       gpu: nvidia-l4-vws
       zones: [us-central1-a, us-central1-b]
 
@@ -76,16 +76,16 @@ snapshots:
       project: ${env:GCP_PROJECT}
       service_account_key: ${env:GCP_SA_KEY}
       instance_prefix: ale
-      network: agenthle-vpc
-      subnet: agenthle-vpc
+      network: ale-vpc
+      subnet: ale-vpc
       gpu: nvidia-l4-vws
       zones: [us-central1-a, us-central1-b]
 
 # ---------------------------------------------------------------------------
 # Task data + output (substrate-coupled: code lives under ale_run/environments/).
 # ---------------------------------------------------------------------------
-# Where to source task data: "baked_in_sandbox" | "gs://<bucket>" | "hf://<ds>".
-task_data_source: gs://ale-data-public
+# Where to source task data: "baked_in_sandbox" | "gs://ale-data-public" | "hf://<ds> TODO: add hf support".
+task_data_source: baked_in_sandbox
 # A gs:// source carries a GCS SA key (host path). The docker provider copies it
 # into each container so gsutil can stage + bill requester-pays buckets; gcloud
 # images already have a baked SA and ignore it.
