@@ -357,9 +357,12 @@ class MemoryGetTool(BaseTool):
 
         file_path = params_dict.get("path", "")
 
-        # Security: reject path traversal and absolute paths
+        # Security: reject path traversal and absolute paths. Compare by path
+        # components (is_relative_to), not string prefix — a string prefix test
+        # accepts a sibling like ``<base>-evil`` whose path string starts with
+        # ``<base>``.
         resolved = (self.store.base_dir / file_path).resolve()
-        if not str(resolved).startswith(str(self.store.base_dir.resolve())):
+        if not resolved.is_relative_to(self.store.base_dir.resolve()):
             return "Error: path traversal is not allowed. Use a relative path within memory."
 
         # Only allow .md files

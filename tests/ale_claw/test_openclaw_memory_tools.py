@@ -141,6 +141,14 @@ class TestMemoryGetTool:
         result = get_tool.call({"path": "../etc/passwd"})
         assert "not allowed" in result
 
+    def test_path_traversal_sibling_prefix_rejected(self, store, get_tool):
+        # A sibling directory whose name *starts with* base_dir's name (e.g.
+        # "<base>-evil") slips past a naive string-prefix containment check but
+        # is correctly caught by a path-component check (is_relative_to).
+        escape = f"../{store.base_dir.name}-evil/secret.md"
+        result = get_tool.call({"path": escape})
+        assert "not allowed" in result
+
     def test_absolute_path_rejected(self, get_tool):
         result = get_tool.call({"path": "/etc/passwd"})
         assert "not allowed" in result
