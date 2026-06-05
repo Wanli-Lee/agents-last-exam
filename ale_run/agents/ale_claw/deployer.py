@@ -87,10 +87,6 @@ class AleClawDeployer(BaseAgentDeployer):
         "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY",
     )
 
-    @property
-    def version(self) -> str | None:
-        return self.config.upstream_version
-
     # =========================================================================
     # install — fast-fail on import + API key checks, then mkdir work_dir
     # =========================================================================
@@ -446,7 +442,6 @@ class AleClawDeployer(BaseAgentDeployer):
         # Surface useful debug info on trajectory.extra
         builder.trajectory.extra.setdefault("ale_claw", {}).update({
             "work_dir": str(work_dir),
-            "version": getattr(config, "upstream_version", None),
             "transcript_path": run_result.transcript_path,
             "run_status": run_result.status,
         })
