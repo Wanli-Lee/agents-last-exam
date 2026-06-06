@@ -468,17 +468,31 @@ async def _try_create_in_zone(
             )
             return False, "", last_stderr, zone
 
-        if attempt < _GCP_MAX_RETRIES_TRANSIENT and _is_transient_error(stderr):
-            delay = _GCP_TRANSIENT_BASE_DELAY * (2 ** (attempt - 1))
-            logger.warning(
-                "VM create transient error (attempt %d/%d): %s — retrying in %ds",
-                attempt,
-                _GCP_MAX_RETRIES_TRANSIENT,
-                stderr[:200],
-                delay,
-            )
-            await asyncio.sleep(delay)
-            continue
+        if _is_transient_error(stderr):
+            # Ambiguous outcome (esp. ConnectionError / RemoteDisconnected): the
+            # create request may have actually succeeded on GCP even though the
+            # local gcloud CLI errored before getting the response. Reconcile:
+            # if the VM materialised, delete it — otherwise it leaks forever (no
+            # handle/name is ever tracked, so neither acquire's cleanup nor the
+            # run's finally can ever remove it), and a same-name retry would hit
+            # "already exists". Do this whether or not we retry.
+            if await _vm_exists(name, zone, project):
+                logger.warning(
+                    "VM create reported a transient error but %s exists — deleting "
+                    "the ambiguously-created VM (zone=%s) to avoid a leak", name, zone,
+                )
+                await _delete_vm(name, zone, project)
+            if attempt < _GCP_MAX_RETRIES_TRANSIENT:
+                delay = _GCP_TRANSIENT_BASE_DELAY * (2 ** (attempt - 1))
+                logger.warning(
+                    "VM create transient error (attempt %d/%d): %s — retrying in %ds",
+                    attempt,
+                    _GCP_MAX_RETRIES_TRANSIENT,
+                    stderr[:200],
+                    delay,
+                )
+                await asyncio.sleep(delay)
+                continue
 
         return False, "", last_stderr, zone
     return False, "", last_stderr, zone
@@ -575,6 +589,16 @@ def _summarize_cua_response(data: dict | None) -> str:
     if err:
         return str(err)[:300]
     return json.dumps(data, default=str)[:300]
+
+
+async def _vm_exists(name: str, zone: str, project: str) -> bool:
+    """True if instance ``name`` exists in ``zone`` (used to reconcile an
+    ambiguous create where the local CLI errored but GCP may have built the VM)."""
+    rc, _, _ = await _run_gcloud(
+        "compute", "instances", "describe", name,
+        f"--zone={zone}", "--format=value(name)", project=project,
+    )
+    return rc == 0
 
 
 async def _delete_vm(name: str, zone: str, project: str) -> bool:
