@@ -1,7 +1,7 @@
 {
   "taskId": "demo/hello",
-  "title": "Rich demo hello (input + reference + software + 3 variants)",
-  "summary": "Smallest task that covers the standard input/reference/software/output surface, with 3 variants exercising variant-param injection and multi-line output.",
+  "title": "Demo: Acme Order Entry (GUI wizard)",
+  "summary": "GUI-centric end-to-end demo. The agent drives a multi-step web form (input/app.html) in Chrome via screenshots/clicks/typing, entering data from input/order.json, to obtain a confirmation code computed in-browser, then writes it to output/result.txt. Exercises the full input/software/reference/output surface and the desktop GUI bridge.",
   "category": "demo",
   "vm": {
     "snapshot": "cpu-free-ubuntu",

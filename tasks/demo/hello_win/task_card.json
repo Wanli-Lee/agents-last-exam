@@ -1,7 +1,7 @@
 {
   "taskId": "demo/hello_win",
-  "title": "Rich demo hello (Windows: input + reference + software + 3 variants)",
-  "summary": "Windows counterpart of demo/hello. Same input/reference/software/output surface and 3 variants; uses E:\\agenthle paths and a .cmd helper. Targets the cpu-free Windows snapshot.",
+  "title": "Demo: Acme Order Entry (GUI wizard, Windows)",
+  "summary": "Windows counterpart of demo/hello — identical task and data, only OS conventions differ (E:\\agenthle paths, .cmd launcher). The agent drives a multi-step web form (input\\app.html) in Chrome via screenshots/clicks/typing, entering data from input\\order.json, to obtain an in-browser confirmation code, then writes it to output\\result.txt.",
   "category": "demo",
   "vm": {
     "snapshot": "cpu-free",
