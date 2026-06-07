@@ -13,28 +13,31 @@
   <article class="article">
     <h1>Add an agent</h1>
     <p class="lede">
-      An agent is a <strong>deployer</strong>: a Python class that installs,
-      launches, and reads back one harness. It does all its work through the
-      handle the framework hands it, so the same code runs on any image and any
-      OS. This page is how to write one — the
+      To deploy an agent into the sandbox for evaluation, you implement a
+      <strong>deployer</strong>: a Python class that installs, launches, and reads
+      back one harness. It does all its work through the handle the framework
+      hands it, so the same code runs on any image and any OS. This page is how to
+      write one — the
       <a href="/pages/arch-executor-deployer.html">Agents &amp; executor</a> page
       has the concepts.
     </p>
 
     <h2>The one rule: read from the sandbox, never hardcode</h2>
     <p>
-      A deployer is constructed with one argument, <code>self.executor</code>, and
-      everything it needs hangs off that. The discipline that makes a deployer
-      portable: read binary paths, the OS, and the work dir from the handle and
-      branch on the OS — never write <code>"node"</code> or a literal path.
+      A deployer is constructed with one argument, the executor, and everything
+      hangs off it. Your agent's own config is <code>self.config</code>; the
+      executor also gives you the work dir, the sandbox handle, and env. The
+      discipline that makes a deployer portable: read binary paths, the OS, and
+      the work dir from the handle and branch on the OS — never write
+      <code>"node"</code> or a literal path.
     </p>
     <table>
-      <thead><tr><th>From <code>self.executor</code></th><th>What it is</th></tr></thead>
+      <thead><tr><th>Attribute</th><th>What it is</th></tr></thead>
       <tbody>
-        <tr><td><code>.config</code></td><td>Your agent's config dataclass (model + knobs).</td></tr>
-        <tr><td><code>.work_dir</code></td><td>A scratch dir for this run's artifacts (transcript, prompt, logs).</td></tr>
-        <tr><td><code>.env</code></td><td>Framework env vars (API keys, the MCP bridge URL).</td></tr>
-        <tr><td><code>.sandbox</code></td><td>The <code>SandboxHandle</code> — below.</td></tr>
+        <tr><td><code>self.config</code></td><td>Your agent's config dataclass — model + knobs.</td></tr>
+        <tr><td><code>self.executor.work_dir</code></td><td>A scratch dir for this run's artifacts (transcript, prompt, logs).</td></tr>
+        <tr><td><code>self.executor.env</code></td><td>Framework env vars (API keys, the MCP bridge URL).</td></tr>
+        <tr><td><code>self.executor.sandbox</code></td><td>The <code>SandboxHandle</code> — below.</td></tr>
       </tbody>
     </table>
     <table>
@@ -146,7 +149,7 @@ def _join(*parts, is_linux):
 def parse_artifacts(cls, *, work_dir, config, run_result, builder) -&gt; None:
     t = work_dir / "transcript.jsonl"
     if not t.exists():
-        builder.add_step(source="system", message="no transcript")   # never raise
+        builder.add_step(source="system", message="no transcript")   # missing → record a note
         return
     for line in t.read_text(errors="replace").splitlines():
         if not line.strip():
@@ -164,17 +167,21 @@ def parse_artifacts(cls, *, work_dir, config, run_result, builder) -&gt; None:
             builder.add_step(source="environment", observation=_obs(ev))</code></pre>
     <p>
       Map each agent's own format to the same schema — assistant turns become
-      <code>agent</code> steps carrying <code>ToolCall</code>s and
-      <code>StepMetrics</code>; tool results become <code>environment</code>
-      observations. On a truncated run, emit a single <code>system</code> step and
-      return — <strong>never raise</strong>.
+      <code>agent</code> steps carrying their <code>ToolCall</code>s (and, when the
+      transcript reports usage, per-step <code>StepMetrics</code> — which
+      <code>finalize()</code> sums into the run's token and cost totals); tool
+      results become <code>environment</code> observations. Handle a missing or
+      cut-off transcript by recording what you can (a <code>source="system"</code>
+      note). The framework wraps this call in try/except anyway, so a stray
+      exception just logs and appends a failure step rather than crashing the run.
     </p>
 
     <h2>Wire it in</h2>
     <p>
       Put a <strong>standalone config dataclass</strong> next to the deployer
-      (there is no shared base — every preset is self-describing), and set the
-      ClassVars the framework validates against:
+      (each agent's config is its own — there's no shared base class), and set
+      three <strong>class-level attributes</strong> (declared on the class, read
+      by the framework):
     </p>
     <pre><code>@dataclass
 class MyAgentConfig:
@@ -187,21 +194,30 @@ class MyAgentDeployer(BaseAgentDeployer):
     supported_executors : ClassVar[frozenset[str]]    = frozenset({"sandbox"})
     hot_artifacts       : ClassVar[tuple[str, ...]]   = ("transcript.jsonl", "stderr.log")</code></pre>
     <p>
-      <code>hot_artifacts</code> are tailed off the VM during the run, so a killed
-      run still leaves a partial trace. Register the deployer in
-      <code>orchestration/factory.py</code> (<code>_AGENT_FQNS</code>), then ship a
-      preset:
+      <code>default_executor</code> / <code>supported_executors</code> tell the
+      framework where this agent may run; <code>hot_artifacts</code> is just a list
+      of filenames — the framework tails them off the VM periodically during the
+      run (you write no pull logic), so a killed run still leaves a partial trace.
+      Register the deployer in <code>orchestration/factory.py</code>
+      (<code>_AGENT_FQNS</code>), then ship a preset:
     </p>
     <pre><code># configs/agents/my_agent.yaml
 harness: my_agent
 model: anthropic/claude-sonnet-4.6
 config:
   max_turns: 30</code></pre>
+    <p>
+      At run time the framework instantiates your <code>Config</code> dataclass
+      from this <code>config:</code> block (unset fields fall back to the
+      <code>config.py</code> defaults) and hands the instance to the deployer as
+      <code>self.config</code>.
+    </p>
     <div class="note">
       <div class="note-title">Read two of these before you start</div>
       <code>claude_code</code> (sandbox CLI) and <code>ale_claw</code> (host-side
-      harness) are the two shapes; <code>codex</code> / <code>grok_cli</code> show
-      the variations (fork-binary overlay, Bun runtime, NDJSON transcripts).
+      harness) are the two shapes; <code>codex</code> and <code>gemini_cli</code>
+      are good second reads (a patched-binary overlay, a different transcript
+      format, per-step usage).
     </div>
   </article>
 

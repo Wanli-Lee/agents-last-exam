@@ -35,13 +35,7 @@ O\*NET / SOC 2018 (the U.S. federal occupational taxonomy).
     <td align="center" width="25%"><b>Verifiable Outcomes</b><br/><sub>Hidden references<br/>+ deterministic graders</sub></td>
     <td align="center" width="25%"><b>Long-Horizon</b><br/><sub>Multi-step workflows<br/>on real OS sandboxes</sub></td>
     <td align="center" width="25%"><b>Economically Valuable</b><br/><sub>Sourced and validated<br/>by industry experts</sub></td>
-  </tr>这里首先把我们刚刚在 README 里关于 Agent 的讨论和分类详细说清楚，然后可以稍微展开一点，说得细一点。
-
-然后再讲到 Deployer 这个抽象接口，以及它和 Executor 的关系：
-1. In-Sandbox Agent：就是用 Sandbox Executor 直接在 Sandbox 里运行 Deployer。
-2. Out-of-Sandbox Agent：可以选择 Yum Local 或 Yum Docker。
-
-其中 Docker 是为了把 Agents 的运行环境和本地工作环境隔离开，从而获取一个更安全的情况，避免 Agents 误删掉本地的重要文件。
+  </tr>
 </table>
 
 This repository is the **open evaluation framework**: the `ale_run` toolkit that
@@ -58,7 +52,7 @@ One command boots a real cloud sandbox, runs an agent on a hello-world task, and
 grades the result — after a one-time Google Cloud setup (~10 min, covered by the
 $300 free trial).
 
-→ **[docs/SETUP_GCP.md](docs/SETUP_GCP.md)** walks it end to end: create a
+→ **[docs/quickstart.md](docs/quickstart.md)** walks it end to end: create a
 project, copy the sandbox image, fill in two keys, and run your first task. You can 
 manually setup your account then hand the doc to your coding agents to finish the rest.
 
@@ -93,8 +87,8 @@ Every run is built from three interchangeable pieces:
 
 ### A run, end to end
 
-An experiment is just a pairing — **one agent × one environment × one task** —
-that the orchestrator runs through a fixed loop:
+An experiment is just a pairing (**one agent × one environment × one task**) that
+the orchestrator runs through a fixed loop:
 
 ```
   provision the sandbox  →  stage the task's inputs  →  run the agent to completion
@@ -102,73 +96,42 @@ that the orchestrator runs through a fixed loop:
 ```
 
 The hidden reference is staged **only after** the agent finishes, so the answer
-can never leak into the run. Every run is then recorded in full — a **uniform
+cannot leak into the run. Every run is then recorded in full: a **uniform
 trajectory** (each step, tool call, and observation in one schema), the agent's
-**raw logs** (transcripts and the like), the **evaluation result**, and the
-**artifacts in play** (the files the agent wrote, the screenshots it saw) — so a
-run can be replayed and audited end to end.
+**raw logs**, the **evaluation result**, and the **artifacts in play** (files
+written, screenshots seen). A run can be replayed and audited end to end.
 
 A harness reaches the sandbox in one of two shapes. **In-sandbox** harnesses are
-CLIs that run inside the VM: at launch, ALE injects the CLI and the CUA MCP bridge
-into the freshly-booted machine. A **out-of-sandbox** harness instead runs in ALE's own process, outside the VM. It
-operates on two fronts at once: it drives the VM remotely through **two MCP
-bridges — one CLI-based (shell, files), one GUI** — while running its own
-out-of-VM machinery (memory, sub-agents, context management) right alongside.
-**ALE-Claw** is the reference: [ale_run/agents/ale_claw](ale_run/agents/ale_claw/README.md).
+CLIs that run inside the VM; at launch ALE injects the CLI and the CUA MCP bridge
+into the freshly-booted machine. An **out-of-sandbox** harness runs in ALE's own
+process, outside the VM, driving it remotely through **two MCP bridges** (one
+CLI-based for shell and files, one GUI) while keeping its own memory, sub-agents,
+and context management alongside. ALE-Claw is the reference:
+[ale_run/agents/ale_claw](ale_run/agents/ale_claw/README.md).
 
-> Deeper dives into the system design — the sandbox & providers, the executor/deployer split, task data
-> & grading, and the trajectory format — live in the **[documentation site](#)**.
+> Deeper dives into the system design (the sandbox and providers, the
+> executor/deployer split, task data and grading, the trajectory format) live in
+> the docs site: [docs/ale-docs-site/](docs/ale-docs-site/) (run its `serve.py`).
 
 ---
 
 ## Running the benchmark
 
 Past the demo, ALE ships curated task lists across three difficulty tiers
-(near-term, full-spectrum, last-exam) and several leaderboard slices
-(`cli`, `unlicensed`, …).
+(near-term, full-spectrum, last-exam), plus an unlicensed track and a Linux-only slice. A full run is one experiment YAML wiring an agent matrix, an
+environment, and a task list, with outputs pushed to a GCS bucket.
 
-- **Choosing & running task lists with your own configurations** — tracks, providers, agent configs → **[docs](#)**
-- **Best practices for full-benchmark runs** — concurrency, output pullback, licensed software → **[docs](#)**
-- **Browse the tasks and the results** — the live **[tasks gallery](https://agenthle.org/demo)**, trajectory viewers **[TODO](#)** 
+The step-by-step (provider setup, configuring an experiment, choosing task lists)
+is in the docs site at [docs/ale-docs-site/](docs/ale-docs-site/), under **Run
+experiments**. Browse tasks and results at the
+[tasks gallery](https://agenthle.org/demo).
 
 ---
 
 ## Build on ALE
 
-ALE is built to be extended, and we want your contributions.
-
-- **Benchmark your own agent harness** — implement a small deployer; any CLI or SDK works → **[docs](#)**
-- **Submit results to the leaderboard** → **[agenthle.org/leaderboard](https://agenthle.org/leaderboard)**
-- **Contribute a task** — mirror a demo task and submit under the right domain → **[docs](#)**
-- **Add an environment provider** — Azure, AWS, on-prem hypervisors → **[docs](#)**
-
-Domain experts can also submit workflows without writing code at
-**[agenthle.org/submit](https://agenthle.org/submit)**.
-
----
-
-## Repository layout
-
-```
-agents-last-exam/
-├── ale_run/                  Framework code (python -m ale_run is the entry point)
-│   ├── agents/                 Agent deployers: claude_code, ale_claw, …
-│   ├── base_interface/         The contracts: Provider / Executor / Deployer / Trajectory
-│   ├── environments/           Providers (gcloud, static) + image registry
-│   ├── executors/              Where a deployer runs: sandbox / local / docker
-│   ├── orchestration/          Run lifecycle, config loader, factories
-│   └── tasks/                  Task discovery + driver
-├── tasks/                    Task packages, grouped by domain (demo/ has the templates)
-├── configs/                  Reusable agent + environment configs (referenced by path)
-├── selected_tasks/           Curated task lists (cli, full, unlicensed)
-├── secret/                   .env + GCP key + per-judge eval keys (real values gitignored)
-├── docs/                     Setup, task-running, and extension guides
-├── example_exp.yaml          The minimal experiment; start here
-└── pyproject.toml            uv workspace; Python ≥3.12, <3.14
-```
-
-Code-style and review rules: [AGENTS.md](AGENTS.md). For non-trivial changes,
-open an issue describing the scope before sending a PR.
+To test your own agent harness or CLI on ALE, implement a small deployer. Guide:
+[docs/ale-docs-site/](docs/ale-docs-site/), under **Build on ALE → Add an agent**.
 
 ---
 

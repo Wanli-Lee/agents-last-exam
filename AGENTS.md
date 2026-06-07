@@ -1,5 +1,25 @@
 # Development Rules
 
+## Repository layout
+
+```
+agents-last-exam/
+├── ale_run/                  Framework code (python -m ale_run is the entry point)
+│   ├── agents/                 Agent deployers: claude_code, ale_claw, …
+│   ├── base_interface/         The contracts: Provider / Executor / Deployer / Trajectory
+│   ├── environments/           Providers (gcloud, static) + image registry
+│   ├── executors/              Where a deployer runs: sandbox / local / docker
+│   ├── orchestration/          Run lifecycle, config loader, factories
+│   └── tasks/                  Task discovery + driver
+├── tasks/                    Task packages, grouped by domain (demo/ has the templates)
+├── configs/                  Reusable agent + environment configs (referenced by path)
+├── selected_tasks/           Curated task lists (cli, full, unlicensed)
+├── secret/                   .env + GCP key + per-judge eval keys (real values gitignored)
+├── docs/                     Setup/task/extension guides + the docs/ale-docs-site/ HTML site
+├── example_exp.yaml          The minimal experiment; start here
+└── pyproject.toml            uv workspace; Python ≥3.12, <3.14
+```
+
 ## Conversational Style
 
 - Keep answers short and concise

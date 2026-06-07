@@ -62,7 +62,7 @@ You're done with manual setup.
 > shell commands and a `.env` paste. You can drop into your editor with
 > Claude Code, Codex, Cursor, etc. and tell it:
 >
-> > *"Open `docs/SETUP_GCP.md` and execute Steps 3–5 for me. Ask me before
+> > *"Open `docs/quickstart.md` and execute Steps 3–5 for me. Ask me before
 > > you need the billing-account ID and my LLM API key, and stop after the
 > > demo run completes."*
 >
