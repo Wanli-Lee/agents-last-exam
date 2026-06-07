@@ -1,7 +1,7 @@
 {
   "taskId": "demo/hello_win",
-  "title": "Rich demo hello (Windows: input + reference + software + 3 variants)",
-  "summary": "Windows counterpart of demo/hello. Same input/reference/software/output surface and 3 variants; uses E:\\agenthle paths and a .cmd helper. Targets the cpu-free Windows snapshot.",
+  "title": "Demo: Acme Code Generator (GUI) — Windows",
+  "summary": "Minimal GUI demo. The agent opens a single-screen web app (input\\app.html) in Chrome, types the Order ID from input/order.json, clicks Generate Code, reads the in-browser confirmation code and writes it to output\\result.txt. Exercises the input/software/reference/output surface and the desktop GUI bridge in a few steps. Windows counterpart of demo/hello; identical except OS conventions.",
   "category": "demo",
   "vm": {
     "snapshot": "cpu-free",
