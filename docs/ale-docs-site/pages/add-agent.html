@@ -77,8 +77,12 @@ def _join(*parts, is_linux):
     <pre><code>async def install(self) -&gt; None:
     sandbox = self.executor.sandbox
 
-    # 1. locate the CLI; install it only if the image didn't pre-bake it
-    cli = shutil.which("claude") or await self._npm_install("@anthropic-ai/claude-code")
+    # 1. locate the CLI; (re)install when missing OR stale vs the pinned version.
+    #    Resolve the installed shim by absolute path under the install prefix —
+    #    images pre-bake older copies that would otherwise shadow it on PATH.
+    cli = shutil.which("claude")
+    if not cli or installed_version(cli) != pinned_version:      # pinned in config (cli_version)
+        cli = await self._npm_install("@anthropic-ai/claude-code@2.1.170")   # → ~/.local shim
 
     # 2. prove it runs  (stdin=DEVNULL avoids TTY/Defender hangs on Windows)
     subprocess.run([cli, "--version"], check=True, stdin=subprocess.DEVNULL, timeout=60)

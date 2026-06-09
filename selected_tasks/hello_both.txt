@@ -1,0 +1,4 @@
+# Linux + Windows hello smoke pair — used to validate agent CLI upgrades
+# against both ale-ubuntu22 and ale-win10 prebaked images.
+demo/hello
+demo/hello_win

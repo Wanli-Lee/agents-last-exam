@@ -22,6 +22,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -48,6 +49,59 @@ logger = logging.getLogger(__name__)
 _POLL_INTERVAL_S = 2.0
 _TERM_GRACE_S = 2.0
 
+_VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)")
+
+
+def _expected_version(npm_spec: str | None) -> str | None:
+    """Parse the pinned version out of ``cli_version``.
+
+    ``"@anthropic-ai/claude-code@2.1.170"`` → ``"2.1.170"``. Returns ``None``
+    for unpinned specs (``"@anthropic-ai/claude-code"``), in which case
+    whatever is already installed is accepted.
+    """
+    if not npm_spec:
+        return None
+    m = _VERSION_RE.search(npm_spec.rsplit("@", 1)[-1])
+    return m.group(1) if m else None
+
+
+def _find_claude_shim(prefix: str) -> str | None:
+    """Locate the npm-installed claude shim under our install prefix.
+
+    npm drops the shim in ``<prefix>/bin/claude`` on Linux and directly in
+    ``<prefix>\\claude.cmd`` on Windows. Resolving it explicitly (instead of
+    ``shutil.which``) makes the freshly-installed copy authoritative even
+    when an older claude elsewhere on PATH would shadow it (e.g. a pre-baked
+    copy in ``AppData\\Roaming\\npm``).
+    """
+    for cand in (
+        os.path.join(prefix, "bin", "claude"),     # Linux
+        os.path.join(prefix, "claude.cmd"),        # Windows
+        os.path.join(prefix, "bin", "claude.cmd"),
+    ):
+        if os.path.exists(cand):
+            return cand
+    return None
+
+
+def _installed_version(claude_path: str) -> str | None:
+    """Best-effort ``claude --version`` → ``X.Y.Z``; ``None`` if unreadable.
+
+    stdin=DEVNULL so the probe never blocks on a TTY check (on Windows the
+    first exec of a freshly-baked claude.EXE can hang on Defender scan +
+    stdin); 60s gives cold-image first-exec headroom.
+    """
+    try:
+        probe = subprocess.run(
+            [claude_path, "--version"],
+            capture_output=True, text=True, timeout=60,
+            stdin=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    m = _VERSION_RE.search((probe.stdout or "") + (probe.stderr or ""))
+    return m.group(1) if m else None
+
 
 class ClaudeCodeDeployer(BaseAgentDeployer):
     """Stdlib-only deployer for the @anthropic-ai/claude-code CLI."""
@@ -68,18 +122,20 @@ class ClaudeCodeDeployer(BaseAgentDeployer):
     async def _auto_install_cli(self) -> None:
         """Install claude CLI via npm; bootstrap node+npm if missing."""
         cfg: ClaudeCodeConfig = self.config  # type: ignore[assignment]
-        npm = shutil.which("npm")
+        npm = shutil.which("npm") or shutil.which("npm.cmd")
         if not npm:
             from ale_run.agents._bootstrap import ensure_npm
             npm = await ensure_npm()
         home = os.path.expanduser("~")
-        env = {**os.environ, "npm_config_cache": f"{home}/.npm-ale"}
+        prefix = os.path.join(home, ".local")
+        env = {**os.environ, "npm_config_cache": os.path.join(home, ".npm-ale")}
         # cfg.cli_version is the full npm spec, e.g.
-        # "@anthropic-ai/claude-code@2.1.85".
+        # "@anthropic-ai/claude-code@2.1.170". --force so a same-version
+        # residue under the prefix is overwritten cleanly.
         pkg = cfg.cli_version or "@anthropic-ai/claude-code"
         proc = await asyncio.to_thread(
             subprocess.run,
-            [npm, "install", "-g", "--prefix", f"{home}/.local", pkg],
+            [npm, "install", "-g", "--force", "--prefix", prefix, pkg],
             capture_output=True, text=True, timeout=300, env=env,
         )
         if proc.returncode != 0:
@@ -87,49 +143,70 @@ class ClaudeCodeDeployer(BaseAgentDeployer):
                 f"npm install -g {pkg} failed "
                 f"(rc={proc.returncode}): {(proc.stderr or '')[:500]}"
             )
-        bin_dir = f"{home}/.local/bin"
-        if bin_dir not in os.environ.get("PATH", ""):
-            os.environ["PATH"] = f"{bin_dir}:{os.environ.get('PATH', '')}"
+        # npm drops the claude shim in <prefix>/bin on Linux and directly in
+        # <prefix> on Windows. Prepend both UNCONDITIONALLY so our freshly
+        # installed copy wins over any pre-baked claude elsewhere on PATH —
+        # a membership check is not enough: the dir may already be on PATH
+        # but BEHIND the dir holding a stale baked copy (seen on ale-win10,
+        # where AppData\Roaming\npm shadowed ~/.local).
+        for bin_dir in (prefix, os.path.join(prefix, "bin")):
+            os.environ["PATH"] = bin_dir + os.pathsep + os.environ.get("PATH", "")
         logger.info("claude_code: auto-installed via npm — %s", (proc.stdout or "").strip()[-200:])
 
     async def install(self) -> None:
+        cfg: ClaudeCodeConfig = self.config  # type: ignore[assignment]
         sandbox = self.executor.sandbox
         is_linux = sandbox.is_linux
 
-        # 1. Discover — or install — the claude binary.
+        # 1. Discover the claude binary and decide whether to (re)install.
+        # Reinstall when EITHER:
+        #   • claude is not found at all, or
+        #   • its --version is STALE vs the version pinned in cli_version.
+        # The stale check is what lets a cli_version bump ship onto images
+        # with an older claude pre-baked: the next run detects the mismatch
+        # and installs the pinned version under ~/.local, prepended on PATH
+        # so it shadows the baked copy.
         claude_path = shutil.which("claude")
-        if not claude_path:
-            logger.info("claude_code: 'claude' not on PATH, installing via npm …")
+        expected = _expected_version(cfg.cli_version)
+        installed = (
+            await asyncio.to_thread(_installed_version, claude_path)
+            if claude_path else None
+        )
+        stale = bool(expected and installed != expected)
+        if not claude_path or stale:
+            if claude_path:
+                logger.info(
+                    "claude_code: installed version %s != expected %s — "
+                    "installing pinned version", installed, expected,
+                )
+            else:
+                logger.info("claude_code: 'claude' not on PATH, installing via npm …")
             await self._auto_install_cli()
-            claude_path = shutil.which("claude")
+            # Resolve the shim under OUR prefix explicitly — which() may
+            # still surface a stale baked copy from elsewhere on PATH.
+            home = os.path.expanduser("~")
+            claude_path = (
+                _find_claude_shim(os.path.join(home, ".local"))
+                or shutil.which("claude")
+            )
             if not claude_path:
                 raise RuntimeError(
                     "ClaudeCodeDeployer: 'claude' still not found after "
-                    "npm install -g @anthropic-ai/claude-code"
+                    f"npm install -g {cfg.cli_version}"
                 )
+            installed = await asyncio.to_thread(_installed_version, claude_path)
+            if expected and installed != expected:
+                raise RuntimeError(
+                    f"ClaudeCodeDeployer: post-install version {installed} "
+                    f"still != expected {expected} (path {claude_path})"
+                )
+        else:
+            logger.info(
+                "claude_code: reusing installed claude %s (version %s)",
+                claude_path, installed or "unknown",
+            )
         self._claude_path = claude_path
-
-        # 2. Version probe. Pass stdin=DEVNULL so the probe never blocks waiting
-        # on a TTY/stdin (on Windows the freshly-uploaded claude.EXE could hang
-        # the 30s probe on first exec — Defender scan + stdin check); 60s gives
-        # cold-image first-exec headroom.
-        try:
-            probe = await asyncio.to_thread(
-                subprocess.run,
-                [claude_path, "--version"],
-                capture_output=True, text=True, timeout=60,
-                stdin=subprocess.DEVNULL,
-            )
-        except subprocess.TimeoutExpired as e:
-            raise RuntimeError(
-                f"ClaudeCodeDeployer: claude --version timed out: {e}"
-            )
-        if probe.returncode != 0:
-            raise RuntimeError(
-                f"ClaudeCodeDeployer: claude --version rc={probe.returncode} "
-                f"stderr={(probe.stderr or '').strip()[:300]}"
-            )
-        logger.info("claude_code: claude CLI ok — %s", (probe.stdout or "").strip())
+        logger.info("claude_code: claude CLI ok — version %s", installed or "unknown")
 
         # 3. Make work_dir.
         wd = Path(self.executor.work_dir)
@@ -308,7 +385,20 @@ class ClaudeCodeDeployer(BaseAgentDeployer):
         # documented MAX_THINKING_TOKENS env var. The CLI already defaults to
         # extended thinking (31999 cap); setting it makes the reasoning level
         # explicit + tunable (parity with codex's reasoning_effort=high).
-        env["MAX_THINKING_TOKENS"] = str(cfg.max_thinking_tokens)
+        # None ⇒ omit the thinking param entirely via Claude Code's
+        # CLAUDE_CODE_DISABLE_THINKING=1. Required for adaptive-thinking
+        # models (fable-5) over OpenRouter: the CLI otherwise sends
+        # thinking={type:"adaptive"}, which the gateway mangles into
+        # thinking={type:"disabled"} upstream → 400 ("thinking.type.disabled
+        # is not supported"). With the param absent the provider applies the
+        # model's native adaptive thinking (the model still thinks).
+        # Verified via request capture + e2e tool flow on 2.1.170.
+        if cfg.max_thinking_tokens is not None:
+            env["MAX_THINKING_TOKENS"] = str(cfg.max_thinking_tokens)
+            env.pop("CLAUDE_CODE_DISABLE_THINKING", None)
+        else:
+            env.pop("MAX_THINKING_TOKENS", None)
+            env["CLAUDE_CODE_DISABLE_THINKING"] = "1"
 
         # Provider-driven routing (explicit, not key-presence heuristic).
         if cfg.provider == "openrouter":

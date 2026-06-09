@@ -86,7 +86,7 @@ class ClaudeCodeConfig:
     disabled_tools: tuple[str, ...] = _DISABLED_TOOLS
     dangerously_skip_permissions: bool = True
 
-    max_thinking_tokens: int = 31999
+    max_thinking_tokens: int | None = 31999
     """Extended-thinking token budget, passed to the CLI via the
     ``MAX_THINKING_TOKENS`` env var (Claude Code's documented knob —
     see https://code.claude.com/docs/en/costs#adjust-extended-thinking).
@@ -94,10 +94,22 @@ class ClaudeCodeConfig:
     default-high ("ultrathink") cap. We set it explicitly so the reasoning
     level is pinned + visible rather than relying on the CLI default
     (parity with codex's ``reasoning_effort=high``). Lower it (e.g. 8000)
-    to cut cost, or set 0 to disable thinking."""
+    to cut cost, or set 0 to disable thinking.
+
+    ``null``/``None`` ⇒ the deployer sets ``CLAUDE_CODE_DISABLE_THINKING=1``
+    so the CLI OMITS the thinking param from API requests — required for
+    adaptive-thinking models (e.g. claude-fable-5) over OpenRouter: the CLI
+    otherwise sends ``thinking: {type: "adaptive"}``, which OpenRouter
+    mangles into ``thinking: {type: "disabled"}`` upstream, and those
+    models reject it with 400 ("thinking.type.disabled is not supported").
+    With the param absent the provider applies the model's native adaptive
+    thinking — the model still thinks; this is not a thinking-off switch.
+    (Merely unsetting MAX_THINKING_TOKENS is NOT enough — the CLI still
+    sends adaptive. Verified by request capture + e2e tool flow.)"""
 
     # ---- documentation ----
-    cli_version: str = "@anthropic-ai/claude-code@2.1.85"
-    """Full npm spec the deployer installs when ``claude`` is not already on
-    PATH (e.g. on a non-prebaked image). When the binary is baked into the
-    image this is just the version of record."""
+    cli_version: str = "@anthropic-ai/claude-code@2.1.170"
+    """Full npm spec of the pinned CLI. The deployer probes the installed
+    ``claude --version`` against the version encoded here and (re)installs
+    via npm when missing or mismatched — so bumping this is sufficient to
+    upgrade images with an older claude pre-baked."""

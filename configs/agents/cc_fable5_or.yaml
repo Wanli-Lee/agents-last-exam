@@ -11,7 +11,7 @@ harness: claude_code
 # executor: sandbox          # only supported value (deployer default); runs inside the eval VM.
 
 # Example model — sugar for config.model. Dataclass default: anthropic/claude-opus-4.6.
-model: anthropic/claude-sonnet-4.6
+model: anthropic/claude-fable-5
 
 config:
   # Routing provider. "openrouter": ANTHROPIC_BASE_URL→openrouter, AUTH_TOKEN=OPENROUTER_API_KEY. 
@@ -30,9 +30,14 @@ config:
   # Bypass all tool-permission prompts (required for headless runs).
   dangerously_skip_permissions: true
 
-  # Extended-thinking token budget (MAX_THINKING_TOKENS env). 31999 = the
-  # default-high "ultrathink" cap; lower (e.g. 8000) to cut cost, 0 to disable.
-  max_thinking_tokens: 31999
+  # Extended-thinking token budget (MAX_THINKING_TOKENS env). null ⇒ deployer
+  # sets CLAUDE_CODE_DISABLE_THINKING=1 so the CLI omits the thinking param —
+  # REQUIRED for fable-5 over OpenRouter: the CLI otherwise sends
+  # thinking={type:"adaptive"}, OpenRouter rewrites it to type:"disabled"
+  # upstream, and fable-5 400s ("thinking.type.disabled is not supported").
+  # With the param absent fable-5's native adaptive thinking applies — the
+  # model still thinks; this is not a thinking-off switch.
+  max_thinking_tokens: null
 
   # Built-in CC tools that deadlock or corrupt state headless — passed as
   # repeated --disallowedTools. Default drops interactive / session-mutating tools.
