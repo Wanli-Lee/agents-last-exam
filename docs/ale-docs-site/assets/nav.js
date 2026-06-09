@@ -10,29 +10,28 @@ window.ALE_NAV = [
     label: "Introduction",
     items: [
       { href: "/index.html",                       title: "Overview" },
-      { href: "/pages/run-lifecycle.html",         title: "Run lifecycle" },
-      { href: "/pages/arch-environment.html",      title: "Sandbox & provider" },
-      { href: "/pages/arch-taskdata.html",         title: "Task spec & data staging" },
-      { href: "/pages/arch-executor-deployer.html",title: "Agents & executor" },
-      { href: "/pages/data-artifacts.html",        title: "Trajectories & artifacts" },
+      { href: "/pages/tasks.html",         title: "Task spec & data staging" },
+      { href: "/pages/sandbox.html",      title: "Sandbox & provider" },
+      { href: "/pages/agents.html",title: "Agents & executor" },
+      { href: "/pages/trajectories.html",        title: "Trajectories & artifacts" },
     ],
   },
   {
     label: "Run experiments",
     items: [
-      { href: "/pages/setup-providers.html",       title: "Setup Environment Provider", children: [
-        { href: "/pages/setup-gcp.html",           title: "Google Cloud" },
-        { href: "/pages/setup-local.html",         title: "VMware / QEMU" },
+      { href: "/pages/providers.html",       title: "Setup Environment Provider", children: [
+        { href: "/pages/google-cloud.html",           title: "Google Cloud" },
+        { href: "/pages/local.html",         title: "VMware / QEMU" },
       ]},
-      { href: "/pages/configs.html",               title: "Configure & run a benchmark" },
+      { href: "/pages/configure.html",               title: "Configure & run a benchmark" },
     ],
   },
   {
     label: "Build on ALE",
     items: [
-      { href: "/pages/extend-agents.html",         title: "Add an agent" },
-      { href: "/pages/extend-envs.html",           title: "Add an environment" },
-      { href: "/pages/extend-tasks.html",          title: "Add a task" },
+      { href: "/pages/add-agent.html",         title: "Add an agent" },
+      { href: "/pages/add-environment.html",           title: "Add an environment" },
+      { href: "/pages/add-task.html",          title: "Add a task" },
     ],
   },
   {

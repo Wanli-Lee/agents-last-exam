@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Trajectories & artifacts — ALE Docs</title>
+  <title>Trajectories & artifacts | ALE Docs</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -20,21 +20,21 @@
 
     <h2>One record for every agent</h2>
     <p>
-      ALE runs agents end to end, so it can't assume a shared step format — each
+      ALE runs agents end to end, so it can't assume a shared step format. Each
       harness emits its own transcript. The common record is the
-      <strong>trajectory</strong> — an ordered list
+      <a href="https://github.com/rdi-berkeley/agents-last-exam/blob/main/ale_run/base_interface/trajectory.py"><strong>trajectory</strong></a>, an ordered list
       of <code>Step</code>s, each with:
     </p>
     <ul>
-      <li>a <strong>source</strong> — <code>user</code>, <code>agent</code>, or <code>environment</code>;</li>
+      <li>a <strong>source</strong>: <code>user</code>, <code>agent</code>, or <code>environment</code>;</li>
       <li>a <strong>message</strong> and optional <strong>reasoning</strong>;</li>
       <li><strong>tool calls</strong> the agent made, and the <strong>observation</strong> (tool results) that came back;</li>
-      <li><strong>metrics</strong> — tokens, cost, and duration for that step.</li>
+      <li><strong>metrics</strong>: tokens, cost, and duration for that step.</li>
     </ul>
     <p>
       Message and observation content can be multimodal: any image the agent saw
       is saved to disk and referenced by a <strong>relative path</strong> in the
-      trajectory — never inlined as base64.
+      trajectory, never inlined as base64.
     </p>
     <p>
       Per-step token, cost, and duration metrics sum into the trajectory's
@@ -44,13 +44,13 @@
 
     <h2>How the normalization happens</h2>
     <p>
-      Each agent's deployer owns the translation, in <code>parse_artifacts()</code>.
+      Each agent's <a href="https://github.com/rdi-berkeley/agents-last-exam/blob/main/ale_run/base_interface/agent_deployer.py">deployer</a> owns the translation, in <code>parse_artifacts()</code>.
       <code>claude_code</code>, for instance, reads its stream-JSON
       <code>transcript.jsonl</code> line by line: assistant events become agent
       steps carrying their tool calls, tool results become environment
       observations, and per-message usage is summed (and reconciled against the
       run's reported total) into the final metrics. A different agent parses a
-      different format — the output schema is identical.
+      different format, but the output schema is identical.
     </p>
 
     <h2>What a run writes</h2>
@@ -59,12 +59,12 @@
       agent, model, and task:
     </p>
     <div class="diagram">.logs/&lt;experiment&gt;/&lt;run_id&gt;/&lt;agent&gt;/&lt;model&gt;/&lt;task&gt;/v&lt;variant&gt;/&lt;timestamp&gt;/
-├── events.jsonl       append-only phase log, flushed per line — survives a kill
+├── events.jsonl       append-only phase log, flushed per line, survives a kill
 ├── run.json           metadata, final score, termination, usage totals
 ├── trajectory.json    the ALE-v1.0 trajectory
-├── screenshots/       images the agent saw — referenced by path from the trajectory
+├── screenshots/       images the agent saw, referenced by path from the trajectory
 ├── eval_result.json   grader status, score, duration
-├── origin_log/        the agent's raw work dir, pulled verbatim from the VM
+├── origin_log/        the agent's raw work dir, pulled verbatim from the sandbox
 └── output/            files the agent produced (when output is collected)</div>
     <table>
       <thead><tr><th>File</th><th>Written</th><th>Holds</th></tr></thead>
@@ -79,10 +79,25 @@
       </tbody>
     </table>
 
+    <p>
+      Whether <code>output/</code> is collected, and how, is set by the
+      environment's <code>output_path</code> (see
+      <a href="/pages/configure.html#output-path">Configure &amp; run a benchmark</a>).
+      Set it to <code>local</code> and ALE pulls the agent's output folder back to
+      this run directory over the sandbox's control server. Point it at a
+      <code>gs://</code> bucket and the sandbox itself (the Google Cloud VM)
+      uploads that folder straight to Cloud Storage, which is much faster and more
+      reliable when the outputs are large.
+    </p>
+
     <div class="note">
-      <div class="note-title">See a real one</div>
-      A complete recorded run lives in <code>sample_run/</code> in the repo —
-      walked through in <a href="/pages/sample-run.html">Anatomy of a run</a>.
+      <div class="note-title">Next</div>
+      That is the architecture end to end. To run it, follow the
+      <a href="https://github.com/rdi-berkeley/agents-last-exam/blob/main/docs/quickstart.md">quickstart</a>
+      for a first demo task, or head to
+      <a href="/pages/providers.html">Run experiments</a> to set up Google
+      Cloud for high-concurrency benchmark runs and configure your own agents,
+      environments, and experiments.
     </div>
   </article>
 

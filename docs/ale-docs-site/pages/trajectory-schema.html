@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Trajectory schema (ALE-v1.0) — ALE Docs</title>
+  <title>Trajectory schema (ALE-v1.0) | ALE Docs</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -23,13 +23,14 @@
     <ul>
       <li><code>schema_version</code> is the constant string <code>"ALE-v1.0"</code>.</li>
       <li>Timestamps are ISO-8601 UTC with microseconds, e.g. <code>2026-06-05T03:11:48.520000Z</code>.</li>
-      <li>Objects reject unknown keys. The only open maps are the explicit <code>extra</code> fields on <code>Trajectory</code>, <code>Step</code>, and <code>AgentInfo</code> — the escape hatch for agent-specific metadata.</li>
+      <li>Objects reject unknown keys. The only open maps are the explicit <code>extra</code> fields on <code>Trajectory</code>, <code>Step</code>, and <code>AgentInfo</code>: the escape hatch for agent-specific metadata.</li>
       <li>Images are referenced by <strong>relative path</strong> under the run directory; the framework moves any captured image to <code>screenshots/</code> before the trajectory is written (see <a href="#imagesource">ImageSource</a>).</li>
       <li>"Req" below: <strong>yes</strong> = no default, must be present; <strong>no</strong> = defaulted/optional. Types use <code>|</code> for unions and <code>[]</code> for arrays.</li>
+
     </ul>
 
     <h2>Trajectory</h2>
-    <p>The top-level object: one complete episode.</p>
+    <p><a href="https://github.com/rdi-berkeley/agents-last-exam/blob/main/ale_run/base_interface/trajectory.py"><code>Trajectory</code></a> is the top-level object: one complete episode.</p>
     <table>
       <thead><tr><th>Field</th><th>Type</th><th>Req</th><th>Meaning</th></tr></thead>
       <tbody>
@@ -78,10 +79,10 @@
     </table>
     <p>The four <code>source</code> values carry different fields:</p>
     <ul>
-      <li><code>user</code> — an instruction or human turn; <code>message</code> is set.</li>
-      <li><code>agent</code> — model output; some combination of <code>message</code>, <code>reasoning</code>, and <code>tool_calls</code>, with <code>metrics</code> recording the call's tokens and cost.</li>
-      <li><code>environment</code> — the environment's reply; <code>observation</code> is set (tool results or a state update).</li>
-      <li><code>system</code> — a system prompt or framework note (cancellation, timeout, …).</li>
+      <li><code>user</code>: an instruction or human turn; <code>message</code> is set.</li>
+      <li><code>agent</code>: model output; some combination of <code>message</code>, <code>reasoning</code>, and <code>tool_calls</code>, with <code>metrics</code> recording the call's tokens and cost.</li>
+      <li><code>environment</code>: the environment's reply; <code>observation</code> is set (tool results or a state update).</li>
+      <li><code>system</code>: a system prompt or framework note (cancellation, timeout, …).</li>
     </ul>
 
     <h2 id="toolcall">ToolCall</h2>
@@ -115,7 +116,7 @@
       <thead><tr><th>Field</th><th>Type</th><th>Req</th><th>Meaning</th></tr></thead>
       <tbody>
         <tr><td><code>tool_call_id</code></td><td><code>string</code></td><td>yes</td><td>The <code>ToolCall.id</code> this answers.</td></tr>
-        <tr><td><code>content</code></td><td><a href="#contentpart"><code>ContentPart[]</code></a></td><td>no</td><td>The result — text and/or image. Default <code>[]</code>.</td></tr>
+        <tr><td><code>content</code></td><td><a href="#contentpart"><code>ContentPart[]</code></a></td><td>no</td><td>The result: text and/or image. Default <code>[]</code>.</td></tr>
         <tr><td><code>is_error</code></td><td><code>boolean</code></td><td>no</td><td>Whether the tool failed. Default <code>false</code>.</td></tr>
       </tbody>
     </table>
@@ -135,7 +136,7 @@
     <p>
       A reference to an image. <code>path</code> is preferred. Inline base64
       (<code>data</code>) is accepted from deployers but discouraged for long
-      episodes — the framework moves captured base64 to
+      episodes. The framework moves captured base64 to
       <code>screenshots/NNNN.png</code> and rewrites the reference to
       <code>type = "path"</code> before the trajectory is persisted.
     </p>
@@ -145,14 +146,14 @@
         <tr><td><code>type</code></td><td><code>"path" | "url" | "base64"</code></td><td>no</td><td>How the image is referenced. Default <code>"path"</code>.</td></tr>
         <tr><td><code>path</code></td><td><code>string</code> | null</td><td>cond.</td><td>Relative path under the run dir.</td></tr>
         <tr><td><code>url</code></td><td><code>string</code> | null</td><td>cond.</td><td>Remote URL.</td></tr>
-        <tr><td><code>data</code></td><td><code>string</code> | null</td><td>cond.</td><td>Inline base64 (transient — moved to disk).</td></tr>
+        <tr><td><code>data</code></td><td><code>string</code> | null</td><td>cond.</td><td>Inline base64 (transient, moved to disk).</td></tr>
         <tr><td><code>media_type</code></td><td><code>string</code></td><td>no</td><td>MIME type. Default <code>"image/png"</code>.</td></tr>
         <tr><td><code>alt_text</code></td><td><code>string</code> | null</td><td>no</td><td>Optional description.</td></tr>
       </tbody>
     </table>
 
     <h2 id="stepmetrics">StepMetrics</h2>
-    <p>Per-step LLM accounting. Every field is optional — populate what the agent reports.</p>
+    <p>Per-step LLM accounting. Every field is optional: populate what the agent reports.</p>
     <table>
       <thead><tr><th>Field</th><th>Type</th><th>Req</th><th>Meaning</th></tr></thead>
       <tbody>
@@ -170,7 +171,7 @@
       Trajectory-wide totals plus the outcome. The token, cost, and duration
       totals are summed from per-step <code>StepMetrics</code>;
       <code>reward</code> and <code>status</code> are <strong>not</strong> rolled
-      up from steps — they are filled in by the grader and the runner at the end.
+      up from steps. They are filled in by the grader and the runner at the end.
     </p>
     <table>
       <thead><tr><th>Field</th><th>Type</th><th>Req</th><th>Meaning</th></tr></thead>
@@ -192,7 +193,7 @@
       The Pydantic models are in <code>ale_run/base_interface/trajectory.py</code>;
       deployers populate them via <code>TrajectoryBuilder</code>. How a run's files
       fit together is covered in
-      <a href="/pages/data-artifacts.html">Trajectories &amp; artifacts</a>.
+      <a href="/pages/trajectories.html">Trajectories &amp; artifacts</a>.
     </div>
   </article>
 

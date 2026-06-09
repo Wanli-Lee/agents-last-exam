@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Set up Google Cloud — ALE Docs</title>
+  <title>Set up Google Cloud | ALE Docs</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -66,7 +66,7 @@
     </p>
     <p>
       First set a few shell variables that the rest of the page reuses. Only
-      <code>GCP_PROJECT</code> is yours to choose — it must be unique across all
+      <code>GCP_PROJECT</code> is yours to choose: it must be unique across all
       of Google Cloud, so change it if creation says the ID is taken. Leave the
       rest as they are.
     </p>
@@ -92,7 +92,7 @@ gcloud services enable compute.googleapis.com storage.googleapis.com</code></pre
       <strong>pull the current task's data</strong> from a GCS bucket and to
       <strong>sync the agent's output artifacts</strong> back to your results
       bucket (the recommended path, see
-      <a href="/pages/configs.html#output-path">output_path</a>). The two roles
+      <a href="/pages/configure.html#output-path">output_path</a>). The two roles
       cover exactly that: read objects, and bill requester-pays reads to your
       project. The key is written to <code>secret/gcp_key.json</code>, which the
       environment config points at on the next page.
@@ -108,7 +108,7 @@ done
 mkdir -p secret
 gcloud iam service-accounts keys create secret/gcp_key.json --iam-account="$GCP_SA_EMAIL"</code></pre>
 
-    <h3>③ Copy the sandbox images into your project</h3>
+    <h3 id="copy-images">③ Copy the sandbox images into your project</h3>
     <p>
       A task boots from a <strong>prebaked disk image</strong>: an OS with the
       professional software and ALE's in-VM tooling already installed. ALE
@@ -136,11 +136,11 @@ gcloud compute firewall-rules create ale-allow-cua --network=ale-vpc \
 gcloud compute firewall-rules create ale-allow-rdp --network=ale-vpc \
   --direction=INGRESS --allow=tcp:3389 --source-ranges=0.0.0.0/0</code></pre>
 
-    <h3>⑤ Create a results bucket (recommended)</h3>
+    <h3 id="results-bucket">⑤ Create a results bucket (recommended)</h3>
     <p>
       The <strong>Cloud Storage bucket</strong> each VM syncs its output to.
       Create it and grant the service account write access; you point
-      <a href="/pages/configs.html#output-path">output_path</a> at it on the next
+      <a href="/pages/configure.html#output-path">output_path</a> at it on the next
       page.
     </p>
     <pre><code>gcloud storage buckets create "gs://$GCP_BUCKET" \
@@ -156,8 +156,8 @@ gcloud storage buckets add-iam-policy-binding "gs://$GCP_BUCKET" \
 
     <div class="note">
       <div class="note-title">Next</div>
-      Provisioning done. Wire an experiment — environment, agents, keys, and the
-      run command: <a href="/pages/configs.html">Configure &amp; run a benchmark →</a>
+      Provisioning done. Wire an experiment: environment, agents, keys, and the
+      run command: <a href="/pages/configure.html">Configure &amp; run a benchmark →</a>
     </div>
   </article>
 

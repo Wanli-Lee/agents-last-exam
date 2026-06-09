@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Setup Environment Provider — ALE Docs</title>
+  <title>Setup Environment Provider | ALE Docs</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -14,11 +14,11 @@
     <h1>Setup Environment Provider</h1>
     <p class="lede">
       A provider boots the sandbox each task runs in. Set one up here, then
-      <a href="/pages/configs.html">configure a run</a>.
+      <a href="/pages/configure.html">configure a run</a>.
     </p>
     <p>
       Standing up the environment that serves the sandbox is the heaviest,
-      most error-prone part of any agent benchmark — and ALE asks more of it
+      most error-prone part of any agent benchmark, and ALE asks more of it
       than most. Tasks ship real, large professional software and their input
       data, and a single run can stretch for hours, so the platform also has to
       scale out across many sandboxes at once. ALE intends to make the process as 
@@ -35,12 +35,12 @@ uv sync --all-packages</code></pre>
 
     <h2>Pick a provider</h2>
     <div class="card-grid">
-      <a class="card" href="/pages/setup-gcp.html">
+      <a class="card" href="/pages/google-cloud.html">
         <div class="k">Supported</div>
         <div class="t">Google Cloud</div>
-        <div class="d">Ephemeral GCE VMs — the production path for batch runs.</div>
+        <div class="d">Ephemeral GCE VMs: the production path for batch runs.</div>
       </a>
-      <a class="card" href="/pages/setup-local.html">
+      <a class="card" href="/pages/local.html">
         <div class="k">Planned</div>
         <div class="t">VMware / QEMU</div>
         <div class="d">Run tasks on your own hardware. Roadmap.</div>

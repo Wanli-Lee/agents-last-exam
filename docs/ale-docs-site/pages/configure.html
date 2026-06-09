@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Configure & run a benchmark — ALE Docs</title>
+  <title>Configure & run a benchmark | ALE Docs</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -13,7 +13,7 @@
   <article class="article">
     <h1>Configure &amp; run a benchmark</h1>
     <p class="lede">
-      With the cloud <a href="/pages/setup-gcp.html">provisioned</a>, a run is
+      With the cloud <a href="/pages/google-cloud.html">provisioned</a>, a run is
       just three config files wired together: an experiment picks <strong>which
       agents</strong>, <strong>which environment</strong>, and <strong>which
       tasks</strong>. This page walks each one, the two kinds of API key, and the
@@ -22,45 +22,56 @@
 
     <h2>The experiment file</h2>
     <p>
-      An experiment only wires things together — it references the agent and
+      An experiment only wires things together: it references the agent and
       environment configs by path and carries run-level knobs. Copy
       <code>example_exp.yaml</code> and edit:
     </p>
-    <pre><code>name: ale_run                                   # names the output folder
+    <pre><code>name: ale_run                                   # output folder, and the --resume scope
 
 secret_file: secret/.env                        # API keys (loaded before parsing)
 
-agents:                                         # one path per agent — list several to run a matrix
+agents:                                         # one path per agent; list several to run a matrix
   - configs/agents/claude_code.yaml
 environment: configs/environments/environment.yaml
-tasks: selected_tasks/unlicensed/near-term.txt  # a task list (a tier, here)
+tasks: selected_tasks/unlicensed.txt            # the whole benchmark minus licensed tasks
 
 output:
   root: .logs                                   # host-side run logs
 concurrency: 8                                  # units (agent × task) in flight at once
-cleanup_mode: delete                            # delete | stop | keep the VMs after each run</code></pre>
+wall_time_s: 7200                               # max seconds an agent may run per unit (then stopped)
+cleanup_mode: delete                            # delete | stop | keep the sandboxes after each run</code></pre>
     <table>
       <thead><tr><th>Field</th><th>What it does</th></tr></thead>
       <tbody>
         <tr><td><code>agents</code></td><td>Paths under <code>configs/agents/</code>. Several entries → every agent runs over every task.</td></tr>
         <tr><td><code>environment</code></td><td>Exactly one path under <code>configs/environments/</code>.</td></tr>
-        <tr><td><code>tasks</code></td><td>A task-list file under <code>selected_tasks/</code> — see <a href="#tasks">Configure the tasks</a> below.</td></tr>
-        <tr><td><code>concurrency</code></td><td>How many agent×task units run at once — caps live VMs and LLM rate.</td></tr>
-        <tr><td><code>cleanup_mode</code></td><td><code>delete</code> for batch runs; <code>keep</code> to leave a VM up for debugging.</td></tr>
+        <tr><td><code>tasks</code></td><td>A task-list file under <code>selected_tasks/</code>, see <a href="#tasks">Configure the tasks</a> below.</td></tr>
+        <tr><td><code>concurrency</code></td><td>How many agent×task units run at once, capping live sandboxes and LLM rate.</td></tr>
+        <tr><td><code>wall_time_s</code></td><td>How long the agent may run on one unit, in seconds (default 7200). Run past it and ALE stops the agent and records the unit as <code>timeout</code> (not <code>failed</code>).</td></tr>
+        <tr><td><code>cleanup_mode</code></td><td><code>delete</code> for batch runs; <code>keep</code> to leave a sandbox up for debugging.</td></tr>
       </tbody>
     </table>
+    <div class="note">
+      <div class="note-title">Resuming a sweep</div>
+      A large run can be interrupted. Launch the same experiment again with
+      <code>--resume</code> and ALE skips every unit that already finished under
+      this <code>name</code>: ones that <code>completed</code> or hit their
+      <code>wall_time_s</code> (<code>timeout</code>) are left alone, while
+      <code>failed</code> ones run again. The scope is the output folder named by
+      <code>name</code>, so keep it stable across resumes.
+    </div>
 
     <h2>Configure the environment</h2>
     <p>
       A task declares which <strong>snapshot</strong> it needs in its task card,
       and the environment config
       (<code>configs/environments/environment.yaml</code>) maps each snapshot to a
-      backend — provider, image, and connection. ALE's tasks span five snapshots:
+      backend: provider, image, and connection. ALE's tasks span five snapshots:
     </p>
     <table>
       <thead><tr><th>Snapshot</th><th>OS · GPU · license</th><th>Image</th></tr></thead>
       <tbody>
-        <tr><td><code>cpu-free-ubuntu</code></td><td>Linux — the bulk of tasks</td><td><code>ale-ubuntu22</code></td></tr>
+        <tr><td><code>cpu-free-ubuntu</code></td><td>Linux, the bulk of tasks</td><td><code>ale-ubuntu22</code></td></tr>
         <tr><td><code>cpu-free</code></td><td>Windows</td><td><code>ale-win10</code></td></tr>
         <tr><td><code>cpu-license</code></td><td>Windows · licensed</td><td><code>ale-win10</code></td></tr>
         <tr><td><code>gpu-free</code></td><td>Windows · GPU</td><td><code>ale-win10</code></td></tr>
@@ -70,31 +81,33 @@ cleanup_mode: delete                            # delete | stop | keep the VMs a
     <p>
       Every Windows variant folds onto a single image (<code>ale-win10</code>), so
       two images cover all five. <strong>Leave the <code>snapshots:</code> block
-      exactly as shipped</strong> — it already maps each snapshot to the right
-      image and pulls your project and key in through <code>${env:…}</code>. (As
-      you add your own providers or images, configure these however you like.)
+      exactly as shipped</strong>. It already maps each snapshot to the right
+      image and pulls your project and key in through <code>${env:…}</code>. Each
+      Windows snapshot also pins a <code>resolution</code> (the desktop size GUI
+      tasks render at) so screenshots stay deterministic. (As you add your own
+      providers or images, configure these however you like.)
     </p>
     <p>The fields below the snapshots are the ones worth knowing:</p>
-    <pre><code>task_data_source: baked_in_sandbox    # task data is baked into the images — nothing to fetch
-gcs_sa_key: secret/gcp_key.json       # the SA key from GCP setup — already in place
+    <pre><code>task_data_source: baked_in_sandbox    # task data is baked into the images, nothing to fetch
+gcs_sa_key: secret/gcp_key.json       # the SA key from GCP setup, already in place
 output_path: local                    # ← the one field to change for batch runs (below)</code></pre>
     <div class="note" id="output-path">
-      <div class="note-title">output_path — strongly prefer the bucket</div>
+      <div class="note-title">output_path: strongly prefer the bucket</div>
       <p>
         <code>local</code> pulls each task's output off the sandbox over its cua
-        computer-server (port 5000) — slow and, with large artifacts, fragile on a
-        remote VM, so not recommended there. (Natural for a <em>local</em> sandbox,
-        handy once the VMware / QEMU providers land.)
+        computer-server (port 5000), slow and, with large artifacts, fragile on a
+        remote sandbox, so not recommended there. (Natural for a <em>local</em>
+        sandbox, handy once the VMware / QEMU providers land.)
       </p>
       <p>
-        The <strong>GCS bucket</strong> uploads VM-side, straight to storage —
+        The <strong>GCS bucket</strong> uploads sandbox-side, straight to storage:
         faster and robust at scale, and already created during
-        <a href="/pages/setup-gcp.html">GCP setup</a>:
+        <a href="/pages/google-cloud.html#results-bucket">GCP setup</a>:
       </p>
       <pre><code>output_path: gs://&lt;GCP_PROJECT&gt;-ale-results</code></pre>
       <p>
         Each run lands at <code>gs://&lt;GCP_PROJECT&gt;-ale-results/&lt;run_id&gt;/output/</code>,
-        keyed by run id — pull any run back with <code>gsutil -m cp -r</code> on its
+        keyed by run id: pull any run back with <code>gsutil -m cp -r</code> on its
         prefix, or script a whole sweep.
       </p>
     </div>
@@ -103,7 +116,7 @@ output_path: local                    # ← the one field to change for batch ru
     <p>
       Every agent ships a template under <code>configs/agents/</code> with each
       knob set to its default, so the tunable surface is visible at a glance. A
-      preset is three things — the harness, the model, and an agent-specific
+      preset is three things: the harness, the model, and an agent-specific
       <code>config</code> block:
     </p>
     <pre><code># configs/agents/claude_code.yaml
@@ -114,7 +127,7 @@ config:
   max_turns: -1               # -1 = unlimited
   # … agent-specific knobs, all shown at their defaults</code></pre>
     <p>
-      The <code>config</code> fields differ per agent — that's why each has its
+      The <code>config</code> fields differ per agent, which is why each has its
       own template. List several agent files under the experiment's
       <code>agents:</code> to sweep a matrix (every agent over every task).
     </p>
@@ -124,20 +137,26 @@ config:
     <table>
       <thead><tr><th>List</th><th>What it is</th></tr></thead>
       <tbody>
-        <tr><td><code>full/{near-term,full-spectrum,last-exam}.txt</code></td><td>The full benchmark, split by difficulty tier.</td></tr>
-        <tr><td><code>unlicensed/…</code></td><td>The same tiers minus tasks needing licensed software — runs on the published images as-is.</td></tr>
+        <tr><td><code>unlicensed.txt</code></td><td>The whole benchmark minus tasks needing licensed software, run on the published images as-is. The recommended default.</td></tr>
+        <tr><td><code>full.txt</code></td><td>The whole benchmark, including licensed tasks.</td></tr>
+        <tr><td><code>{unlicensed,full}/{near-term,full-spectrum,last-exam}.txt</code></td><td>Either set, split by difficulty tier.</td></tr>
         <tr><td><code>linux_only.txt</code></td><td>The Linux-only subset (no GUI desktop).</td></tr>
         <tr><td><code>helloworld.txt</code></td><td>A single demo task.</td></tr>
       </tbody>
     </table>
-    <p>
-      Tiers: <strong>near-term</strong> (cheapest, partly solvable today),
-      <strong>full-spectrum</strong> (one task per subdomain),
-      <strong>last-exam</strong> (the hardest). A <code>.txt</code> list is one
-      task path per line; a <code>.yaml</code> list adds per-task variant control.
-    </p>
+    <p>The three difficulty tiers, as defined in the paper:</p>
+    <ul>
+      <li><strong>near-term</strong> (59 tasks): workflows today's frontier agents
+      can partly complete (top pass rates around 30%). The cheapest tier, best for
+      routine leaderboard runs and fast iteration.</li>
+      <li><strong>full-spectrum</strong> (55 tasks): one task in each of ALE's 55
+      subdomains, for broad coverage across the whole benchmark.</li>
+      <li><strong>last-exam</strong> (36 tasks): the hardest workflows, where most
+      agents score 0%. Reserve for milestone checks, not routine testing.</li>
+    </ul>
+    <p>A list is one task path per line.</p>
     <div class="note todo">
-      <div class="note-title">Licensed tasks — TODO</div>
+      <div class="note-title">Licensed tasks: TODO</div>
       Seven tasks (listed in
       <a href="https://github.com/rdi-berkeley/agents-last-exam/blob/main/selected_tasks/licensed.txt">selected_tasks/licensed.txt</a>)
       need commercial software with an active license. For copyright reasons the
@@ -147,11 +166,11 @@ config:
       <strong>unlicensed</strong> lists.
     </div>
 
-    <h2>Keys: agents vs judges</h2>
+    <h2>API keys</h2>
     <p>Two separate sets of keys, for two separate jobs.</p>
     <ul>
       <li>
-        <strong>Agent keys — <code>secret/.env</code>.</strong> Used to <em>run</em>
+        <strong>Agent keys, <code>secret/.env</code>.</strong> Used to <em>run</em>
         the agents. The reference presets route through OpenRouter, so set
         <code>OPENROUTER_API_KEY</code>. A provider's official key
         (<code>ANTHROPIC_API_KEY</code>, …) is only used when an agent's config
@@ -161,25 +180,26 @@ GCP_PROJECT=&lt;your project&gt;             # read by the env config (${env:GCP
 GCP_SA_KEY=secret/gcp_key.json         # read by the env config (${env:GCP_SA_KEY})</code></pre>
       </li>
       <li>
-        <strong>Judge keys — <code>secret/eval_time/</code>.</strong> Used to
-        <em>grade</em>. Five tasks score their output with an OpenAI LLM/VLM
-        judge; the key loads automatically at scoring time. Copy the template and
-        fill it:
+        <strong>Judge keys, <code>secret/eval_time/</code>.</strong> Used to
+        <em>grade</em>. Five tasks score their output with an OpenAI LLM/VLM judge
+        and need an OpenAI key, loaded automatically at grading time. Copy the
+        template and fill it:
         <pre><code>cp secret/eval_time/openai.env.example secret/eval_time/openai.env   # then add the key</code></pre>
-        Without it those five tasks can't be evaluated. Every other task grades
-        deterministically and needs no judge key.
+        Without it, those five cannot be graded. Every other task is deterministic
+        and needs no judge key.
       </li>
     </ul>
 
     <h2>Run it</h2>
     <pre><code>uv run python -m ale_run run my_exp.yaml --dry-run   # validate the agent × task matrix
-uv run python -m ale_run run my_exp.yaml             # run it</code></pre>
+uv run python -m ale_run run my_exp.yaml             # run it
+uv run python -m ale_run run my_exp.yaml --resume    # re-run, skipping finished units</code></pre>
     <p>
       <code>--dry-run</code> prints the matrix without booting anything. The real
       run boots sandboxes (bounded by <code>concurrency</code>), runs each agent,
-      grades it, and tears the VMs down. Each unit writes a scored, replayable
-      record — its layout is covered in
-      <a href="/pages/data-artifacts.html">Trajectories &amp; artifacts</a>.
+      grades it, and tears the sandboxes down. Each unit writes a scored, replayable
+      record. Its layout is covered in
+      <a href="/pages/trajectories.html">Trajectories &amp; artifacts</a>.
     </p>
   </article>
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Agents' Last Exam — Framework Documentation</title>
+  <title>Agents' Last Exam | Framework Documentation</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -22,114 +22,109 @@
         extend it.
       </p>
       <div class="btn-row">
-        <a class="btn primary" href="/pages/run-lifecycle.html">How it works →</a>
-        <a class="btn" href="/pages/setup-gcp.html">Run experiments</a>
+        <a class="btn primary" href="#how-a-run-works">How it works →</a>
+        <a class="btn" href="/pages/providers.html">Run experiments</a>
+        <a class="btn" href="https://github.com/rdi-berkeley/agents-last-exam">GitHub ↗</a>
       </div>
     </section>
 
-    <h2>Why ALE is different</h2>
+    <h2>What ALE is</h2>
     <p>
-      Most benchmarks simplify the world into a tidy API. ALE refuses to. Its
-      tasks are real production workflows, so the evaluation environment has to
-      be real too.
+      ALE evaluates AI agents on <strong>long-horizon, economically valuable,
+      real-world work with verifiable outcomes</strong>: the professional tasks
+      that move real industries, not abstract puzzles. Built with 250+ industry
+      experts and organized by the O*NET / SOC 2018 occupational taxonomy, it
+      spans <strong>55 subdomains across 13 industry clusters</strong> and 1,000+
+      tasks, with around 150 in the public release. It is a living benchmark, and
+      far from solved: across mainstream agents, the average pass rate on the
+      hardest tier is just <strong>2.6%</strong>. ALE is built less as one more
+      leaderboard than as an instrument for closing the gap between benchmark
+      scores and real economic impact.
+    </p>
+
+    <h2>What keeps it real</h2>
+    <p>
+      Most benchmarks compress the world into a tidy API. ALE does the opposite:
+      the tasks are real production workflows, so the evaluation has to be real
+      too.
     </p>
     <div class="pillars">
-      <div class="pillar"><div class="t">Real environments</div><div class="d">Full Windows / Linux VMs with actual production software — not simulations.</div></div>
+      <div class="pillar"><div class="t">Real environments</div><div class="d">Full Windows / Linux sandboxes with the actual professional software, driven through both terminal and GUI, not a simulation.</div></div>
       <div class="pillar"><div class="t">Curated real data</div><div class="d">Each task ships real input data and a hidden reference, collected and validated by domain experts.</div></div>
       <div class="pillar"><div class="t">Verifiable outcomes</div><div class="d">Deterministic and judge-based graders score the agent's output against that reference.</div></div>
-      <div class="pillar"><div class="t">Broad coverage</div><div class="d">150 public tasks spanning 55 industries, from a 1,500+ task corpus.</div></div>
+      <div class="pillar"><div class="t">Broad coverage</div><div class="d">Around 150 public tasks across 55 subdomains, from a 1,000+ task corpus that keeps growing.</div></div>
     </div>
 
-    <h2>How it works, in one minute</h2>
+    <h2 id="how-a-run-works">How a run works</h2>
     <p>
-      Frontier agents are whole systems — their own runtime, tools, memory, and
-      sub-agents. ALE doesn't try to drive them step by step. It does the
-      opposite: <strong>drop the agent into a real sandbox with the task, let it
-      work to completion, then grade what it leaves behind.</strong> Afterwards
-      it reconstructs a uniform trajectory from the agent's own logs, so every
-      agent — however different inside — produces comparable records.
+      Rather than puppeteer an agent step by step, ALE drops the whole system into
+      a sandbox with the task, lets it work to completion, and grades what it
+      leaves behind. Every run pairs three swappable pieces:
     </p>
-
-    <p>To make that swappable, ALE keeps three pieces independent:</p>
-    <div class="diagram">                ┌────────────────────────────────┐
-                │        experiment.yaml         │
-                │   agent + environment + tasks  │
-                └────────────────┬───────────────┘
-                                 │  the orchestrator wires them together,
-                                 │  runs the agent, then grades the result
-            ┌────────────────────┼────────────────────┐
-            ▼                    ▼                    ▼
-   ┌────────────────┐   ┌────────────────┐   ┌────────────────┐
-   │     AGENT      │   │  ENVIRONMENT   │   │      TASK      │
-   │  what to test  │   │  where to run  │   │ what to do +   │
-   │                │   │  (the sandbox) │   │   how to grade │
-   └────────────────┘   └────────────────┘   └────────────────┘</div>
-    <p>
-      Pick one of each in a YAML file, run one command. Swap any single slot and
-      the other two are untouched — a new agent runs against every existing task,
-      a new task runs on every existing environment.
-    </p>
-
-    <h3>How an agent plugs in</h3>
-    <p>
-      This is the idea worth internalizing early. An agent is added as a
-      <strong>deployer</strong>: a small piece of Python that knows how to
-      <em>install</em> the agent, <em>launch</em> it on a prompt, and <em>read
-      its logs back</em> into a trajectory. The deployer never knows
-      <em>where</em> it runs. A separate <strong>executor</strong> decides
-      that — inside the sandbox, in a local container, or on your own machine.
-    </p>
-    <div class="note">
-      <div class="note-title">The payoff</div>
-      Write a deployer <strong>once</strong>; the same code runs in all three
-      places. The agent's logic and the question of where it executes are kept
-      completely apart.
+    <div class="slots">
+      <div class="slot"><div class="sk">Agent</div><div class="st">What to test</div><div class="sd">Any harness (Claude Code, Codex, ALE-Claw, …), driven through one uniform interface.</div></div>
+      <div class="slot"><div class="sk">Environment</div><div class="st">Where it runs</div><div class="sd">A fresh OS sandbox with the real software and the task's data on disk.</div></div>
+      <div class="slot"><div class="sk">Task</div><div class="st">What to do, how to grade</div><div class="sd">An instruction, its input data, and a hidden reference the grader scores against.</div></div>
     </div>
-
-    <h3>What a run gives you</h3>
     <p>
-      Each run writes a timestamped folder under <code>.logs/</code>: a final
-      <strong>score</strong>, a structured <strong>trajectory</strong> (every
-      step, tool call, and observation), an append-only event log, and the raw
-      artifacts pulled off the VM.
+      The orchestrator then takes that pairing through a fixed lifecycle. Each
+      stage below is a concept this site covers in depth, so the run itself doubles
+      as a map of what follows:
     </p>
+    <ol class="lifecycle">
+      <li>
+        <div class="lt">1 · Provision the sandbox</div>
+        <div class="ld">A provider boots a fresh OS sandbox from a prebaked image and waits until the control server inside it answers.</div>
+        <div class="lp"><a href="/pages/sandbox.html">Sandbox &amp; provider &rarr;</a></div>
+      </li>
+      <li>
+        <div class="lt">2 · Stage the task</div>
+        <div class="ld">The task's input data is injected onto the sandbox and the machine is set into its starting state, ready for the agent.</div>
+        <div class="lp"><a href="/pages/tasks.html">Task spec &amp; data staging &rarr;</a></div>
+      </li>
+      <li>
+        <div class="lt">3 · Run the agent</div>
+        <div class="ld">The agent does the work, running to completion and driving the machine through both the terminal and the GUI, the way a person would. Any harness plugs in the same way.</div>
+        <div class="lp"><a href="/pages/agents.html">Agents &amp; executor &rarr;</a></div>
+      </li>
+      <li>
+        <div class="lt">4 · Grade the output</div>
+        <div class="ld">Only now is the hidden reference staged. The task's grader scores the agent's output against it, by exact comparison or an LLM/VLM judge.</div>
+        <div class="lp"><a href="/pages/tasks.html">Task spec &amp; data staging &rarr;</a></div>
+      </li>
+      <li>
+        <div class="lt">5 · Record everything</div>
+        <div class="ld">Each agent's native logs are normalized into one uniform trajectory, written next to the score, the event log, and the raw artifacts.</div>
+        <div class="lp"><a href="/pages/trajectories.html">Trajectories &amp; artifacts &rarr;</a></div>
+      </li>
+      <li>
+        <div class="lt">6 · Tear down</div>
+        <div class="ld">The sandbox is deleted (or kept, for debugging), so the next run always starts from a clean machine.</div>
+        <div class="lp"><a href="/pages/sandbox.html">Sandbox &amp; provider &rarr;</a></div>
+      </li>
+    </ol>
 
-    <h2>Where to go next</h2>
+    <h2>From here</h2>
+    <p>
+      Those six stages are the four concept pages above. When you want to actually
+      run it, or build on it:
+    </p>
     <div class="card-grid">
-      <a class="card" href="/pages/setup-gcp.html">
-        <div class="k">When you're ready</div>
-        <div class="t">Set up Google Cloud</div>
-        <div class="d">The one-time provisioning to actually run. ~30 minutes, automated into a single block.</div>
-      </a>
-      <a class="card" href="/pages/configs.html">
+      <a class="card" href="/pages/providers.html">
         <div class="k">Run experiments</div>
-        <div class="t">Configure & run a benchmark</div>
-        <div class="d">Wire the experiment, environment, agents, and keys; pick a task list; launch.</div>
+        <div class="t">Set up and run a benchmark</div>
+        <div class="d">Provision a cloud provider, configure an experiment, and launch.</div>
       </a>
-      <a class="card" href="/pages/run-lifecycle.html">
-        <div class="k">Go deep</div>
-        <div class="t">Architecture</div>
-        <div class="d">Start with the run lifecycle, then decompose: sandboxes, task data, executors, trajectories.</div>
-      </a>
-      <a class="card" href="/pages/extend-agents.html">
-        <div class="k">Build</div>
+      <a class="card" href="/pages/add-agent.html">
+        <div class="k">Build on ALE</div>
         <div class="t">Add your own agent</div>
-        <div class="d">Implement a deployer and benchmark your harness on ALE.</div>
+        <div class="d">Implement a deployer and benchmark your own harness on ALE.</div>
       </a>
       <a class="card" href="/pages/mcp-tools.html">
         <div class="k">Reference</div>
-        <div class="t">MCP tools</div>
-        <div class="d">The CLI + GUI tools agents drive the sandbox with.</div>
+        <div class="t">MCP tools &amp; schema</div>
+        <div class="d">The exact CLI + GUI tools agents drive the sandbox with, and the trajectory schema.</div>
       </a>
-    </div>
-
-    <div class="note">
-      <div class="note-title">About this site</div>
-      Internal documentation for the ALE codebase. It front-loads the concepts —
-      this Overview and the architecture pages under <strong>Introduction</strong>
-      explain how ALE works — then <strong>Run experiments</strong> covers
-      provisioning and actually running the benchmark. Pages marked
-      <span class="pill todo">draft</span> are scaffolded, pending content.
     </div>
   </article>
 

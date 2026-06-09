@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Task spec & data staging | ALE Docs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+  <article class="article">
+    <h1>Task spec &amp; data staging</h1>
+    <p class="lede">
+      Curated real-world inputs, a hidden reference (the golden artifacts an
+      output is graded against), and a grader that can't be gamed. The input and
+      reference data are what make an ALE task more than a prompt, and keeping the
+      reference out of the agent's reach is also important to keep the benchmark unhackable.
+    </p>
+
+    <h2>A task is a cua-bench <code>main.py</code></h2>
+    <p>
+      ALE adopts
+      <a href="https://cua.ai/docs/cuabench/guide/fundamentals/tasks">cua-bench's
+      task spec</a> directly. A task is a single <code>main.py</code> with three
+      functions, each driving the sandbox through the cua-bench
+      <code>DesktopSession</code>, a session the
+      <a href="/pages/sandbox.html">provider</a> opens onto the running
+      sandbox by talking to a control server inside it:
+    </p>
+    <ul>
+      <li><code>load()</code> declares the task and its variants.</li>
+      <li><code>start(cfg, session)</code> sets the sandbox up before the agent
+      runs: stage the inputs, open the apps, put the machine in its starting
+      state.</li>
+      <li><code>evaluate(cfg, session)</code> runs after the agent finishes: read
+      its output and the reference, and return a score.</li>
+    </ul>
+    <p>
+      One <code>main.py</code> is one workflow plus one general grading logic.
+      <strong>Variants</strong> reuse that logic over different concrete inputs;
+      <code>load()</code> returns one entry per variant, and the public release
+      ships only the <code>base</code> variant of each task.
+    </p>
+    <p>
+      Alongside that code, a task ships the two kinds of data those functions
+      move, collected and validated by domain experts so that the inputs plus the
+      prompt determine a gradeable result:
+    </p>
+    <table>
+      <thead><tr><th>Kind</th><th>Visible to the agent?</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><strong>input</strong></td><td>Yes, staged before the run</td><td>The materials the task starts from.</td></tr>
+        <tr><td><strong>reference</strong></td><td>No, kept hidden</td><td>The golden artifacts the grader scores against.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Staging the data, hiding the reference</h2>
+    <p>
+      Before the agent can touch anything, the framework <strong>injects the
+      task's input onto the sandbox</strong>, writing its files to a known place
+      on disk. The reference is injected the same way, but only <em>after</em> the
+      agent has finished, in a separate phase, so while the agent works the answer
+      is never on the machine to find.
+    </p>
+    <div class="flow">
+      <div class="phase"><div class="pk">Stage input</div><div class="pd">Input injected onto the sandbox.</div></div>
+      <div class="arrow">&rarr;</div>
+      <div class="phase"><div class="pk">Agent runs</div><div class="pd">Reference absent. The agent works to completion.</div></div>
+      <div class="arrow">&rarr;</div>
+      <div class="phase"><div class="pk">Stage reference</div><div class="pd">Reference injected, only now.</div></div>
+      <div class="arrow">&rarr;</div>
+      <div class="phase"><div class="pk">Grade</div><div class="pd"><code>evaluate()</code> scores output against it.</div></div>
+    </div>
+    <p>
+      Those files come from one of two sources, set by the environment's
+      <a href="https://github.com/rdi-berkeley/agents-last-exam/blob/51d094e7b3cbe7b7f2f7e615708876e42ad8813e/configs/environments/environment.yaml#L116-L117"><code>task_data_source</code></a>.
+      The general one is to <strong>pull each task's data at runtime</strong> from
+      the public <code>gs://ale-data-public</code> bucket: a sandbox you build
+      yourself uses this, and from a Google Cloud VM the pull is fast. A Hugging
+      Face source for previewing tasks is planned but not yet built.
+    </p>
+    <p>
+      As an optimization, ALE's published
+      <a href="/pages/google-cloud.html#copy-images">Google Cloud images</a> arrive
+      with every task's data already baked onto the disk, so a run starts
+      instantly with nothing to fetch. Since the reference then sits on the
+      machine for the whole run, it is baked as an encrypted archive
+      (<code>reference.7z</code>) that is unpacked only at grading, which is what
+      keeps it unreadable while the agent works.
+    </p>
+
+    <h2>Grading</h2>
+    <p>
+      Once the reference is available, the task's <code>evaluate</code> hook
+      reads the agent's output alongside it and returns a list of scores. Two
+      styles of grader are used:
+    </p>
+    <ul>
+      <li><strong>Deterministic</strong>: exact or structural comparison
+      (files, values, parsed content). Most tasks.</li>
+      <li><strong>Judge-based</strong>: an LLM or VLM scores outputs that need
+      semantic or visual judgment (e.g. an OpenAI vision judge, a Gemini video
+      judge).</li>
+    </ul>
+    <p>
+      The grader runs as part of the task slot, host-side, after the agent is
+      gone, so even judge-based scoring never touches the agent's run.
+    </p>
+
+    <div class="note">
+      <div class="note-title">Authoring a task</div>
+      Two ways to add one. To <strong>contribute a task to ALE</strong>, go to
+      <a href="https://agents-last-exam.org/submit">agents-last-exam.org/submit</a>
+      and refine the design in natural language with our agents until you submit a
+      task description plus raw data; the ALE team turns that into a runnable
+      <code>main.py</code> with valid input and reference data. To
+      <strong>build one yourself against the codebase</strong> (the
+      <code>task_card.json</code> schema and the <code>load</code> /
+      <code>start</code> / <code>evaluate</code> hooks), see
+      <a href="/pages/add-task.html">Add a task</a>.
+    </div>
+  </article>
+
+  <script src="/assets/nav.js"></script>
+  <script src="/assets/app.js"></script>
+</body>
+</html>

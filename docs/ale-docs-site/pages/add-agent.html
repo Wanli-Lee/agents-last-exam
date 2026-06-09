@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Add an agent — ALE Docs</title>
+  <title>Add an agent | ALE Docs</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -17,8 +17,8 @@
       <strong>deployer</strong>: a Python class that installs, launches, and reads
       back one harness. It does all its work through the handle the framework
       hands it, so the same code runs on any image and any OS. This page is how to
-      write one — the
-      <a href="/pages/arch-executor-deployer.html">Agents &amp; executor</a> page
+      write one. The
+      <a href="/pages/agents.html">Agents &amp; executor</a> page
       has the concepts.
     </p>
 
@@ -28,16 +28,16 @@
       hangs off it. Your agent's own config is <code>self.config</code>; the
       executor also gives you the work dir, the sandbox handle, and env. The
       discipline that makes a deployer portable: read binary paths, the OS, and
-      the work dir from the handle and branch on the OS — never write
+      the work dir from the handle and branch on the OS, never write
       <code>"node"</code> or a literal path.
     </p>
     <table>
       <thead><tr><th>Attribute</th><th>What it is</th></tr></thead>
       <tbody>
-        <tr><td><code>self.config</code></td><td>Your agent's config dataclass — model + knobs.</td></tr>
+        <tr><td><code>self.config</code></td><td>Your agent's config dataclass: model + knobs.</td></tr>
         <tr><td><code>self.executor.work_dir</code></td><td>A scratch dir for this run's artifacts (transcript, prompt, logs).</td></tr>
         <tr><td><code>self.executor.env</code></td><td>Framework env vars (API keys, the MCP bridge URL).</td></tr>
-        <tr><td><code>self.executor.sandbox</code></td><td>The <code>SandboxHandle</code> — below.</td></tr>
+        <tr><td><code>self.executor.sandbox</code></td><td>The <a href="https://github.com/rdi-berkeley/agents-last-exam/blob/main/ale_run/base_interface/sandbox.py"><code>SandboxHandle</code></a>, below.</td></tr>
       </tbody>
     </table>
     <table>
@@ -46,7 +46,7 @@
         <tr><td><code>.os</code> / <code>.is_linux</code></td><td>Branch on this for every path/command.</td></tr>
         <tr><td><code>.node</code> / <code>.python</code></td><td>Absolute paths to the runtimes baked in the image.</td></tr>
         <tr><td><code>.work_dir_base</code> / <code>.mcp_server_dir</code> / <code>.task_data_root</code></td><td>The image's path conventions.</td></tr>
-        <tr><td><code>run_command</code> · <code>write_file</code> · <code>read_file</code> · <code>mkdir</code> · <code>exists</code> · <code>upload_local_file</code> · <code>download_to_local</code></td><td>Async I/O against the VM — all OS-dispatched for you.</td></tr>
+        <tr><td><code>run_command</code> · <code>write_file</code> · <code>read_file</code> · <code>mkdir</code> · <code>exists</code> · <code>upload_local_file</code> · <code>download_to_local</code></td><td>Async I/O against the VM, all OS-dispatched for you.</td></tr>
       </tbody>
     </table>
     <p>So a path is built, not written:</p>
@@ -68,7 +68,7 @@ def _join(*parts, is_linux):
       brevity.
     </div>
 
-    <h2>install() — stage the agent</h2>
+    <h2>install(): stage the agent</h2>
     <p>
       Get the harness in place and ready to run. The canonical sandbox-CLI
       sequence (see <code>agents/claude_code/deployer.py</code>,
@@ -77,7 +77,7 @@ def _join(*parts, is_linux):
     <pre><code>async def install(self) -&gt; None:
     sandbox = self.executor.sandbox
 
-    # 1. locate the CLI — install it only if the image didn't pre-bake it
+    # 1. locate the CLI; install it only if the image didn't pre-bake it
     cli = shutil.which("claude") or await self._npm_install("@anthropic-ai/claude-code")
 
     # 2. prove it runs  (stdin=DEVNULL avoids TTY/Defender hangs on Windows)
@@ -87,7 +87,7 @@ def _join(*parts, is_linux):
     Path(self.executor.work_dir).mkdir(parents=True, exist_ok=True)
 
     # 4. hand the agent a GUI action space: ensure the cua MCP bridge, point the CLI at it
-    await ensure_cua_mcp_server(sandbox)                 # idempotent — no-op when pre-baked
+    await ensure_cua_mcp_server(sandbox)                 # idempotent, no-op when pre-baked
     mcp = {"mcpServers": {"cua": {
         "command": sandbox.node,                         # read, don't hardcode
         "args":    [self._join(sandbox.mcp_server_dir, "src", "index.js",
@@ -102,7 +102,7 @@ def _join(*parts, is_linux):
       patched binary, what to disable) come from <code>self.config</code>.
     </p>
 
-    <h2>launch(prompt) — run it, return a result</h2>
+    <h2>launch(prompt): run it, return a result</h2>
     <p>
       Spawn the agent <strong>detached</strong>, poll until it exits, and return an
       <code>AgentRunResult</code>. Detaching + polling (rather than blocking) keeps
@@ -139,7 +139,7 @@ def _join(*parts, is_linux):
       <code>work_dir</code> at the end. Same signature, same return.
     </p>
 
-    <h2>parse_artifacts() — logs → trajectory</h2>
+    <h2>parse_artifacts(): logs → trajectory</h2>
     <p>
       A host-side <code>@classmethod</code> that runs after the framework gathers
       <code>work_dir</code> locally. Read the agent's native transcript and emit
@@ -166,9 +166,9 @@ def parse_artifacts(cls, *, work_dir, config, run_result, builder) -&gt; None:
         elif ev["type"] == "user":                        # tool results
             builder.add_step(source="environment", observation=_obs(ev))</code></pre>
     <p>
-      Map each agent's own format to the same schema — assistant turns become
+      Map each agent's own format to the same schema: assistant turns become
       <code>agent</code> steps carrying their <code>ToolCall</code>s (and, when the
-      transcript reports usage, per-step <code>StepMetrics</code> — which
+      transcript reports usage, per-step <code>StepMetrics</code>, which
       <code>finalize()</code> sums into the run's token and cost totals); tool
       results become <code>environment</code> observations. Handle a missing or
       cut-off transcript by recording what you can (a <code>source="system"</code>
@@ -179,7 +179,7 @@ def parse_artifacts(cls, *, work_dir, config, run_result, builder) -&gt; None:
     <h2>Wire it in</h2>
     <p>
       Put a <strong>standalone config dataclass</strong> next to the deployer
-      (each agent's config is its own — there's no shared base class), and set
+      (each agent's config is its own, there's no shared base class), and set
       three <strong>class-level attributes</strong> (declared on the class, read
       by the framework):
     </p>
@@ -196,7 +196,7 @@ class MyAgentDeployer(BaseAgentDeployer):
     <p>
       <code>default_executor</code> / <code>supported_executors</code> tell the
       framework where this agent may run; <code>hot_artifacts</code> is just a list
-      of filenames — the framework tails them off the VM periodically during the
+      of filenames. The framework tails them off the VM periodically during the
       run (you write no pull logic), so a killed run still leaves a partial trace.
       Register the deployer in <code>orchestration/factory.py</code>
       (<code>_AGENT_FQNS</code>), then ship a preset:

@@ -99,6 +99,12 @@ body {
 a { color: var(--accent); text-decoration: none; }
 a:hover { color: var(--accent-ink); text-decoration: underline; text-underline-offset: 3px; }
 ::selection { background: var(--select-bg); color: var(--ink); }
+/* Code surfaces are light-on-dark in both themes, so they need their own
+   selection: keep the light text, use a stronger clay highlight. */
+.article pre ::selection {
+  background: rgba(232, 137, 106, 0.42);
+  color: var(--code-ink);
+}
 
 /* Prose links stay discoverable in a monochrome palette via a subtle underline */
 .article p a, .article li a, .article .lede a, .note a, .article td a {
@@ -390,6 +396,58 @@ a:hover { color: var(--accent-ink); text-decoration: underline; text-underline-o
   font-family: var(--font-mono); font-size: 12.5px; line-height: 1.5;
   color: var(--ink-soft); white-space: pre;
 }
+
+/* horizontal phase flow (a prettier alternative to ASCII diagrams) */
+.flow { display: flex; align-items: stretch; margin: 0 0 22px; overflow-x: auto; }
+.flow .phase {
+  flex: 1 1 0; min-width: 132px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 13px 15px;
+}
+.flow .phase .pk {
+  font-size: 11.5px; font-weight: 640; letter-spacing: .01em;
+  color: var(--accent); margin-bottom: 5px;
+}
+.flow .phase .pd { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.flow .arrow {
+  flex: 0 0 auto; align-self: center; padding: 0 9px;
+  color: var(--accent-line); font-size: 17px;
+}
+@media (max-width: 640px) {
+  .flow { flex-direction: column; }
+  .flow .arrow { transform: rotate(90deg); padding: 5px 0; }
+}
+
+/* three swappable slots (overview) */
+.slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 6px 0 20px; }
+.slots .slot {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 14px 16px;
+}
+.slots .slot .sk {
+  font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 6px;
+}
+.slots .slot .st { font-weight: 600; font-size: 14.5px; color: var(--ink); margin-bottom: 3px; }
+.slots .slot .sd { font-size: 13px; color: var(--muted); line-height: 1.45; }
+@media (max-width: 640px) { .slots { grid-template-columns: 1fr; } }
+
+/* run lifecycle timeline (overview): a vertical map of a run + the pages it leads to */
+.lifecycle { list-style: none; margin: 14px 0 24px; padding: 0; position: relative; }
+.lifecycle::before {
+  content: ""; position: absolute; left: 6px; top: 8px; bottom: 14px;
+  width: 2px; background: var(--border);
+}
+.lifecycle > li { position: relative; padding: 0 0 22px 30px; }
+.lifecycle > li::before {
+  content: ""; position: absolute; left: 0; top: 5px;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 0 3px var(--bg);
+}
+.lifecycle > li:last-child { padding-bottom: 0; }
+.lifecycle .lt { font-weight: 600; font-size: 15px; color: var(--ink); }
+.lifecycle .ld { font-size: 13.5px; color: var(--muted); line-height: 1.55; margin-top: 3px; }
+.lifecycle .lp { font-size: 12.5px; margin-top: 5px; }
 
 /* hero (home) */
 .hero { padding: 8px 0 8px; margin-bottom: 8px; }
