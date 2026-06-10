@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import math
@@ -20,8 +21,6 @@ from skimage.metrics import structural_similarity
 from tasks.common_config import GeneralTaskConfig
 from tasks.common_setup import BaseTaskSetup
 
-_setup = BaseTaskSetup()
-
 logger = logging.getLogger(__name__)
 
 TASK_ID = "visual_media/blender_character_reconstruction_from_multiview_01"
@@ -29,8 +28,12 @@ TASK_NAME = "blender_character_reconstruction_from_multiview_01"
 VARIANT_NAME = "base"
 TASK_DIR = Path(__file__).resolve().parent
 EVAL_TMP_DIR = r"C:\Users\User\AppData\Local\Temp\agenthle_eval\blender_character_reconstruction_from_multiview_01"
-BLENDER_INSTALL_DIR = r"C:\Softwares\Blender-5.0.1"
-BLENDER_EXE = rf"{BLENDER_INSTALL_DIR}\blender.exe"
+APPROVED_BLENDER_VERSION = "5.0.1"
+APPROVED_BLENDER_50_PREFIX = "Blender 5.0"
+DEV_FALLBACK_BLENDER_51_PREFIX = "Blender 5.1"
+PREFERRED_BLENDER_INSTALL_DIR = r"C:\Softwares\Blender-5.0.1"
+BLENDER_JOB_TIMEOUT_SEC = 3600.0
+BLENDER_JOB_POLL_SEC = 10.0
 BACKGROUND_GRAY = 0.52
 MASK_THRESHOLD = 0.06
 OBJ_SAMPLE_LIMIT_DEFAULT = 6000
@@ -231,22 +234,212 @@ async def _find_first_existing_path(
     return None
 
 
+def _dedupe_paths(candidates: list[str]) -> list[str]:
+    deduped: list[str] = []
+    for candidate in candidates:
+        if candidate and candidate not in deduped:
+            deduped.append(candidate)
+    return deduped
+
+
+def _blender_version_rank(version_line: str) -> int | None:
+    line = version_line.strip()
+    if line.startswith(APPROVED_BLENDER_50_PREFIX):
+        return 0
+    if line.startswith(DEV_FALLBACK_BLENDER_51_PREFIX):
+        return 1
+    return None
+
+
+async def _blender_version_line(session: cb.DesktopSession, blender_exe: str) -> str:
+    command = f'cmd /c ""{blender_exe}" --version"'
+    result = await _run_command(session, command, timeout=120.0, check=False)
+    output = (_as_text(result.get("stdout", "")) + "\n" + _as_text(result.get("stderr", ""))).strip()
+    for line in output.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("Blender "):
+            return stripped
+    return output.splitlines()[0].strip() if output else ""
+
+
+async def _discover_blender_exes(session: cb.DesktopSession) -> list[str]:
+    discovered: list[str] = []
+    listing_commands = (
+        r'for /d %D in ("C:\Program Files\Blender Foundation\*") do @if exist "%D\blender.exe" echo %D\blender.exe',
+        r'for /d %D in ("C:\Softwares\Blender-*") do @if exist "%D\blender.exe" echo %D\blender.exe',
+        r'for /d %D in ("D:\Blender\Blender *") do @if exist "%D\blender.exe" echo %D\blender.exe',
+    )
+    for command in listing_commands:
+        result = await _run_command(session, f"cmd /c {command}", check=False)
+        for line in (_as_text(result.get("stdout", ""))).splitlines():
+            candidate = line.strip()
+            if candidate.lower().endswith("blender.exe") and candidate not in discovered:
+                discovered.append(candidate)
+    return discovered
+
+
+async def _resolve_blender_exe(
+    session: cb.DesktopSession,
+    candidates: list[str],
+) -> str:
+    existing: list[str] = []
+    for candidate in _dedupe_paths(candidates):
+        if await session.file_exists(candidate):
+            existing.append(candidate)
+    for candidate in await _discover_blender_exes(session):
+        if candidate not in existing:
+            existing.append(candidate)
+
+    best_exe: str | None = None
+    best_rank = 999
+    best_version = ""
+    for blender_exe in existing:
+        version_line = await _blender_version_line(session, blender_exe)
+        rank = _blender_version_rank(version_line)
+        if rank is None:
+            logger.warning(
+                "Skipping unsupported Blender runtime at %s (version=%r)",
+                blender_exe,
+                version_line,
+            )
+            continue
+        if rank < best_rank:
+            best_rank = rank
+            best_exe = blender_exe
+            best_version = version_line
+
+    if best_exe is None:
+        searched = _dedupe_paths(candidates + await _discover_blender_exes(session))
+        raise RuntimeError(
+            "Blender runtime unavailable on VM. "
+            f"Need {APPROVED_BLENDER_50_PREFIX}.x (preferred) or "
+            f"{DEV_FALLBACK_BLENDER_51_PREFIX}.x (dev fallback). "
+            f"Searched: {searched}"
+        )
+
+    if best_rank > 0:
+        logger.warning(
+            "Using non-canonical Blender runtime %s at %s; fixture scores were calibrated on %s.",
+            best_version,
+            best_exe,
+            APPROVED_BLENDER_VERSION,
+        )
+    else:
+        logger.info("Resolved Blender runtime %s at %s", best_version, best_exe)
+    return best_exe
+
+
+async def _read_text_if_exists(session: cb.DesktopSession, path: str) -> str:
+    try:
+        if not await session.file_exists(path):
+            return ""
+        return (await _read_bytes(session, path)).decode("utf-8", errors="replace")
+    except Exception:
+        return ""
+
+
+async def _launch_detached_bat(session: cb.DesktopSession, bat_path: str) -> None:
+    """Launch a .bat detached via wmic so CUA does not hold a long-lived shell."""
+    await session.run_command(
+        f'wmic process call create "cmd /c \\"{bat_path}\\""',
+        check=False,
+    )
+
+
+async def _wait_for_log_marker(
+    session: cb.DesktopSession,
+    *,
+    log_path: str,
+    marker: str,
+    timeout_sec: float = BLENDER_JOB_TIMEOUT_SEC,
+    poll_sec: float = BLENDER_JOB_POLL_SEC,
+) -> tuple[bool, str]:
+    deadline = asyncio.get_event_loop().time() + timeout_sec
+    last_log = ""
+    while asyncio.get_event_loop().time() < deadline:
+        last_log = await _read_text_if_exists(session, log_path)
+        if marker in last_log:
+            return True, last_log
+        await asyncio.sleep(poll_sec)
+    return False, last_log
+
+
+async def _wait_for_paths(
+    session: cb.DesktopSession,
+    paths: list[str],
+    *,
+    timeout_sec: float = BLENDER_JOB_TIMEOUT_SEC,
+    poll_sec: float = BLENDER_JOB_POLL_SEC,
+) -> bool:
+    deadline = asyncio.get_event_loop().time() + timeout_sec
+    while asyncio.get_event_loop().time() < deadline:
+        if all(await session.file_exists(path) for path in paths):
+            return True
+        await asyncio.sleep(poll_sec)
+    return False
+
+
 async def _blend_can_open(
     session: cb.DesktopSession,
     *,
     blender_exe: str,
     blend_path: str,
 ) -> tuple[bool, str]:
-    command = (
-        f'cmd /c ""{blender_exe}" '
-        f'--background --factory-startup "{blend_path}" '
-        '--python-expr "print(\'BLEND_OPEN_CHECK_OK\')""'
+    await session.interface.create_dir(EVAL_TMP_DIR)
+    log_path = _remote_child(EVAL_TMP_DIR, "blend_open.log")
+    bat_path = _remote_child(EVAL_TMP_DIR, "blend_open.bat")
+    await session.run_command(f'del /f /q "{log_path}" 2>nul', check=False)
+    bat_content = (
+        "@echo off\r\n"
+        f"\"{blender_exe}\" --background --factory-startup \"{blend_path}\" "
+        "--python-expr \"print('BLEND_OPEN_CHECK_OK')\" "
+        f"> \"{log_path}\" 2>&1\r\n"
     )
-    result = await _run_command(session, command, timeout=3600.0, check=False)
-    stdout = _as_text(result.get("stdout", ""))
-    stderr = _as_text(result.get("stderr", ""))
-    ok = result.get("return_code", 1) == 0 and "BLEND_OPEN_CHECK_OK" in stdout
-    return ok, (stdout + "\n" + stderr).strip()
+    await session.write_file(bat_path, bat_content)
+    await _launch_detached_bat(session, bat_path)
+    ok, log = await _wait_for_log_marker(
+        session,
+        log_path=log_path,
+        marker="BLEND_OPEN_CHECK_OK",
+    )
+    return ok, log.strip()
+
+
+async def _run_blender_eval_submission(
+    session: cb.DesktopSession,
+    *,
+    blender_exe: str,
+    helper_path: str,
+    submission_obj: str,
+    views_config_path: str,
+    metrics_path: str,
+    render_dir: str,
+    expected_render_names: list[str],
+) -> tuple[bool, str, str]:
+    stdout_path = _remote_child(EVAL_TMP_DIR, "eval_stdout.txt")
+    stderr_path = _remote_child(EVAL_TMP_DIR, "eval_stderr.txt")
+    bat_path = _remote_child(EVAL_TMP_DIR, "run_eval.bat")
+    for path in (metrics_path, stdout_path, stderr_path):
+        await session.run_command(f'del /f /q "{path}" 2>nul', check=False)
+    bat_content = (
+        "@echo off\r\n"
+        f"\"{blender_exe}\" --background --factory-startup "
+        f"--python \"{helper_path}\" "
+        f"-- --submission-obj \"{submission_obj}\" "
+        f"--views-config \"{views_config_path}\" "
+        f"--output-json \"{metrics_path}\" "
+        f"--render-dir \"{render_dir}\" "
+        f"1> \"{stdout_path}\" 2> \"{stderr_path}\"\r\n"
+    )
+    await session.write_file(bat_path, bat_content)
+    await _launch_detached_bat(session, bat_path)
+    expected_paths = [metrics_path] + [
+        _remote_child(render_dir, name) for name in expected_render_names
+    ]
+    ready = await _wait_for_paths(session, expected_paths)
+    stdout = await _read_text_if_exists(session, stdout_path)
+    stderr = await _read_text_if_exists(session, stderr_path)
+    return ready, stdout, stderr
 
 
 class BlenderCharacterTaskConfig(GeneralTaskConfig):
@@ -325,6 +518,22 @@ class BlenderCharacterTaskConfig(GeneralTaskConfig):
         return _remote_child(self.software_dir, "open_blender.bat")
 
     @property
+    def blender_exe_candidates(self) -> list[str]:
+        env_candidates = [
+            os.environ.get("BLENDER_TASK_REMOTE_BLENDER", "").strip(),
+            os.environ.get("BLENDER_501_EXECUTABLE", "").strip(),
+        ]
+        default_candidates = [
+            _remote_child(PREFERRED_BLENDER_INSTALL_DIR, "blender.exe"),
+            r"C:\Program Files\Blender Foundation\Blender 5.0\blender.exe",
+            r"C:\Program Files\Blender Foundation\Blender 5.1\blender.exe",
+            r"D:\Blender\Blender 5.0\blender.exe",
+            _remote_child(self.software_dir, "Blender 5.0.1", "blender.exe"),
+            _remote_child(self.software_dir, "blender.exe"),
+        ]
+        return _dedupe_paths(env_candidates + default_candidates)
+
+    @property
     def task_description(self) -> str:
         return textwrap.dedent(f"""\
             You are a 3D artist using Blender on a Windows VM.
@@ -370,13 +579,27 @@ class BlenderCharacterTaskConfig(GeneralTaskConfig):
                 "validation_views": self.validation_views,
                 "evaluation_config": self.evaluation_config,
                 "software_launcher": self.software_launcher,
-                "blender_exe": BLENDER_EXE,
+                "blender_exe_candidates": self.blender_exe_candidates,
+                "approved_blender_version": APPROVED_BLENDER_VERSION,
+                "blender_exe": "",
             }
         )
         return data
 
 
 config = BlenderCharacterTaskConfig()
+
+
+class BlenderCharacterSetup(BaseTaskSetup):
+    async def setup(self, task_cfg: Any, session: cb.DesktopSession) -> None:
+        meta = task_cfg.metadata
+        meta["blender_exe"] = await _resolve_blender_exe(
+            session,
+            list(meta.get("blender_exe_candidates") or []),
+        )
+
+
+_setup = BlenderCharacterSetup()
 
 
 @cb.tasks_config(split="train")
@@ -418,12 +641,13 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
             logger.error("Missing or empty required submission file: %s", selected[key])
             return [0.0]
 
-    blender_exe = meta["blender_exe"]
-    if not (await session.file_exists(blender_exe) or await session.directory_exists(blender_exe)):
-        raise RuntimeError(
-            f"Blender missing from VM snapshot at {blender_exe}; "
-            "Stage 1 snapshot must preinstall Blender (do not patch from evaluate())"
+    blender_exe = str(meta.get("blender_exe") or "").strip()
+    if not blender_exe or not await session.file_exists(blender_exe):
+        blender_exe = await _resolve_blender_exe(
+            session,
+            list(meta.get("blender_exe_candidates") or []),
         )
+        meta["blender_exe"] = blender_exe
 
     blend_ok, blend_log = await _blend_can_open(
         session,
@@ -443,25 +667,26 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
         (TASK_DIR / "scripts" / "blender_eval_submission.py").read_text(encoding="utf-8"),
     )
 
-    eval_command = (
-        f'cmd /c ""{blender_exe}" '
-        "--background --factory-startup "
-        f'--python "{helper_path}" '
-        f'-- --submission-obj "{selected["obj"]}" '
-        f'--views-config "{meta["validation_views"]}" '
-        f'--output-json "{metrics_path}" '
-        f'--render-dir "{render_dir}""'
+    expected_render_names = [
+        PureWindowsPath(str(view["output_image_path"])).name
+        for view in views_config.get("per_view_cameras", [])
+    ]
+    eval_ready, eval_stdout, eval_stderr = await _run_blender_eval_submission(
+        session,
+        blender_exe=blender_exe,
+        helper_path=helper_path,
+        submission_obj=selected["obj"],
+        views_config_path=meta["validation_views"],
+        metrics_path=metrics_path,
+        render_dir=render_dir,
+        expected_render_names=expected_render_names,
     )
-    eval_result = await _run_command(session, eval_command, timeout=3600.0, check=False)
-    if eval_result.get("return_code", 1) != 0:
+    if not eval_ready:
         logger.error(
-            "Blender render helper failed. stdout_tail=%s stderr_tail=%s",
-            _as_text(eval_result.get("stdout", ""))[-800:],
-            _as_text(eval_result.get("stderr", ""))[-800:],
+            "Blender render helper timed out or left missing outputs. stdout_tail=%s stderr_tail=%s",
+            eval_stdout[-800:],
+            eval_stderr[-800:],
         )
-        return [0.0]
-    if not (await session.file_exists(metrics_path) or await session.directory_exists(metrics_path)):
-        logger.error("Expected metrics output missing: %s", metrics_path)
         return [0.0]
 
     metrics = await _read_json(session, metrics_path)
