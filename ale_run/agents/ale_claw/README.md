@@ -14,6 +14,12 @@ harness with the right loop, tools, memory, and context management can still
 perform strongly on ALE. The harness stays narrow by design so the model, not a
 large product layer, does most of the work.
 
+> **Why minimal?** The companion blog post,
+> [*Does the Harness Matter?*](https://agents-last-exam.org/blogs/harness-matters),
+> reports the evidence: with GPT-5.5 held fixed, ALE Claw reaches the same accuracy
+> band as OpenClaw, Codex, Cursor, and Droid while using far fewer tokens, dollars,
+> and minutes.
+
 ## What the harness does
 
 ALE Claw runs a single action loop that repeats until the task is done or the
