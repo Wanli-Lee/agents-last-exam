@@ -105,9 +105,6 @@ Save exactly one Markdown file here:
                 "extracted_text_dir": self.extracted_text_dir,
                 "output_file": self.output_file,
                 "gold_findings_file": self.gold_findings_file,
-                "canonical_gcs_root": (
-                    f"gs://ale-data-all/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}/"
-                ),
             }
         )
         return metadata

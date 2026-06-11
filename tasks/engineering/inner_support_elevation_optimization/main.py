@@ -262,7 +262,6 @@ Launch the PLAXIS 3D 2023.2 executables yourself — e.g. via PowerShell:
                 "plaxis_output_viewer_exe": PLAXIS_OUTPUT_VIEWER_EXE,
                 "required_screenshot_files": REQUIRED_SCREENSHOT_FILES,
                 "vm_identity": "sunblaze-4/us-east1-b/agenthle-dev-cpu-licensed",
-                "canonical_gcs_root": "gs://ale-data-all/engineering/inner_support_elevation_optimization/base/",
             }
         )
         return metadata

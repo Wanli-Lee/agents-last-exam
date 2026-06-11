@@ -51,9 +51,7 @@ OVERVIEW_SCREENSHOT = "overview.png"
 
 # ---------------------------------------------------------------------------
 # Variants — (task_tag,)
-# Each variant has its own input/ and reference/ in GCS at:
-#   gs://ale-data-all/visual_media/music_transcription/<task_tag>/input/
-#   gs://ale-data-all/visual_media/music_transcription/<task_tag>/reference/
+# Each variant has its own input/ and reference/ staged by the framework.
 # ---------------------------------------------------------------------------
 VARIANTS = [
     ("dorico_prelude",),

@@ -194,7 +194,6 @@ Do not modify files under `input/`. Write final results only under `{self.remote
                 "output_csvs": {name: self.output_csv_path(name) for name in CSV_NAMES},
                 "reference_csvs": {name: self.reference_csv_path(name) for name in CSV_NAMES},
                 "output_dir_name": _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR),
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

@@ -204,7 +204,6 @@ class HomeworkGradingNumericalPDEsConfig(LinuxTaskConfig):
                 "reference_summary_requirements": self.reference_summary_requirements,
                 "reference_manifest": self.reference_manifest,
                 "required_output_files": REQUIRED_OUTPUT_FILES,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{VARIANT_NAME}/",
             }
         )
         return metadata

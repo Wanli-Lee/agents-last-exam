@@ -199,7 +199,6 @@ Requirements:
                 "summary_output_file": self.summary_output_file,
                 "reference_subset_file": self.reference_subset_file,
                 "reference_summary_file": self.reference_summary_file,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

@@ -92,7 +92,6 @@ class TaskConfig(GeneralTaskConfig):
             "launcher_path": self.launcher_path,
             "result_path": self.result_path,
             "reference_result_path": self.reference_result_path,
-            "canonical_gcs_root": f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{VARIANT_NAME}/",
         })
         return m
 

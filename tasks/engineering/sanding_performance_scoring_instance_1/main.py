@@ -119,9 +119,6 @@ under `input/`.
                 "reference_file": self.reference_file,
                 "output_test_pos_dir": self.output_test_pos_dir,
                 "output_test_neg_dir": self.output_test_neg_dir,
-                "canonical_gcs_root": (
-                    "gs://ale-data-all/engineering/sanding_performance_scoring_instance_1/base/"
-                ),
             }
         )
         return metadata

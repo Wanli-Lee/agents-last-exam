@@ -178,9 +178,6 @@ Rules:
                 "output_summary": self.output_summary,
                 "runtime_scratch_dir": self.runtime_scratch_dir,
                 "reference_db": self.reference_db,
-                "canonical_gcs_root": (
-                    f"gs://ale-data-all/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}/"
-                ),
             }
         )
         return metadata

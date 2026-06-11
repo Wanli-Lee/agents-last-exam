@@ -158,7 +158,6 @@ profiles match the staged observations with RMSE below 1.5 C.
                 "glm_run_script": self.glm_run_script,
                 "python_wrapper": self.python_wrapper,
                 "glm_binary": self.glm_binary,
-                "canonical_gcs_root": "gs://ale-data-all/physical_sciences/glm_lake_calibration/base/",
             }
         )
         return metadata

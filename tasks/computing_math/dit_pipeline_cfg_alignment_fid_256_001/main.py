@@ -151,7 +151,6 @@ Do not rely on hidden evaluator files while solving.
                 "reference_file": self.reference_file,
                 "output_file": self.output_file,
                 "output_dir_name": _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR),
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{VARIANT_NAME}/",
             }
         )
         return metadata

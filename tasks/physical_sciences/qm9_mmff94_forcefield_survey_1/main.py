@@ -142,9 +142,6 @@ The following 10 files under `{self.remote_output_dir}`:
                 "input_dir": self.input_dir,
                 "input_archive": self.input_archive,
                 "eval_tmp_dir": EVAL_TMP_DIR,
-                "canonical_gcs_root": (
-                    f"gs://ale-data-all/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}/"
-                ),
             }
         )
         return metadata

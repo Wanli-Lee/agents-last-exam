@@ -134,7 +134,6 @@ Read the protocol and instructions, compute the group-sequential design quantiti
                 "output_dir_name": self.output_dir_name,
                 "required_output_files": sorted(REQUIRED_FILES),
                 "reference_values_file": self.reference_values_file,
-                "canonical_gcs_root": f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{VARIANT_NAME}/",
             }
         )
         return meta

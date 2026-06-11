@@ -148,9 +148,7 @@ Only files under `{self.remote_output_dir}` count as your output.
                 "preferred_output_name": self.preferred_output_name,
                 "preferred_output_path": self.preferred_output_path,
                 "reference_dir": self.reference_dir,
-                "reference_gcs_prefix": "gs://ale-data-all/computing_math/go_game_reconstruction_1/base/reference",
                 "reference_sgf": self.reference_sgf,
-                "canonical_gcs_root": "gs://ale-data-all/computing_math/go_game_reconstruction_1/base/",
             }
         )
         return metadata

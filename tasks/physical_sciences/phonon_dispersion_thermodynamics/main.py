@@ -103,9 +103,6 @@ uv sync
                 "input_runtime_pyproject": self.input_runtime_pyproject,
                 "software_readme": self.software_readme,
                 "required_output_files": list(REQUIRED_FILES),
-                "canonical_gcs_root": (
-                    f"gs://ale-data-all/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}/"
-                ),
             }
         )
         return metadata

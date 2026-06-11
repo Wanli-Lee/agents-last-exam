@@ -214,9 +214,6 @@ crf_form,crf_field_label,crf_item_or_placeholder,sdtm_dataset,sdtm_variable,role
                 "output_filename": self.output_filename,
                 "primary_dataset": self.primary_dataset,
                 "supp_dataset": self.supp_dataset,
-                "canonical_gcs_root": (
-                    f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{self.VARIANT_NAME}/"
-                ),
             }
         )
         return metadata

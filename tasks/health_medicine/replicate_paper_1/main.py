@@ -177,7 +177,6 @@ Software guidance:
                 "coverage_results": self.coverage_results,
                 "findings_file": self.findings_file,
                 "metadata_file": self.metadata_file,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{VARIANT_NAME}/",
             }
         )
         return metadata

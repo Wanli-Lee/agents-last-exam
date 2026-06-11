@@ -205,7 +205,6 @@ You are working on a Linux VM to annotate one staged protein with InterProScan.
                 "reference_interpro_domains": self.reference_interpro_domains,
                 "reference_go_terms": self.reference_go_terms,
                 "reference_summary": self.reference_summary,
-                "canonical_gcs_root": "gs://ale-data-all/life_sciences/protein_function_annotation_instance_1/base/",
             }
         )
         return metadata

@@ -146,7 +146,6 @@ Read the staged problem specification and output contract, then create the requi
                 "reference_files": {
                     filename: self.reference_file(filename) for filename in REQUIRED_OUTPUT_FILES
                 },
-                "canonical_gcs_root": f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{VARIANT_NAME}/",
             }
         )
         return metadata

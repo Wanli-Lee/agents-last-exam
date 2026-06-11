@@ -203,7 +203,6 @@ Important constraints:
                 "rgi_result_tsv": self.rgi_result_tsv,
                 "rgi_result_json": self.rgi_result_json,
                 "verification_targets_file": self.verification_targets_file,
-                "canonical_gcs_root": f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{VARIANT_NAME}/",
             }
         )
         return metadata

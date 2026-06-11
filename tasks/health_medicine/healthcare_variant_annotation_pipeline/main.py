@@ -203,7 +203,6 @@ Do not ask for confirmation. Execute directly.
                 "run_log_output_file": self.run_log_output_file,
                 "reference_annotated_file": self.reference_annotated_file,
                 "reference_reportable_file": self.reference_reportable_file,
-                "canonical_gcs_root": f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{VARIANT_NAME}/",
             }
         )
         return metadata

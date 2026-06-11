@@ -185,7 +185,6 @@ The task is designed for Python-based network analysis and data processing. If y
                 "input_pyproject": self.input_pyproject,
                 "input_uv_lock": self.input_uv_lock,
                 "expected_top_level_keys": list(EXPECTED_TOP_LEVEL_KEYS),
-                "canonical_gcs_root": "gs://ale-data-all/engineering/power_10kv_feeder_reliability_001/base/",
             }
         )
         return metadata

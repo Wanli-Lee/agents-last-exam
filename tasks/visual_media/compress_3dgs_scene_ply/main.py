@@ -256,7 +256,6 @@ Important:
                 "output_render_dir": self.output_render_dir,
                 "output_results_file": self.output_results_file,
                 "output_compression_report_file": self.output_compression_report_file,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{VARIANT_NAME}/",
             }
         )
         return metadata

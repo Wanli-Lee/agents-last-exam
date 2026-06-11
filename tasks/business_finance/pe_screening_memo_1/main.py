@@ -148,7 +148,6 @@ Constraints:
                 "output_filename": self.OUTPUT_FILENAME,
                 "reference_file": self.reference_file,
                 "evaluation_contract_file": self.evaluation_contract_file,
-                "canonical_gcs_root": f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

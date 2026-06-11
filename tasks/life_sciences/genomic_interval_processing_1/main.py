@@ -138,7 +138,6 @@ Use local staged files only; do not download replacement data from the internet.
                 "output_files": self.output_files,
                 "reference_bed_file": self.reference_bed_file,
                 "input_hashes_file": self.input_hashes_file,
-                "canonical_gcs_root": f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{VARIANT_NAME}/",
             }
         )
         return metadata

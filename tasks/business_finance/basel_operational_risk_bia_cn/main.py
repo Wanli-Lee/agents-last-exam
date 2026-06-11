@@ -155,7 +155,6 @@ Follow the file contracts in `{self.task_prompt_file}` and the schemas under
                 "classified_events_file": self.classified_events_file,
                 "capital_calculation_file": self.capital_calculation_file,
                 "eval_tmp_dir": EVAL_TMP_DIR,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

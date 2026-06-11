@@ -113,7 +113,6 @@ The JSON must contain top-level keys `tier1`, `tier2`, and `tier3`:
                 "runtime_bootstrap": self.runtime_bootstrap,
                 "output_file": self.output_file,
                 "reference_file": self.reference_file,
-                "canonical_gcs_root": f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{VARIANT_NAME}/",
             }
         )
         return metadata

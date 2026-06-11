@@ -225,9 +225,6 @@ Every new task's `in_*` form property must have a matching `out_*` producer on a
                 "output_rules": self.output_rules,
                 "output_results": self.output_results,
                 "output_design_decisions": self.output_design_decisions,
-                "canonical_gcs_root": (
-                    f"gs://ale-data-all/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}/"
-                ),
             }
         )
         return metadata

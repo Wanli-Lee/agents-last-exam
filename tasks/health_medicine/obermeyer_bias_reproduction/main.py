@@ -206,7 +206,6 @@ Your job is to:
                 "revised_report_output": self.revised_report_output,
                 "reference_metrics_file": self.reference_metrics_file,
                 "reference_predictions_file": self.reference_predictions_file,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

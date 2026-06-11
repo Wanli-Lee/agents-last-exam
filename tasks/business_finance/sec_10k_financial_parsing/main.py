@@ -184,7 +184,6 @@ Important requirements:
                 "task_id": TASK_ID,
                 "eval_tmp_dir": EVAL_TMP_DIR,
                 "reference_dir": self.reference_dir,
-                "reference_gcs_prefix": f"gs://ale-data-all/{TASK_ID}/{VARIANT_NAME}/reference",
                 "filings_dir": self.filings_dir,
                 "filing_manifest": self.filing_manifest,
                 "schema_file": self.schema_file,

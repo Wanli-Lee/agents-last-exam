@@ -143,9 +143,6 @@ You are evaluating whole-body-control policy rollouts for a Unitree G1 humanoid 
                 "output_report": self.output_report,
                 "output_visual_demos_dir": self.output_visual_demos_dir,
                 "reference_expected_verdicts": self.reference_expected_verdicts,
-                "canonical_gcs_root": (
-                    f"gs://ale-data-all/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}/"
-                ),
             }
         )
         return metadata

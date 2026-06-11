@@ -297,7 +297,6 @@ Rules:
                 "gold_output_file": self.gold_output_file,
                 "eval_tmp_dir": self.eval_tmp_dir,
                 "eval_tmp_output_csv": self.eval_tmp_output_csv,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{VARIANT_NAME}/",
             }
         )
         return metadata

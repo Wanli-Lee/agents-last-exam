@@ -189,7 +189,6 @@ The benchmark harness exposes only the intended input/software surface and the w
                 "software_readme": self.software_readme,
                 "python_entry_point": self.python_entry_point,
                 "eval_tmp_dir": EVAL_TMP_DIR,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

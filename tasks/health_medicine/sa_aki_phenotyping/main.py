@@ -202,7 +202,6 @@ Output rules:
                 "software_python": self.software_python,
                 "output_file": self.output_file,
                 "reference_file": self.reference_file,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

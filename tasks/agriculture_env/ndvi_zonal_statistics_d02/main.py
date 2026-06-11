@@ -184,9 +184,6 @@ Rules:
                 "output_test_neg_dir": self.output_test_neg_dir,
                 "ndvi_output": self.ndvi_output,
                 "csv_output": self.csv_output,
-                "canonical_gcs_root": (
-                    "gs://ale-data-all/agriculture_env/ndvi_zonal_statistics_d02/base/"
-                ),
             }
         )
         return metadata

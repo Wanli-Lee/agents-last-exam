@@ -161,7 +161,6 @@ You are editing a SaaS one-pager on a Windows VM.
             "task_dir": self.task_dir,
             "software_dir": self.software_dir,
             "reference_dir": self.reference_dir,
-            "reference_gcs_prefix": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/reference",
             "remote_output_dir": self.remote_output_dir,
             "task_id": TASK_ID,
             "variant_label": self.VARIANT_LABEL,

@@ -170,7 +170,6 @@ Do not ask for confirmation. Execute directly.
                 "reference_deg_file": self.reference_deg_file,
                 "reference_up_file": self.reference_up_file,
                 "reference_down_file": self.reference_down_file,
-                "canonical_gcs_root": f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{VARIANT_NAME}/",
             }
         )
         return metadata

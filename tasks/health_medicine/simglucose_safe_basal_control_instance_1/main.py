@@ -243,7 +243,6 @@ Rules:
                 "public_dir": self.public_dir,
                 "runtime_env_dir": self.runtime_env_dir,
                 "reference_dir": self.reference_dir,
-                "reference_gcs_prefix": f"gs://ale-data-all/{TASK_ID}/{VARIANT_NAME}/reference",
                 "software_dir": self.software_dir,
                 "output_test_pos_dir": self.output_test_pos_dir,
                 "output_test_neg_dir": self.output_test_neg_dir,
@@ -263,7 +262,6 @@ Rules:
                 "eval_runtime_dir": self.eval_runtime_dir,
                 "eval_status_path": self.eval_status_path,
                 "eval_log_path": self.eval_log_path,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{VARIANT_NAME}/",
             }
         )
         return metadata

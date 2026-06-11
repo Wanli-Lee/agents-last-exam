@@ -220,7 +220,6 @@ Rules:
                 "annotation_files": {
                     slice_id: self.annotation_file(slice_id) for slice_id, _ in SLICE_CONFIG
                 },
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

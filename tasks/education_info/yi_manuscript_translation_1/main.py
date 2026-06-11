@@ -148,9 +148,6 @@ You are analyzing a classical Yi manuscript image on a Windows VM.
                 "hidden_reference_bbox": self.hidden_reference_bbox,
                 "hidden_ground_truth": self.hidden_ground_truth,
                 "hidden_reference_materials_snapshot": self.hidden_reference_materials_snapshot,
-                "canonical_gcs_root": (
-                    f"gs://ale-data-all/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}/"
-                ),
             }
         )
         return metadata

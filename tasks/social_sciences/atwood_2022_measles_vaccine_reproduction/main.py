@@ -163,7 +163,6 @@ Follow the file contracts in `{self.task_prompt_file}` and the schemas under
                 "paper_file": self.paper_file,
                 "replication_package": self.replication_package,
                 "eval_tmp_dir": EVAL_TMP_DIR,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

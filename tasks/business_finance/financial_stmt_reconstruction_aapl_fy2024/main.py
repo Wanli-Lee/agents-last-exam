@@ -148,7 +148,6 @@ do not modify files under `{self.input_dir}`.
                 "task_prompt_file": self.task_prompt_file,
                 "output_file": self.output_file,
                 "eval_tmp_dir": EVAL_TMP_DIR,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

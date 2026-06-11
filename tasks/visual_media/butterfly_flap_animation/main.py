@@ -176,7 +176,6 @@ Do not modify files under input/. Write only the final MP4 under output/.
                 "output_video": self.remote_output_video,
                 "output_video_name": self.OUTPUT_VIDEO_NAME,
                 "pass_threshold": self.PASS_THRESHOLD,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

@@ -180,7 +180,6 @@ Notes:
                 "remote_output_dir": self.remote_output_dir,
                 "candidate_file": self.candidate_file,
                 "workspace_root": WORKSPACE_ROOT,
-                "canonical_gcs_root": "gs://ale-data-all/computing_math/ranking_node_feature_parity_recovery_instance_1/base/",
             }
         )
         return metadata

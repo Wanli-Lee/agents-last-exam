@@ -191,7 +191,6 @@ mask.
                 "cell_by_gene_file": self.cell_by_gene_file,
                 "metrics_file": self.metrics_file,
                 "reference_file": self.reference_file,
-                "canonical_gcs_root": f"gs://ale-data-all/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

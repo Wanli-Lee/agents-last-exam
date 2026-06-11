@@ -204,7 +204,6 @@ Runtime guidance:
                 "submission_template_dir": self.submission_template_dir,
                 "matrad_wrapper": self.matrad_wrapper,
                 "output_dir_name": _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR),
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/",
                 "eval_tmp_dir": EVAL_TMP_DIR,
                 "micromamba_env": MICROMAMBA_ENV_NAME,
                 "pass_threshold": PASS_THRESHOLD,

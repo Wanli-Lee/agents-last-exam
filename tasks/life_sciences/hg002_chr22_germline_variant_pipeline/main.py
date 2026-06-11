@@ -146,7 +146,6 @@ Rules:
                 "output_dir_name": self.output_dir_name,
                 "submission_root": self.submission_root,
                 "hidden_truth_dir": self.hidden_truth_dir,
-                "canonical_gcs_root": f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{VARIANT_NAME}/",
             }
         )
         return metadata

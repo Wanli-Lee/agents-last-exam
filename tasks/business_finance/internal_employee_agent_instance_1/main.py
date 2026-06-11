@@ -182,10 +182,6 @@ Write exactly one JSON file at `{self.visible_output_file}` with this shape:
                 "remote_output_dir": self.remote_output_dir,
                 "output_file": self.output_file,
                 "visible_output_file": self.visible_output_file,
-                "canonical_gcs_root": "gs://ale-data-all/business_finance/internal_employee_agent_instance_1/base/",
-                "reference_gcs_prefix": (
-                    "gs://ale-data-all/business_finance/internal_employee_agent_instance_1/base/reference"
-                ),
             }
         )
         return metadata

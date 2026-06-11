@@ -231,8 +231,6 @@ Do not rely on files outside the visible task root listed above during solve tim
                 "runtime_manifest": self.runtime_manifest,
                 "runtime_lock": self.runtime_lock,
                 "python_wrapper": self.python_wrapper,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{VARIANT_NAME}/",
-                "reference_gcs_prefix": f"gs://ale-data-all/{TASK_ID}/{VARIANT_NAME}/reference",
             }
         )
         return metadata

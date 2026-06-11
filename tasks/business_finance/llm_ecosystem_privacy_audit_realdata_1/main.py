@@ -172,9 +172,6 @@ locally on this VM. No network access is required or permitted.
                 "exposure_output_file": self.exposure_output_file,
                 "policy_reference_file": self.policy_reference_file,
                 "exposure_reference_file": self.exposure_reference_file,
-                "canonical_gcs_root": (
-                    "gs://ale-data-all/business_finance/" "llm_ecosystem_privacy_audit_realdata_1/base"
-                ),
             }
         )
         return metadata

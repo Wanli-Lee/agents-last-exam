@@ -199,7 +199,6 @@ Godot validation scene, and write the visible handoff metrics.
                 "blender_launcher": self.blender_launcher,
                 "godot_launcher": self.godot_launcher,
                 "eval_tmp_dir": REMOTE_EVAL_TMP_DIR,
-                "canonical_gcs_root": f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

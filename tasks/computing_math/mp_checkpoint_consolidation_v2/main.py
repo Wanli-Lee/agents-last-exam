@@ -245,7 +245,6 @@ class MPCheckpointConsolidationV2Config(LinuxTaskConfig):
                 "input_ids_reference": self.input_ids_reference,
                 "logits_reference": self.logits_reference,
                 "variant_metadata_reference": self.variant_metadata_reference,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

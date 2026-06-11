@@ -147,7 +147,6 @@ profile along the alignment. Do NOT edit the profile.
             "civil3d_launcher": self.civil3d_launcher,
             "civil3d_exe": CIVIL3D_EXE,
             "vm_identity": "sunblaze-4/us-west1-c/agenthle-dev-gpu-licensed",
-            "canonical_gcs_root": "gs://ale-data-all/engineering/cailian_road_highway_alignment_2/base/",
         })
         return metadata
 

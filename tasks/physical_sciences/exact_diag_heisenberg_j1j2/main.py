@@ -42,7 +42,6 @@ logger = logging.getLogger(__name__)
 
 TASK_NAME = "exact_diag_heisenberg_j1j2"
 VARIANT_NAME = "base"
-CANONICAL_GCS_ROOT = "gs://ale-data-all/physical_sciences/exact_diag_heisenberg_j1j2/base/"
 
 
 class ExactDiagHeisenbergConfig(LinuxTaskConfig):
@@ -119,7 +118,6 @@ Write the required files under `{self.remote_output_dir}`:
                 "output_results": self.output_results,
                 "reference_outputs_dir": self.reference_outputs_dir,
                 "verification_metadata_file": self.verification_metadata_file,
-                "canonical_gcs_root": CANONICAL_GCS_ROOT,
             }
         )
         return metadata

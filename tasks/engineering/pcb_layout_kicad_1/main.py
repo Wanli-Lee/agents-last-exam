@@ -139,7 +139,6 @@ Save the final board layout as:
                 "open_kicad_launcher": self.open_kicad_launcher,
                 "kicad_cli_path": self.KICAD_CLI_PATH,
                 "output_dir_name": self.output_dir_name,
-                "canonical_gcs_root": f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{VARIANT_NAME}/",
             }
         )
         return metadata

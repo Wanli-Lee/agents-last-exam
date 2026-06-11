@@ -161,7 +161,6 @@ Requirements:
                 "runtime_scratch_dir": self.runtime_scratch_dir,
                 "output_files": self.output_files,
                 "reference_files": self.reference_files,
-                "canonical_gcs_root": f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{VARIANT_NAME}/",
             }
         )
         return metadata

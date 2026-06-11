@@ -173,9 +173,6 @@ Use invariant factors in ascending order with the divisibility condition satisfi
                 "task_spec_file": self.task_spec_file,
                 "gap_wrapper": self.gap_wrapper,
                 "output_file": self.output_file,
-                "canonical_gcs_root": (
-                    f"gs://ale-data-all/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}/"
-                ),
                 "variant_title": self.VARIANT_TITLE,
                 "h_invariant_factors": list(self.H_INVARIANT_FACTORS or []),
                 "h_order": int(_product(list(self.H_INVARIANT_FACTORS or []))),

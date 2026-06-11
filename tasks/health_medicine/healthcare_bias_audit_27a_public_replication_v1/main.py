@@ -264,7 +264,6 @@ Rules:
                 "reference_answers_file": self.reference_answers_file,
                 "reference_memo_file": self.reference_memo_file,
                 "reference_results_dir": self.reference_results_dir,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

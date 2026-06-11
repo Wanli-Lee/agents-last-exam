@@ -42,9 +42,7 @@ TIMBRE_THRESHOLD = 0.70
 
 # ---------------------------------------------------------------------------
 # Variants — (task_tag,)
-# Each variant has its own input/ and reference/ in GCS at:
-#   gs://ale-data-all/visual_media/project_migration/<task_tag>/input/
-#   gs://ale-data-all/visual_media/project_migration/<task_tag>/reference/
+# Each variant has its own input/ and reference/ staged by the framework.
 # ---------------------------------------------------------------------------
 #   Stage 2 decision: only the 5 variants with fully exported reference stems
 #   are registered here. The 5 pending variants (freehold_battle_music,

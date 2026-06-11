@@ -260,7 +260,6 @@ Rules:
                 "evaluator_python": self.evaluator_python,
                 "evaluator_script": self.evaluator_script,
                 "ground_truth_dir": self.ground_truth_dir,
-                "canonical_gcs_root": f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{VARIANT_NAME}/",
             }
         )
         return metadata

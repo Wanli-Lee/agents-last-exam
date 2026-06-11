@@ -226,9 +226,6 @@ Use Wireshark to analyze the staged enterprise packet capture and produce a stru
                 "input_dir": self.input_dir,
                 "output_path": self.output_path,
                 "runtime_output_dir": self.runtime_output_dir,
-                "reference_gcs_prefix": (
-                    f"gs://ale-data-all/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}/reference"
-                ),
                 "reference_path": self.reference_path,
                 "schema_path": self.schema_path,
                 "pcap_path": self.pcap_path,

@@ -166,7 +166,6 @@ incident_metadata, root_causes, affected_resources, remediation_plan, summary
                 "failing_pod_log_file": self.failing_pod_log_file,
                 "output_report": self.output_report,
                 "reference_report": self.reference_report,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{VARIANT_NAME}/",
             }
         )
         return metadata

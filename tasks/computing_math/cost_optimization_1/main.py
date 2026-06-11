@@ -183,7 +183,6 @@ class CostOptimizationConfig(LinuxTaskConfig):
                 "reference_report": self.reference_report,
                 "reference_manifest": self.reference_manifest,
                 "expected_summary_columns": EXPECTED_SUMMARY_COLUMNS,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{VARIANT_NAME}/",
             }
         )
         return metadata

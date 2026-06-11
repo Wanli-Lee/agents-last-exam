@@ -158,7 +158,6 @@ Write exactly these outputs under `{self.remote_output_dir}`:
                 "output_test_neg_dir": self.output_test_neg_dir,
                 "remote_output_dir": self.remote_output_dir,
                 "runtime_env_dir": self.runtime_env_dir,
-                "canonical_gcs_root": "gs://ale-data-all/business_finance/digital_marketing_ab_test_analysis_1/base/",
             }
         )
         return metadata

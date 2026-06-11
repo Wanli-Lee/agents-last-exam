@@ -169,7 +169,6 @@ TSP packages. Do not modify files under `{self.input_dir}`.
                 "python_entry": self.python_entry,
                 "output_file": self.output_file,
                 "reference_file": self.reference_file,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

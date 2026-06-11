@@ -111,7 +111,6 @@ Detect the red yeast colonies growing on the agar plate while excluding white do
                 "measurements_dir": self.measurements_dir,
                 "measurements_file": self.measurements_file,
                 "reference_measurements_file": self.reference_measurements_file,
-                "canonical_gcs_root": f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{VARIANT_NAME}/",
             }
         )
         return metadata

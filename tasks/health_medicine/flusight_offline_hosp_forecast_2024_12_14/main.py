@@ -187,9 +187,6 @@ Rules:
                 "evaluator_script": self.evaluator_script,
                 "truth_file": self.truth_file,
                 "scoring_baseline_file": self.scoring_baseline_file,
-                "canonical_gcs_root": (
-                    f"gs://ale-data-all/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}/"
-                ),
             }
         )
         return metadata

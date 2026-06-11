@@ -312,7 +312,6 @@ class CelegansNeuronTrackingConfig(LinuxTaskConfig):
                 "reference_scorer": self.reference_scorer,
                 "reference_gt": self.reference_gt,
                 "eval_scratch_root": EVAL_SCRATCH_ROOT,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

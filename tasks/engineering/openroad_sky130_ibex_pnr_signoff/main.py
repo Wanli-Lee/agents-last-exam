@@ -267,7 +267,6 @@ Do not rely on hidden evaluator-only data.
                 "output_config": self.output_config,
                 "output_journal": self.output_journal,
                 "output_audit_dir": self.output_audit_dir,
-                "canonical_gcs_root": f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{VARIANT_NAME}/",
             }
         )
         return metadata

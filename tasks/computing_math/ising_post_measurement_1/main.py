@@ -147,7 +147,6 @@ Write final outputs only under `{self.remote_output_dir}`.
                 "output_dir_name": self.output_dir_name,
                 "output_files": self.output_files,
                 "reference_files": self.reference_files,
-                "canonical_gcs_root": f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

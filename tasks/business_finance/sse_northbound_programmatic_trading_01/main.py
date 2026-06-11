@@ -125,9 +125,6 @@ Each top-level question key must contain:
                 "output_file": self.output_file,
                 "answer_key_file": self.answer_key_file,
                 "evaluator_documents_file": self.evaluator_documents_file,
-                "canonical_gcs_root": (
-                    f"gs://ale-data-all/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}/"
-                ),
             }
         )
         return metadata

@@ -132,7 +132,6 @@ any scratch artifacts only under `{self.remote_output_dir}`.
                 "hidden_input_dir": self.hidden_input_dir,
                 "reference_outputs_dir": self.reference_outputs_dir,
                 "required_visit_files": sorted(REQUIRED_VISIT_FILES),
-                "canonical_gcs_root": f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{VARIANT_NAME}/",
             }
         )
         return metadata

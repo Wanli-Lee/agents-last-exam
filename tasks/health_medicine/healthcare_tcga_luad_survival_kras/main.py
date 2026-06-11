@@ -138,7 +138,6 @@ Do not ask for confirmation. Execute directly.
                 "reference_cohort_file": self.reference_cohort_file,
                 "reference_cox_file": self.reference_cox_file,
                 "evaluation_contract_file": self.evaluation_contract_file,
-                "canonical_gcs_root": (f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{VARIANT_NAME}/"),
             }
         )
         return metadata

@@ -135,7 +135,6 @@ For each scenario, your CLI must write these files into the CLI `--output-dir`:
                 "output_cli": self.output_cli,
                 "reference_evaluator_dir": self.reference_evaluator_dir,
                 "reference_evaluator": self.reference_evaluator,
-                "canonical_gcs_root": f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{VARIANT_NAME}/",
             }
         )
         return metadata

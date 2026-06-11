@@ -151,12 +151,7 @@ The total D-score implied by the `credited_value` column should fall between
                 "video_file": self.video_file,
                 "cop_pdf": self.cop_pdf,
                 "output_file": self.output_file,
-                "reference_gcs_prefix": (
-                    "gs://ale-data-all/other/aerobics_wc2026_portugal_trio_difficulty_scoring/"
-                    "variant_1/reference"
-                ),
                 "reference_xlsx": self.reference_xlsx,
-                "canonical_gcs_root": "gs://ale-data-all/other/aerobics_wc2026_portugal_trio_difficulty_scoring/variant_1/",
             }
         )
         return metadata

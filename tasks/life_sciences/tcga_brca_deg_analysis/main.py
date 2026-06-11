@@ -132,7 +132,6 @@ Do not ask for confirmation. Execute directly.
                 "output_files": self.output_files,
                 "reference_truth_file": self.reference_truth_file,
                 "gold_deg_results_file": self.gold_deg_results_file,
-                "canonical_gcs_root": (f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{VARIANT_NAME}/"),
             }
         )
         return metadata

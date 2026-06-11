@@ -201,7 +201,6 @@ Runtime guidance:
                 "per_cell_output": self.per_cell_output,
                 "reference_submission": self.reference_submission,
                 "reference_per_cell": self.reference_per_cell,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{VARIANT_NAME}/",
             }
         )
         return metadata

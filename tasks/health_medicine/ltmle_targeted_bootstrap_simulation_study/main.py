@@ -315,7 +315,6 @@ Requirements:
                 "preferred_hidden_smoke_eval_dir": self.preferred_hidden_smoke_eval_dir,
                 "fallback_hidden_smoke_eval_dir": self.fallback_hidden_smoke_eval_dir,
                 "required_scripts": REQUIRED_SCRIPT_NAMES,
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

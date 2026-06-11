@@ -189,7 +189,6 @@ Rules:
                 "reference_eligible_file": self.reference_eligible_file,
                 "reference_flagged_file": self.reference_flagged_file,
                 "output_dir_name": _canonical_output_dir_name(self.REMOTE_OUTPUT_DIR),
-                "canonical_gcs_root": f"gs://ale-data-all/{TASK_ID}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

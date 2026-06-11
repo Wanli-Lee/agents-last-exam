@@ -149,7 +149,6 @@ Environment notes:
                 "runtime_env_dir": self.runtime_env_dir,
                 "setup_runtime_script": self.setup_runtime_script,
                 "run_runtime_script": self.run_runtime_script,
-                "canonical_gcs_root": "gs://ale-data-all/computing_math/recsys_cold_start_instance_1/base/",
             }
         )
         return metadata

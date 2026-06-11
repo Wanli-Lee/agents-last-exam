@@ -164,7 +164,6 @@ Required files and directories:
                 "open_kicad_launcher": self.open_kicad_launcher,
                 "reference_project_dir": self.reference_project_dir,
                 "reference_outputs_dir": self.reference_outputs_dir,
-                "canonical_gcs_root": f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

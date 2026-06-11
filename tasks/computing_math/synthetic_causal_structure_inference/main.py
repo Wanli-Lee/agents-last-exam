@@ -142,10 +142,6 @@ That wrapper keeps any created runtime environment under `{self.remote_output_di
                 "python_wrapper": self.python_wrapper,
                 "output_file": self.output_file,
                 "reference_file": self.reference_file,
-                "canonical_gcs_root": (
-                    "gs://ale-data-all/computing_math/"
-                    "synthetic_causal_structure_inference/base"
-                ),
             }
         )
         return metadata

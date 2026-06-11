@@ -196,9 +196,6 @@ Rules:
                 "reference_csv": self.reference_csv,
                 "reference_report": self.reference_report,
                 "evaluation_contract_file": self.evaluation_contract_file,
-                "canonical_gcs_root": (
-                    f"gs://ale-data-all/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}/"
-                ),
             }
         )
         return metadata

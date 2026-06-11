@@ -451,7 +451,6 @@ class RoboticsBlenderTaskConfig(GeneralTaskConfig):
                 "blender_wrapper": self.blender_wrapper,
                 "blender_download_script": self.blender_download_script,
                 "pass_threshold": PASS_THRESHOLD,
-                "canonical_gcs_root": "gs://ale-data-all/engineering/robotics_blender_tabletop_reconstruction/base/",
             }
         )
         return data

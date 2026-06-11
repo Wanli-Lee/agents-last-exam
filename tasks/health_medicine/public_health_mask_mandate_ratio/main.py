@@ -133,9 +133,6 @@ Output rules:
                 "software_readme": self.software_readme,
                 "output_results": self.output_results,
                 "reference_output": self.reference_output,
-                "canonical_gcs_root": (
-                    f"gs://ale-data-all/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}/"
-                ),
             }
         )
         return metadata

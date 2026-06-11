@@ -169,9 +169,6 @@ The CSV must follow the column order and constraints in `{self.output_contract_f
                 "primary_dataset": self.primary_dataset,
                 "supp_dataset": self.supp_dataset,
                 "flag_column": self.flag_column,
-                "canonical_gcs_root": (
-                    f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{self.VARIANT_NAME}/"
-                ),
             }
         )
         return metadata

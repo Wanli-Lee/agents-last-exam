@@ -191,7 +191,6 @@ Constraints:
                 "reference_file": self.reference_file,
                 "evaluation_contract_file": self.evaluation_contract_file,
                 "observable_trace_env": OBSERVABLE_TRACE_ENV,
-                "canonical_gcs_root": f"gs://ale-data-all/{DOMAIN_NAME}/{TASK_NAME}/{self.VARIANT_NAME}/",
             }
         )
         return metadata

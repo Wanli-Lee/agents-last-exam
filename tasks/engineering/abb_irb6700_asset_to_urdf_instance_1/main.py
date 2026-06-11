@@ -140,9 +140,6 @@ You are reconstructing a robot URDF on a Linux VM.
                 "reference_joint_table": self.reference_joint_table,
                 "reference_link_table": self.reference_link_table,
                 "reference_pose_manifest": self.reference_pose_manifest,
-                "canonical_gcs_root": (
-                    f"gs://ale-data-all/{self.DOMAIN_NAME}/{self.TASK_NAME}/{self.VARIANT_NAME}/"
-                ),
             }
         )
         return metadata
