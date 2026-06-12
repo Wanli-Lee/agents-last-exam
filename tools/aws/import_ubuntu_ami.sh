@@ -20,18 +20,26 @@ HERE="$(dirname "$0")"
 source "${HERE}/.aws-env"
 
 SRC="${ALE_IMAGE_SRC:-gs://ale-data-public/images/ale-ubuntu22.tar.gz}"
+LOCAL_TARGZ="${ALE_LOCAL_TARGZ:-}"   # if set + exists, extract from here (robust)
 KEY="images/ale-ubuntu22.raw"
 S3URI="s3://${ALE_BUCKET}/${KEY}"
 say() { printf '\n=== %s ===\n' "$*"; }
 
-say "stream ${SRC}  ->  ${S3URI}  (gunzip+untar -> S3 multipart)"
+say "extract disk.raw -> ${S3URI}  (gunzip+untar -> S3 multipart, no local raw)"
 if aws s3 ls "$S3URI" >/dev/null 2>&1; then
   echo "raw disk already in S3, skipping transfer"
 else
   aws configure set default.s3.multipart_chunksize 512MB
   aws configure set default.s3.max_concurrent_requests 16
-  # -xzO: extract member(s) to stdout. The GCE tarball holds a single disk.raw.
-  gsutil cat "$SRC" | tar -xzO | aws s3 cp - "$S3URI" --expected-size 700000000000
+  # -xzO: extract member(s) to stdout. The GCE tarball holds a single disk.raw
+  # (644 GB uncompressed). --expected-size keeps multipart under 10000 parts.
+  if [ -n "$LOCAL_TARGZ" ] && [ -f "$LOCAL_TARGZ" ]; then
+    echo "source: local $LOCAL_TARGZ"
+    tar -xzO -f "$LOCAL_TARGZ" | aws s3 cp - "$S3URI" --expected-size 700000000000
+  else
+    echo "source: stream $SRC"
+    gsutil cat "$SRC" | tar -xzO | aws s3 cp - "$S3URI" --expected-size 700000000000
+  fi
 fi
 
 say "start import-image (Format=raw, Linux x86_64)"
