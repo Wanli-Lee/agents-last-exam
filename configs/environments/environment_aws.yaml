@@ -1,0 +1,45 @@
+# ============================================================================
+# environment_aws.yaml — run ALE on AWS (EC2 + S3).
+# ============================================================================
+# AWS counterpart of environment.yaml. Same per-snapshot model: a task card's
+# logical `snapshot` resolves here to a provider + image + provider knobs.
+#
+# For the `aws` provider:
+#   • image  — an AMI id (ami-...), NOT a name. The in-box path conventions and
+#              cua-server port still come from the framework Image registry
+#              (ale-ubuntu22 / ale-win10), since the AMI is minted from the same
+#              exported disk and has the identical filesystem layout.
+#   • aws: { ... } — provider knobs:
+#       region                AWS region (required; must match the AMI + subnets)
+#       security_group_ids    SG(s) that allow inbound tcp:5000 (cua) [+3389 Win]
+#       zones                 SUBNET ids to try in order on capacity errors
+#                             (each subnet pins an AZ — the EC2 analogue of
+#                             gcloud `zones`)
+#       iam_instance_profile  (optional) instance profile granting in-box S3
+#                             access — only needed if task_data_source is s3://
+#       key_name              (optional) EC2 key pair; usually unset (we reach
+#                             the box via cua-server on :5000, not SSH)
+#       associate_public_ip   (default true) assign a public IPv4
+#
+# Instance-type selection (task-card `vm.machineType` override → default → C→M
+# fallback) and root-volume sizing (AMI default) are framework facts in aws.py.
+#
+# Fill the ${env:...} values (or hard-code them) after the bootstrap in
+# docs/aws-setup.md mints the AMI / subnet / SG. Resolution notes for Windows
+# carry over from environment.yaml.
+# ----------------------------------------------------------------------------
+
+snapshots:
+
+  cpu-free-ubuntu:            # Linux, no GPU — the bulk of tasks. FIRST TARGET.
+    provider: aws
+    image: ${env:ALE_AWS_UBUNTU_AMI}      # ami-... minted from ale-ubuntu22.raw
+    aws:
+      region: ${env:AWS_REGION}
+      security_group_ids: [ "${env:ALE_AWS_SG}" ]
+      zones: [ "${env:ALE_AWS_SUBNET}" ]  # subnet id(s); add more for AZ fallback
+      # iam_instance_profile: ale-sandbox  # uncomment when using s3:// task data
+      associate_public_ip: true
+
+  # cpu-free / cpu-license / gpu-free (Windows + GPU) — added once ale-win10 is
+  # exported and imported. Mirror the block above with the win AMI + resolution.
