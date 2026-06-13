@@ -374,11 +374,12 @@ _ENVIRONMENT_TOP_RESERVED = frozenset({
 # snapshot's block and reconciled here into one provider config.
 _GCLOUD_CRED_KEYS = ("project", "service_account_key", "instance_prefix", "network", "subnet")
 _AWS_CRED_KEYS = (
-    "region", "security_group_ids", "security_groups", "instance_prefix",
+    "region", "vpc", "security_group_ids", "security_groups", "instance_prefix",
     "key_name", "iam_instance_profile", "associate_public_ip",
 )
-# `tenancy` is intentionally NOT a cred key: it is per-snapshot routing (Linux
-# default vs Windows-client dedicated) so one env can mix both.
+# `tenancy` and `ami` are intentionally NOT cred keys: they are per-snapshot
+# routing (tenancy: Linux default vs Windows-client dedicated; ami: optional
+# explicit AMI override) so one env can mix both.
 
 
 def _build_environment_from_path(

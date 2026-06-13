@@ -1,76 +1,81 @@
 # ============================================================================
 # environment_aws.yaml — run ALE on AWS (EC2 + S3).
 # ============================================================================
-# AWS counterpart of environment.yaml. Same per-snapshot model: a task card's
-# logical `snapshot` resolves here to a provider + image + provider knobs.
+# AWS counterpart of environment.yaml. Same per-snapshot model and the SAME
+# `image:` values as the gcloud env — a task card's logical `snapshot` resolves
+# here to a provider + image-family + provider knobs.
 #
 # For the `aws` provider:
-#   • image  — an AMI id (ami-...), NOT a name. The in-box path conventions and
-#              cua-server port still come from the framework Image registry
-#              (ale-ubuntu22 / ale-win10), since the AMI is minted from the same
-#              exported disk and has the identical filesystem layout.
+#   • image  — the image-FAMILY name (the registry key under
+#              ale_run/environments/images/, e.g. ale-ubuntu22 / ale-win10) —
+#              identical to what the gcloud env uses. The provider resolves it to
+#              a concrete AMI id at run time by looking up an AMI tagged
+#              `ale:image-family=<name>` (newest). One ale-win10.py serves both
+#              providers. To pin a specific AMI, add `ami: ami-...` in the aws
+#              block (overrides the tag lookup).
 #   • aws: { ... } — provider knobs:
-#       region                AWS region (required; must match the AMI + subnets)
-#       security_group_ids    SG(s) that allow inbound tcp:5000 (cua) [+3389 Win]
-#       zones                 SUBNET ids to try in order on capacity errors
-#                             (each subnet pins an AZ — the EC2 analogue of
-#                             gcloud `zones`)
-#       iam_instance_profile  (optional) instance profile granting in-box S3
-#                             access — only needed if task_data_source is s3://
-#       key_name              (optional) EC2 key pair; usually unset (we reach
-#                             the box via cua-server on :5000, not SSH)
-#       associate_public_ip   (default true) assign a public IPv4
+#       region                AWS region (provider-wide; like gcloud project)
+#       vpc                   VPC id to resolve AZ→subnet within (provider-wide)
+#       security_group_ids    SG(s) allowing inbound tcp:5000 (cua) [+3389 Win]
+#       zones                 AVAILABILITY-ZONE names to try in order on capacity
+#                             errors (e.g. us-east-1a) — the EC2 analogue of
+#                             gcloud `zones`. The provider maps each AZ to a
+#                             subnet in that AZ inside `vpc`.
+#       tenancy               default | dedicated (Win10 client BYOL needs
+#                             dedicated; Linux uses default)
+#       gpu                   truthy → launch a GPU instance type
+#       iam_instance_profile  (optional) profile granting in-box S3 access
+#                             (needed only for s3:// task data)
+#       associate_public_ip   (default true)
 #
 # Instance-type selection (task-card `vm.machineType` override → default → C→M
 # fallback) and root-volume sizing (AMI default) are framework facts in aws.py.
-#
-# Fill the ${env:...} values (or hard-code them) after the bootstrap in
-# docs/aws-setup.md mints the AMI / subnet / SG. Resolution notes for Windows
-# carry over from environment.yaml.
+# Fill the ${env:...} values from `tools/aws/.aws-env` (bootstrap output).
 # ----------------------------------------------------------------------------
 
 snapshots:
 
-  cpu-free-ubuntu:            # Linux, no GPU — the bulk of tasks. FIRST TARGET.
+  cpu-free-ubuntu:            # Linux, no GPU — the bulk of tasks.
     provider: aws
-    image: ${env:ALE_AWS_UBUNTU_AMI}      # ami-... minted from ale-ubuntu22.raw
+    image: ale-ubuntu22       # family name (resolved to AMI by tag); same as gcloud env
     aws:
       region: ${env:AWS_REGION}
+      vpc: ${env:ALE_AWS_VPC}
       security_group_ids: [ "${env:ALE_AWS_SG}" ]
-      zones: [ "${env:ALE_AWS_SUBNET}" ]  # subnet id(s); add more for AZ fallback
-      # iam_instance_profile: ale-sandbox  # uncomment when using s3:// task data
+      zones: [ us-east-1a, us-east-1b, us-east-1c ]
+      # iam_instance_profile: ale-sandbox   # uncomment for s3:// task data
       associate_public_ip: true
 
   cpu-free:                   # Windows 10, no GPU. BYOL + DEDICATED tenancy.
     provider: aws
-    image: ${env:ALE_AWS_WIN_AMI}         # ami-... minted from ale-win10.raw
+    image: ale-win10
     resolution: [1024, 768]
     aws:
       region: ${env:AWS_REGION}
+      vpc: ${env:ALE_AWS_VPC}
       security_group_ids: [ "${env:ALE_AWS_SG}" ]
-      zones: [ "${env:ALE_AWS_SUBNET}" ]
-      tenancy: dedicated                  # Win10 client BYOL cannot use shared
-      associate_public_ip: true
+      zones: [ us-east-1a, us-east-1b, us-east-1c ]
+      tenancy: dedicated      # Win10 client BYOL cannot use shared tenancy
 
-  cpu-license:                # Windows 10 requiring a licensed image (same AMI)
+  cpu-license:                # Windows 10 requiring a licensed image (same family)
     provider: aws
-    image: ${env:ALE_AWS_WIN_AMI}
+    image: ale-win10
     resolution: [1024, 768]
     aws:
       region: ${env:AWS_REGION}
+      vpc: ${env:ALE_AWS_VPC}
       security_group_ids: [ "${env:ALE_AWS_SG}" ]
-      zones: [ "${env:ALE_AWS_SUBNET}" ]
+      zones: [ us-east-1a, us-east-1b, us-east-1c ]
       tenancy: dedicated
-      associate_public_ip: true
 
   gpu-free:                   # Windows 10 + GPU. BYOL + DEDICATED tenancy.
     provider: aws
-    image: ${env:ALE_AWS_WIN_AMI}
+    image: ale-win10          # SAME family as cpu-free — GPU is just the machine type
     resolution: [1920, 1080]
     aws:
       region: ${env:AWS_REGION}
+      vpc: ${env:ALE_AWS_VPC}
       security_group_ids: [ "${env:ALE_AWS_SG}" ]
-      zones: [ "${env:ALE_AWS_SUBNET}" ]
-      gpu: "1"                            # truthy → provider picks a GPU type
+      zones: [ us-east-1a, us-east-1b, us-east-1c ]
+      gpu: "1"                # truthy → provider picks a GPU instance type (g5/g6)
       tenancy: dedicated
-      associate_public_ip: true

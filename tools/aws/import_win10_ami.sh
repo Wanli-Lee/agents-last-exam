@@ -69,4 +69,9 @@ while :; do
   sleep 60
 done
 
-say "DONE — set ALE_AWS_WIN_AMI=$(cat "${HERE}/.win10-ami") for runs (dedicated tenancy)"
+# Tag with the family so `image: ale-win10` in the env yaml resolves to this AMI
+# (newest tagged AMI wins). Without this the provider can't find it by family.
+aws ec2 create-tags --region "$AWS_REGION" --resources "$IMAGE" \
+  --tags "Key=ale:image-family,Value=ale-win10" "Key=Name,Value=ale-win10"
+
+say "DONE — AMI $IMAGE tagged ale:image-family=ale-win10 (launch on dedicated tenancy)"

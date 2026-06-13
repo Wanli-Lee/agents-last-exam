@@ -68,18 +68,8 @@ if [ "$VPC" = "None" ] || [ -z "$VPC" ]; then
   aws ec2 modify-vpc-attribute --region "$REGION" --vpc-id "$VPC" --enable-dns-hostnames
 fi
 
-SUBNET=$(aws ec2 describe-subnets --region "$REGION" \
-  --filters "Name=vpc-id,Values=$VPC" "Name=tag:project,Values=ale" \
-  --query 'Subnets[0].SubnetId' --output text 2>/dev/null || echo None)
-if [ "$SUBNET" = "None" ] || [ -z "$SUBNET" ]; then
-  SUBNET=$(aws ec2 create-subnet --region "$REGION" --vpc-id "$VPC" \
-    --cidr-block 10.0.1.0/24 \
-    --tag-specifications "ResourceType=subnet,Tags=[{Key=project,Value=ale}]" \
-    --query Subnet.SubnetId --output text)
-fi
-aws ec2 modify-subnet-attribute --region "$REGION" --subnet-id "$SUBNET" \
-  --map-public-ip-on-launch
-
+# internet gateway + default route (created before subnets so we can attach the
+# route table to each subnet for public IPs).
 IGW=$(aws ec2 describe-internet-gateways --region "$REGION" \
   --filters "Name=attachment.vpc-id,Values=$VPC" \
   --query 'InternetGateways[0].InternetGatewayId' --output text 2>/dev/null || echo None)
@@ -90,14 +80,33 @@ if [ "$IGW" = "None" ] || [ -z "$IGW" ]; then
   aws ec2 attach-internet-gateway --region "$REGION" \
     --internet-gateway-id "$IGW" --vpc-id "$VPC"
 fi
-
 RT=$(aws ec2 describe-route-tables --region "$REGION" \
   --filters "Name=vpc-id,Values=$VPC" "Name=association.main,Values=true" \
   --query 'RouteTables[0].RouteTableId' --output text)
 aws ec2 create-route --region "$REGION" --route-table-id "$RT" \
   --destination-cidr-block 0.0.0.0/0 --gateway-id "$IGW" 2>/dev/null || true
-aws ec2 associate-route-table --region "$REGION" \
-  --route-table-id "$RT" --subnet-id "$SUBNET" 2>/dev/null || true
+
+# One public subnet per AZ (the env yaml lists AZ names in `zones`; the provider
+# maps each AZ → its subnet here). 3 AZs is plenty of capacity fallback.
+AZS=$(aws ec2 describe-availability-zones --region "$REGION" \
+  --query 'AvailabilityZones[?State==`available`].ZoneName | [0:3]' --output text)
+i=1
+for az in $AZS; do
+  SN=$(aws ec2 describe-subnets --region "$REGION" \
+    --filters "Name=vpc-id,Values=$VPC" "Name=availability-zone,Values=$az" \
+              "Name=tag:project,Values=ale" \
+    --query 'Subnets[0].SubnetId' --output text 2>/dev/null || echo None)
+  if [ "$SN" = "None" ] || [ -z "$SN" ]; then
+    SN=$(aws ec2 create-subnet --region "$REGION" --vpc-id "$VPC" \
+      --availability-zone "$az" --cidr-block "10.0.${i}.0/24" \
+      --tag-specifications "ResourceType=subnet,Tags=[{Key=project,Value=ale}]" \
+      --query Subnet.SubnetId --output text)
+  fi
+  aws ec2 modify-subnet-attribute --region "$REGION" --subnet-id "$SN" --map-public-ip-on-launch
+  aws ec2 associate-route-table --region "$REGION" --route-table-id "$RT" --subnet-id "$SN" 2>/dev/null || true
+  echo "subnet $SN in $az"
+  i=$((i+1))
+done
 
 say "security group (ingress tcp:5000 cua, tcp:3389 RDP)"
 SG=$(aws ec2 describe-security-groups --region "$REGION" \
@@ -119,8 +128,9 @@ export AWS_REGION=${REGION}
 export ALE_AWS_ACCOUNT=${ACCOUNT}
 export ALE_BUCKET=${BUCKET}
 export ALE_AWS_VPC=${VPC}
-export ALE_AWS_SUBNET=${SUBNET}
 export ALE_AWS_SG=${SG}
+# subnets are created one-per-AZ (tag project=ale); the provider resolves an
+# AZ name (env yaml `zones`) → subnet in $ALE_AWS_VPC at run time.
 ENV
 
 say "DONE — wrote $OUT"

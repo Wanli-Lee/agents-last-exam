@@ -94,14 +94,23 @@ _AWS_RETRYABLE_SUBNET = [
 class SnapshotConfig:
     """What a logical snapshot tag maps to (yaml ``snapshots.<tag>``).
 
-    Parallel to gcloud's SnapshotConfig: ``image`` now holds an **AMI id**
-    (``ami-...``) instead of a GCE image name; ``zones`` holds **subnet ids**
-    to try in order on capacity errors (each subnet pins an AZ).
+    Exactly parallel to gcloud's SnapshotConfig: ``image`` is the **image-family
+    name** (the same registry key gcloud uses — ``ale-ubuntu22`` / ``ale-win10``
+    — from :mod:`ale_run.environments.images`), NOT a raw ``ami-...``. The
+    provider resolves that family to a concrete AMI id at acquire time by
+    looking up an AMI tagged ``ale:image-family=<name>`` (override with an
+    explicit ``ami:`` when you want to pin one). One ``ale-win10.py`` registry
+    entry thus serves gcloud (GCE image name) and aws (family→AMI lookup) alike.
+
+    ``zones`` holds **Availability-Zone names** (e.g. ``us-east-1a``) to try in
+    order on capacity errors — the EC2 analogue of gcloud's zone list. The
+    provider maps each AZ to a subnet in that AZ within the configured VPC.
     """
 
-    image: str               # AMI id (ami-...)
+    image: str               # image-family name (registry key), e.g. "ale-win10"
     gpu: str | None          # truthy → use a GPU instance type; None for CPU
-    zones: tuple[str, ...]   # subnet ids to try, in order, on capacity errors
+    zones: tuple[str, ...]   # AZ names to try, in order, on capacity errors
+    ami: str | None = None   # optional explicit AMI id override (ami-...)
     resolution: tuple[int, int] | None = None
     """Windows display resolution (w, h) forced after boot. See gcloud's
     SnapshotConfig for the full rationale; Linux ignores it."""
@@ -112,6 +121,8 @@ class SnapshotConfig:
 
     @property
     def os(self) -> str:
+        # image is the family name (e.g. ale-win10), so this is stable even when
+        # an explicit ami override is set.
         return "windows" if "win" in self.image.lower() else "linux"
 
 
@@ -120,6 +131,9 @@ class AwsProviderConfig:
     """aws provider config (yaml ``provider.config``).
 
         region                       AWS region (required)
+        vpc                          VPC id to resolve AZ→subnet within
+                                     (required when zones are AZ names; the
+                                     provider picks a subnet in each AZ here)
         security_group_ids           SGs to attach (must expose tcp:5000)
         instance_prefix              instance Name-tag prefix
         key_name                     EC2 key pair (optional; we reach the box
@@ -129,13 +143,14 @@ class AwsProviderConfig:
         associate_public_ip          assign a public IPv4 (default True)
         snapshots                    dict[snapshot tag → SnapshotConfig]
 
-    Subnets live per-snapshot (``snapshots.<tag>.zones``) so different snapshots
-    can pin different AZs, mirroring gcloud's per-snapshot ``zones``.
-    Instance-type selection (task_card override → default → C→M fallback) and
-    root-volume sizing (AMI default) are framework facts hardcoded here.
+    region + vpc are provider-wide (like gcloud's project/network); the per-AZ
+    capacity-fallback list lives per-snapshot (``snapshots.<tag>.zones``),
+    mirroring gcloud. Instance-type selection (task_card override → default →
+    C→M fallback) and root-volume sizing (AMI default) are framework facts here.
     """
 
     region: str
+    vpc: str = ""
     security_group_ids: tuple[str, ...] = ()
     instance_prefix: str = "ale"
     key_name: str = ""
@@ -149,12 +164,16 @@ def _build_snapshot_config(raw: Any) -> SnapshotConfig:
         raise TypeError(f"snapshot entry must be a mapping, got {type(raw).__name__}")
     image = raw.get("image")
     if not image:
-        raise KeyError(f"snapshot entry missing required `image` (AMI id): {raw!r}")
-    zones = tuple(raw.get("zones") or raw.get("subnets") or ())
+        raise KeyError(
+            f"snapshot entry missing required `image` (image-family name, "
+            f"e.g. ale-win10): {raw!r}"
+        )
+    zones = tuple(raw.get("zones") or ())
     if not zones:
-        raise KeyError(f"snapshot {image!r} missing required `zones` (subnet ids)")
+        raise KeyError(f"snapshot {image!r} missing required `zones` (AZ names)")
     return SnapshotConfig(
         image=str(image), gpu=raw.get("gpu"), zones=zones,
+        ami=(str(raw["ami"]) if raw.get("ami") else None),
         resolution=_parse_resolution(raw.get("resolution"), image),
         tenancy=str(raw.get("tenancy") or "default"),
     )
@@ -189,6 +208,7 @@ def _build_provider_config(raw: dict[str, Any]) -> AwsProviderConfig:
         sgs = (sgs,)
     return AwsProviderConfig(
         region=str(raw["region"]),
+        vpc=str(raw.get("vpc") or ""),
         security_group_ids=tuple(sgs),
         instance_prefix=str(raw.get("instance_prefix") or "ale"),
         key_name=str(raw.get("key_name") or ""),
@@ -466,10 +486,76 @@ class AwsProvider(Provider):
         if isinstance(config, dict):
             config = _build_provider_config(config)
         self._cfg = config
+        self._ami_cache: dict[str, str] = {}     # family name → ami id
+        self._subnet_cache: dict[str, str] = {}  # az name → subnet id
 
     @property
     def config(self) -> AwsProviderConfig:
         return self._cfg
+
+    # ----------------------------------------------------------- resolution
+
+    async def _resolve_ami(self, snap: SnapshotConfig) -> str:
+        """Resolve a snapshot's image to a concrete AMI id.
+
+        Order: explicit ``ami:`` override → cached → look up an AMI owned by us
+        tagged ``ale:image-family=<snap.image>`` (newest wins). This is the AWS
+        analogue of gcloud resolving a snapshot's image name to a GCE image.
+        """
+        if snap.ami:
+            return snap.ami
+        family = snap.image
+        if family in self._ami_cache:
+            return self._ami_cache[family]
+        rc, out, err = await _run_aws(
+            "ec2", "describe-images", "--owners", "self",
+            "--filters", f"Name=tag:ale:image-family,Values={family}",
+            "--query", "reverse(sort_by(Images,&CreationDate))[0].ImageId",
+            region=self._cfg.region,
+        )
+        ami = (out or "").strip().strip('"')
+        if rc != 0 or not ami or ami == "None":
+            raise RuntimeError(
+                f"no AMI tagged ale:image-family={family!r} in {self._cfg.region} "
+                f"(register one, tag it, or set an explicit `ami:` on the snapshot). "
+                f"{(err or '').strip()[:200]}"
+            )
+        self._ami_cache[family] = ami
+        return ami
+
+    async def _subnet_for_az(self, az: str) -> str:
+        """Resolve an AZ name to a subnet id in that AZ within the configured VPC.
+
+        Prefers subnets tagged ``project=ale``; falls back to any subnet in the
+        AZ/VPC. Cached per AZ. The VPC scopes the lookup so we don't pick a
+        stray subnet from another network."""
+        if az in self._subnet_cache:
+            return self._subnet_cache[az]
+        filters = [f"Name=availability-zone,Values={az}"]
+        if self._cfg.vpc:
+            filters.append(f"Name=vpc-id,Values={self._cfg.vpc}")
+        rc, out, err = await _run_aws(
+            "ec2", "describe-subnets", "--filters", *filters,
+            "--query",
+            "sort_by(Subnets, &SubnetId)[?Tags[?Key=='project' && Value=='ale']].SubnetId "
+            "| [0]",
+            region=self._cfg.region,
+        )
+        subnet = (out or "").strip().strip('"')
+        if not subnet or subnet == "None":
+            # fall back to any subnet in the AZ/VPC
+            rc, out, err = await _run_aws(
+                "ec2", "describe-subnets", "--filters", *filters,
+                "--query", "Subnets[0].SubnetId", region=self._cfg.region,
+            )
+            subnet = (out or "").strip().strip('"')
+        if rc != 0 or not subnet or subnet == "None":
+            raise RuntimeError(
+                f"no subnet in AZ {az} (vpc={self._cfg.vpc or 'any'}): "
+                f"{(err or '').strip()[:200]}"
+            )
+        self._subnet_cache[az] = subnet
+        return subnet
 
     # ------------------------------------------------------------------ acquire
 
@@ -487,12 +573,15 @@ class AwsProvider(Provider):
             )
 
         is_gpu = snap.gpu is not None
-        subnets = snap.zones
+        azs = snap.zones
 
         base_instance = spec.machine_type or (
             _DEFAULT_GPU_INSTANCE if is_gpu else _DEFAULT_CPU_INSTANCE
         )
         instances = _instance_chain(base_instance, is_gpu=is_gpu)
+
+        # Resolve the image-family name (e.g. "ale-win10") to a concrete AMI id.
+        ami_id = await self._resolve_ami(snap)
 
         name = generate_instance_name(
             self._cfg.instance_prefix,
@@ -503,21 +592,29 @@ class AwsProvider(Provider):
         )
 
         logger.info(
-            "instance %s candidates: types=%s subnets=%s",
-            name, list(instances), list(subnets),
+            "instance %s candidates: ami=%s types=%s azs=%s",
+            name, ami_id, list(instances), list(azs),
         )
 
         last_stderr = ""
         stdout = ""
-        used_subnet = subnets[0]
+        used_az = azs[0]
+        used_subnet = ""
         used_instance = instances[0]
 
-        # instance-type × subnet, in order: each type tried across all subnets.
+        # instance-type × AZ, in order: each type tried across all AZs. Each AZ
+        # is resolved to a subnet in that AZ within the configured VPC.
         for instance_type in instances:
-            for subnet in subnets:
+            for az in azs:
+                try:
+                    subnet = await self._subnet_for_az(az)
+                except Exception as e:  # noqa: BLE001
+                    last_stderr = f"no subnet for AZ {az}: {e}"
+                    logger.warning("%s", last_stderr)
+                    continue
                 ok, out, stderr = await _try_run_in_subnet(
                     name=name,
-                    image=snap.image,
+                    image=ami_id,
                     instance_type=instance_type,
                     subnet=subnet,
                     cfg=self._cfg,
@@ -527,6 +624,7 @@ class AwsProvider(Provider):
                 if ok:
                     stdout = out
                     used_subnet = subnet
+                    used_az = az
                     used_instance = instance_type
                     break
                 last_stderr = stderr
@@ -536,7 +634,7 @@ class AwsProvider(Provider):
                 break
         else:
             raise RuntimeError(
-                f"aws run-instances failed for all types/subnets: {last_stderr}"
+                f"aws run-instances failed for all types/AZs: {last_stderr}"
             )
 
         try:
@@ -555,13 +653,16 @@ class AwsProvider(Provider):
                 want_public=self._cfg.associate_public_ip,
             )
 
+            # snap.image IS the registry family name (same key gcloud uses), so
+            # this resolves the in-box paths/port directly — one registry entry
+            # serves both providers.
             from ..images import get as get_image
-            image = get_image(_ami_to_image_name(snap.image, snap.os))
+            image = get_image(snap.image)
 
             cua_url = f"http://{public_ip}:{image.cua_server_port}"
             logger.info(
-                "instance %s (%s) launched as %s in %s at %s",
-                name, instance_id, used_instance, used_subnet, cua_url,
+                "instance %s (%s) launched as %s in %s (%s) at %s",
+                name, instance_id, used_instance, used_az, used_subnet, cua_url,
             )
 
             ready = await wait_cua_ready(cua_url, snap.os)
@@ -580,10 +681,11 @@ class AwsProvider(Provider):
                     "region": self._cfg.region,
                     "instance_id": instance_id,
                     "instance_type": used_instance,
+                    "az": used_az,
                     "subnet": used_subnet,
                     "public_ip": public_ip,
                     "image": image.name,
-                    "ami": snap.image,
+                    "ami": ami_id,
                     "snapshot": spec.snapshot,
                     "name": name,
                 },
@@ -647,15 +749,3 @@ class AwsProvider(Provider):
         session = RemoteDesktopSession(api_url=vm.endpoint, os_type=vm.os)
         _init_computer_skip_wait(session)
         return session
-
-
-def _ami_to_image_name(ami: str, os_type: str) -> str:
-    """Map an AMI back to its framework Image-registry name.
-
-    The Image entry only supplies in-box conventions (paths + cua port), which
-    are identical for the GCE image and the AMI minted from its exported disk,
-    so we reuse the same registry entry. An AMI id carries no family name, so we
-    fall back to the canonical name per OS. Override here if more AMI families
-    appear.
-    """
-    return "ale-win10" if os_type == "windows" else "ale-ubuntu22"

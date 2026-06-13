@@ -50,5 +50,11 @@ AMI=$(aws ec2 register-image --region "$AWS_REGION" \
   --boot-mode uefi \
   --block-device-mappings "DeviceName=/dev/sda1,Ebs={SnapshotId=${SNAP},VolumeType=gp3,DeleteOnTermination=true}" \
   --query ImageId --output text)
+
+# Tag the AMI with its family so AwsProvider can resolve `image: <NAME>` → this
+# AMI (newest tagged AMI wins). This is the link the provider's _resolve_ami
+# looks up; without it the provider can't find the AMI by family name.
+aws ec2 create-tags --region "$AWS_REGION" --resources "$AMI" \
+  --tags "Key=ale:image-family,Value=${NAME}" "Key=Name,Value=${NAME}"
 echo "$AMI" > "$OUT"
-say "DONE — AMI $AMI written to $OUT"
+say "DONE — AMI $AMI ($NAME) tagged ale:image-family=${NAME}, written to $OUT"
