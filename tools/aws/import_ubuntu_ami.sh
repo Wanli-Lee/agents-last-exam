@@ -48,11 +48,12 @@ cat > "$CONT" <<JSON
 [{"Description":"ALE ubuntu22 (from GCE export)","Format":"raw",
   "UserBucket":{"S3Bucket":"${ALE_BUCKET}","S3Key":"${KEY}"}}]
 JSON
-# boot-mode: GCE Ubuntu images are GPT/UEFI; uefi-preferred lets AWS fall back
-# to BIOS if the EFI partition is unexpected.
+# boot-mode: the GCE disk is GPT with an EFI System Partition (verified), so
+# import as uefi. import-image accepts only legacy-bios|uefi (NOT uefi-preferred,
+# which is a run/register-image value).
 TASK=$(aws ec2 import-image --region "$AWS_REGION" \
   --description "ALE ubuntu22" --platform Linux --architecture x86_64 \
-  --boot-mode uefi-preferred \
+  --boot-mode uefi \
   --disk-containers "file://$CONT" \
   --query ImportTaskId --output text)
 rm -f "$CONT"

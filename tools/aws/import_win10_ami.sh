@@ -8,7 +8,7 @@
 #     license. Requires you to hold Microsoft VDA E3/E5 subscriptions, and the
 #     resulting AMI must be launched on DEDICATED tenancy — see environment_aws
 #     windows snapshot `tenancy: dedicated`.)
-#   • --boot-mode uefi-preferred (GCE Windows images are typically UEFI)
+#   • --boot-mode uefi (GCE images are GPT/UEFI)
 #
 # Driver caveat: AWS does NOT auto-inject ENA/NVMe drivers for Win10. If the
 # launched instance won't boot or has no network/RDP, drivers are missing —
@@ -48,7 +48,7 @@ cat > "$CONT" <<JSON
 JSON
 TASK=$(aws ec2 import-image --region "$AWS_REGION" \
   --description "ALE win10" --platform Windows --architecture x86_64 \
-  --license-type BYOL --boot-mode uefi-preferred \
+  --license-type BYOL --boot-mode uefi \
   --disk-containers "file://$CONT" \
   --query ImportTaskId --output text)
 rm -f "$CONT"
