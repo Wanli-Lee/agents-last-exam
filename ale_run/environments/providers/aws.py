@@ -132,28 +132,28 @@ class SnapshotConfig:
 class AwsProviderConfig:
     """aws provider config (yaml ``provider.config``).
 
-        region                       AWS region (required)
-        vpc                          VPC id to resolve AZ→subnet within
-                                     (required when zones are AZ names; the
-                                     provider picks a subnet in each AZ here)
-        security_group_ids           SGs to attach (must expose tcp:5000)
-        instance_prefix              instance Name-tag prefix
-        key_name                     EC2 key pair (optional; we reach the box
-                                     via cua-server, not SSH, so usually unset)
-        iam_instance_profile         instance profile name granting in-box S3
-                                     access (optional; needed for s3:// data)
-        associate_public_ip          assign a public IPv4 (default True)
-        snapshots                    dict[snapshot tag → SnapshotConfig]
+        region                AWS region, e.g. ``us-east-1`` (hardcoded in the
+                              yaml, like gcloud's zones)
+        security_group        the firewall — a security-group NAME (``ale-sandbox``)
+                              or ``sg-...`` id. The provider resolves the name to
+                              its id AND the VPC it lives in, which scopes the
+                              AZ→subnet lookup. The gcloud analogue is ``network``.
+        instance_prefix       instance Name-tag prefix
+        key_name              EC2 key pair (optional; we reach the box via
+                              cua-server, not SSH, so usually unset)
+        iam_instance_profile  instance profile granting in-box S3 access
+                              (optional; only for s3:// task data / output)
+        associate_public_ip   assign a public IPv4 (default True)
+        snapshots             dict[snapshot tag → SnapshotConfig]
 
-    region + vpc are provider-wide (like gcloud's project/network); the per-AZ
-    capacity-fallback list lives per-snapshot (``snapshots.<tag>.zones``),
-    mirroring gcloud. Instance-type selection (task_card override → default →
-    C→M fallback) and root-volume sizing (AMI default) are framework facts here.
+    Credentials are NOT here — the provider uses the ambient AWS credential chain
+    (``aws configure`` / env / instance role), so unlike gcloud no project/key is
+    named in the yaml. Everything is a hardcoded convention (resolved by
+    name/tag at run time); nothing needs ``${env:...}``.
     """
 
     region: str
-    vpc: str = ""
-    security_group_ids: tuple[str, ...] = ()
+    security_group: str = "ale-sandbox"
     instance_prefix: str = "ale"
     key_name: str = ""
     iam_instance_profile: str = ""
@@ -205,13 +205,9 @@ def _build_provider_config(raw: dict[str, Any]) -> AwsProviderConfig:
         str(tag): _build_snapshot_config(entry)
         for tag, entry in (raw.get("snapshots") or {}).items()
     }
-    sgs = raw.get("security_group_ids") or raw.get("security_groups") or ()
-    if isinstance(sgs, str):
-        sgs = (sgs,)
     return AwsProviderConfig(
         region=str(raw["region"]),
-        vpc=str(raw.get("vpc") or ""),
-        security_group_ids=tuple(sgs),
+        security_group=str(raw.get("security_group") or "ale-sandbox"),
         instance_prefix=str(raw.get("instance_prefix") or "ale"),
         key_name=str(raw.get("key_name") or ""),
         iam_instance_profile=str(raw.get("iam_instance_profile") or ""),
@@ -314,7 +310,7 @@ def _build_run_args(
     image: str,
     instance_type: str,
     subnet: str,
-    security_group_ids: tuple[str, ...],
+    security_group_id: str,
     key_name: str,
     iam_instance_profile: str,
     associate_public_ip: bool,
@@ -339,8 +335,8 @@ def _build_run_args(
         "--subnet-id", subnet,
         "--tag-specifications", tags,
     ]
-    if security_group_ids:
-        args += ["--security-group-ids", *security_group_ids]
+    if security_group_id:
+        args += ["--security-group-ids", security_group_id]
     if associate_public_ip:
         args.append("--associate-public-ip-address")
     if key_name:
@@ -358,6 +354,7 @@ async def _try_run_in_subnet(
     image: str,
     instance_type: str,
     subnet: str,
+    security_group_id: str,
     cfg: AwsProviderConfig,
     tenancy: str,
     snapshot_tag: str,
@@ -369,7 +366,7 @@ async def _try_run_in_subnet(
         image=image,
         instance_type=instance_type,
         subnet=subnet,
-        security_group_ids=cfg.security_group_ids,
+        security_group_id=security_group_id,
         key_name=cfg.key_name,
         iam_instance_profile=cfg.iam_instance_profile,
         associate_public_ip=cfg.associate_public_ip,
@@ -505,6 +502,7 @@ class AwsProvider(Provider):
         self._cfg = config
         self._ami_cache: dict[str, str] = {}     # family name → ami id
         self._subnet_cache: dict[str, str] = {}  # az name → subnet id
+        self._sg: tuple[str, str] | None = None  # (sg_id, vpc_id), resolved once
 
     @property
     def config(self) -> AwsProviderConfig:
@@ -540,17 +538,40 @@ class AwsProvider(Provider):
         self._ami_cache[family] = ami
         return ami
 
-    async def _subnet_for_az(self, az: str) -> str:
-        """Resolve an AZ name to a subnet id in that AZ within the configured VPC.
+    async def _resolve_security_group(self) -> tuple[str, str]:
+        """Resolve ``config.security_group`` (a name or ``sg-...`` id) to its id
+        AND the VPC it lives in. The VPC scopes the AZ→subnet lookup, so the yaml
+        only names the firewall (like gcloud names ``network``) — no ids/env-vars.
+        Resolved once and cached."""
+        if self._sg is not None:
+            return self._sg
+        ref = self._cfg.security_group
+        flt = (f"Name=group-id,Values={ref}" if ref.startswith("sg-")
+               else f"Name=group-name,Values={ref}")
+        rc, out, err = await _run_aws(
+            "ec2", "describe-security-groups", "--filters", flt,
+            "--query", "SecurityGroups[0].[GroupId,VpcId]",
+            region=self._cfg.region,
+        )
+        try:
+            pair = json.loads(out) if rc == 0 else None
+        except json.JSONDecodeError:
+            pair = None
+        if not pair or not isinstance(pair, list) or len(pair) != 2 or not pair[0]:
+            raise RuntimeError(
+                f"security group {ref!r} not found in {self._cfg.region} "
+                f"(create it — see the AWS setup docs). {(err or '').strip()[:200]}"
+            )
+        self._sg = (str(pair[0]), str(pair[1]))
+        return self._sg
 
-        Prefers subnets tagged ``project=ale``; falls back to any subnet in the
-        AZ/VPC. Cached per AZ. The VPC scopes the lookup so we don't pick a
-        stray subnet from another network."""
+    async def _subnet_for_az(self, az: str, vpc_id: str) -> str:
+        """Resolve an AZ name to a subnet id in that AZ within ``vpc_id`` (the
+        security group's VPC). Prefers subnets tagged ``project=ale``; falls back
+        to any subnet in the AZ/VPC. Cached per AZ."""
         if az in self._subnet_cache:
             return self._subnet_cache[az]
-        filters = [f"Name=availability-zone,Values={az}"]
-        if self._cfg.vpc:
-            filters.append(f"Name=vpc-id,Values={self._cfg.vpc}")
+        filters = [f"Name=availability-zone,Values={az}", f"Name=vpc-id,Values={vpc_id}"]
         rc, out, err = await _run_aws(
             "ec2", "describe-subnets", "--filters", *filters,
             "--query",
@@ -560,7 +581,6 @@ class AwsProvider(Provider):
         )
         subnet = (out or "").strip().strip('"')
         if not subnet or subnet == "None":
-            # fall back to any subnet in the AZ/VPC
             rc, out, err = await _run_aws(
                 "ec2", "describe-subnets", "--filters", *filters,
                 "--query", "Subnets[0].SubnetId", region=self._cfg.region,
@@ -568,8 +588,7 @@ class AwsProvider(Provider):
             subnet = (out or "").strip().strip('"')
         if rc != 0 or not subnet or subnet == "None":
             raise RuntimeError(
-                f"no subnet in AZ {az} (vpc={self._cfg.vpc or 'any'}): "
-                f"{(err or '').strip()[:200]}"
+                f"no subnet in AZ {az} (vpc={vpc_id}): {(err or '').strip()[:200]}"
             )
         self._subnet_cache[az] = subnet
         return subnet
@@ -597,8 +616,10 @@ class AwsProvider(Provider):
         )
         instances = _instance_chain(base_instance, is_gpu=is_gpu)
 
-        # Resolve the image-family name (e.g. "ale-win10") to a concrete AMI id.
+        # Resolve the image-family name (e.g. "ale-win10") to a concrete AMI id,
+        # and the security-group name to its id + the VPC that scopes subnets.
         ami_id = await self._resolve_ami(snap)
+        sg_id, vpc_id = await self._resolve_security_group()
 
         name = generate_instance_name(
             self._cfg.instance_prefix,
@@ -624,7 +645,7 @@ class AwsProvider(Provider):
         for instance_type in instances:
             for az in azs:
                 try:
-                    subnet = await self._subnet_for_az(az)
+                    subnet = await self._subnet_for_az(az, vpc_id)
                 except Exception as e:  # noqa: BLE001
                     last_stderr = f"no subnet for AZ {az}: {e}"
                     logger.warning("%s", last_stderr)
@@ -634,6 +655,7 @@ class AwsProvider(Provider):
                     image=ami_id,
                     instance_type=instance_type,
                     subnet=subnet,
+                    security_group_id=sg_id,
                     cfg=self._cfg,
                     tenancy=snap.tenancy,
                     snapshot_tag=spec.snapshot,

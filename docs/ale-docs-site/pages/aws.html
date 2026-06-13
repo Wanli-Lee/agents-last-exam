@@ -13,191 +13,154 @@
   <article class="article">
     <h1>Set up AWS</h1>
     <p class="lede">
-      One-time provisioning to run ALE on AWS: credentials, networking, the two
-      sandbox images as AMIs, and S3 buckets for task data and results. Linux is
-      a few minutes plus the image step; Windows needs more (see the Windows
-      note below). If you just want the commands, <code>docs/aws-setup.md</code>
-      in the repo is the condensed version, and <code>tools/aws/</code> holds the
-      scripts this page runs.
+      One-time provisioning to run ALE on AWS: credentials, a network, and the
+      two sandbox images as AMIs. Each step explains what it sets up and why.
+      Unlike Google Cloud there is no env-var wiring — credentials live in your
+      AWS CLI profile and everything else is a fixed convention the environment
+      config resolves by name at run time.
     </p>
 
     <div class="note warn">
       <div class="note-title">Linux is easy; Windows is not</div>
-      <strong>Linux</strong> (the <code>demo/hello</code> task and all
+      <strong>Linux</strong> (the <code>demo/hello</code> task and the
       <code>cpu-free-ubuntu</code> tasks) runs on ordinary shared EC2 with no
-      special licensing. <strong>Windows 10</strong> on EC2 is a desktop/client
-      OS: AWS sells no license for it, so it is <strong>BYOL</strong> (you supply
-      a Microsoft VDA E3/E5 subscription) and must run on <strong>dedicated
-      tenancy</strong> (a Dedicated Instance, raised via an AWS Support case).
-      Start with Linux; tackle Windows once you have those.
+      special licensing. <strong>Windows 10</strong> is a desktop/client OS: AWS
+      sells no license for it, so it is <strong>BYOL</strong> (you supply a
+      Microsoft VDA E3/E5 subscription) and must run on <strong>dedicated
+      tenancy</strong> (raised via an AWS Support case). Start with Linux.
     </div>
 
     <h2>Create an AWS account and install the AWS CLI</h2>
     <p>
       Skip the account step if you already have one. Open
-      <a href="https://aws.amazon.com/">aws.amazon.com</a>, choose
-      <em>Create an AWS Account</em>, and complete sign-up (email, a payment
-      card for identity verification, phone verification, the Basic/Free support
-      plan). Unlike Google Cloud there is no blanket free trial credit; you pay
-      for what you use. Getting Linux working end to end (importing one image,
-      booting a test instance for a few hours) costs roughly a few US dollars,
-      mostly EBS snapshot storage for the ~600&nbsp;GiB disk.
+      <a href="https://aws.amazon.com/">aws.amazon.com</a> →
+      <em>Create an AWS Account</em> and complete sign-up (email, a card for
+      identity verification, phone verification, the Basic/Free plan). There is
+      no blanket free credit; you pay for what you use (getting Linux working end
+      to end costs a few US dollars, mostly EBS storage).
     </p>
     <p>
-      Then install the
-      <a href="https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html">AWS CLI v2</a>
-      and give it credentials. Create an IAM user with programmatic access
-      (Console → IAM → Users → <em>Create user</em>; attach
-      <code>AdministratorAccess</code> for setup, scope down later), make an
-      access key for it, then:
+      Install the
+      <a href="https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html">AWS CLI v2</a>,
+      create an IAM user with programmatic access (Console → IAM → Users →
+      <em>Create user</em> → attach <code>AdministratorAccess</code> for setup),
+      make an access key, then point the CLI at it. The CLI profile is the only
+      place credentials live — the ALE config never names them.
     </p>
-    <pre><code>aws configure           # paste the Access Key ID + Secret, region us-east-1, output json
-aws sts get-caller-identity   # confirms the CLI is authenticated</code></pre>
+    <pre><code>aws configure                 # paste Access Key ID + Secret, region us-east-1, output json
+aws sts get-caller-identity   # confirms you're authenticated
+export ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+export AWS_REGION=us-east-1</code></pre>
 
     <h2>Provision the account</h2>
 
-    <h3>① Bootstrap networking, the import role, and the buckets</h3>
+    <h3>① Open the network path to the sandbox</h3>
     <p>
-      One script creates everything a run needs: the <code>vmimport</code>
-      service role (lets AWS convert disks into AMIs), a <strong>VPC</strong>
-      with one public <strong>subnet per Availability Zone</strong> (the provider
-      tries them in order on capacity errors, like gcloud zones), a
-      <strong>security group</strong> that opens the in-VM control port
-      (<code>tcp:5000</code> for cua-server, <code>tcp:3389</code> for Windows
-      RDP), and an S3 <strong>import bucket</strong>. It writes the resolved ids
-      to <code>tools/aws/.aws-env</code>, which later steps and the environment
-      config read.
+      Each instance comes up in a <strong>VPC</strong> with a public IP. ALE
+      reaches the in-VM control server over <code>tcp:5000</code>, so a
+      <strong>security group</strong> must allow that (RDP <code>3389</code> is
+      optional, for watching a Windows desktop). The config names the security
+      group <code>ale-sandbox</code>; the provider resolves it to its id and the
+      VPC it lives in, and picks a subnet per Availability Zone (one per AZ gives
+      capacity fallback). Tag the VPC and subnets <code>project=ale</code> so the
+      provider finds them.
     </p>
-    <pre><code>export AWS_REGION=us-east-1
-AWS_REGION=$AWS_REGION ./tools/aws/bootstrap_account.sh
-source tools/aws/.aws-env          # exports ALE_AWS_VPC, ALE_AWS_SG, ALE_BUCKET, ...</code></pre>
+    <pre><code>VPC=$(aws ec2 create-vpc --cidr-block 10.0.0.0/16 \
+  --tag-specifications 'ResourceType=vpc,Tags=[{Key=project,Value=ale}]' \
+  --query Vpc.VpcId --output text)
+aws ec2 modify-vpc-attribute --vpc-id $VPC --enable-dns-hostnames
 
-    <h3 id="images">② Get the sandbox images (AMIs)</h3>
+IGW=$(aws ec2 create-internet-gateway --query InternetGateway.InternetGatewayId --output text)
+aws ec2 attach-internet-gateway --internet-gateway-id $IGW --vpc-id $VPC
+RT=$(aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$VPC" \
+  "Name=association.main,Values=true" --query 'RouteTables[0].RouteTableId' --output text)
+aws ec2 create-route --route-table-id $RT --destination-cidr-block 0.0.0.0/0 --gateway-id $IGW
+
+i=1; for az in us-east-1a us-east-1b us-east-1c; do
+  SN=$(aws ec2 create-subnet --vpc-id $VPC --availability-zone $az --cidr-block 10.0.$i.0/24 \
+    --tag-specifications 'ResourceType=subnet,Tags=[{Key=project,Value=ale}]' \
+    --query Subnet.SubnetId --output text)
+  aws ec2 modify-subnet-attribute --subnet-id $SN --map-public-ip-on-launch
+  aws ec2 associate-route-table --route-table-id $RT --subnet-id $SN; i=$((i+1))
+done
+
+SG=$(aws ec2 create-security-group --group-name ale-sandbox \
+  --description "ALE cua-server ingress" --vpc-id $VPC --query GroupId --output text)
+aws ec2 authorize-security-group-ingress --group-id $SG --protocol tcp --port 5000 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --group-id $SG --protocol tcp --port 3389 --cidr 0.0.0.0/0</code></pre>
+
+    <h3 id="images">② The sandbox images (AMIs)</h3>
     <p>
-      A task boots from a <strong>prebaked disk image</strong>: an OS with the
-      professional software, ALE's in-VM tooling, and the task data already
-      baked in. ALE has two families, <code>ale-ubuntu22</code> (Linux) and
-      <code>ale-win10</code> (Windows) — the <em>same family names</em> the
-      Google Cloud setup uses. On AWS each family resolves to an
-      <strong>AMI</strong> (an Amazon Machine Image, region-scoped). You have two
-      ways to get one:
-    </p>
-    <p>
-      <strong>(a) Use ALE's published public AMIs.</strong> ALE publishes both
-      images as public AMIs in <code>us-east-1</code>:
-    </p>
-    <pre><code># find them by owner + name (us-east-1)
-aws ec2 describe-images --region us-east-1 --owners 670060057810 \
-  --filters "Name=is-public,Values=true" --query 'Images[].[ImageId,Name]' --output table
-# ale-ubuntu22   →  current id below
-# ale-win10      →  current id below</code></pre>
-    <p>
-      In <code>us-east-1</code> you launch them <em>directly, no copy</em>; for
-      another region copy once with <code>aws ec2 copy-image</code>. This is
-      lighter than gcloud, where every image is always copied into your project.
+      A task boots from a <strong>prebaked image</strong>: an OS with the
+      professional software, ALE's in-VM tooling, and the task data already baked
+      in. ALE has two families — <code>ale-ubuntu22</code> (Linux) and
+      <code>ale-win10</code> (Windows), the same names the Google Cloud setup
+      uses. ALE publishes both as <strong>public AMIs in us-east-1</strong>, so in
+      that region there is nothing to do — the provider resolves the family name
+      to the published AMI automatically (it looks up the newest AMI tagged
+      <code>ale:image-family=&lt;name&gt;</code>).
     </p>
     <div class="note warn">
-      <div class="note-title">Heads-up if you use ALE's public AMIs from your own account</div>
-      <strong>AMI tags are private to the owner account.</strong> Our
-      <code>ale:image-family</code> tag (which the provider's auto-lookup needs)
-      is <em>not</em> visible to you on our public AMI. So in your account either
-      (1) pin the id directly — <code>ami: ami-…</code> in the snapshot's
-      <code>aws:</code> block (the env yaml still needs <code>image:</code> for the
-      in-box paths); or (2) <code>copy-image</code> it into your account and tag
-      your copy <code>ale:image-family=ale-ubuntu22</code> (or
-      <code>ale-win10</code>), after which the family auto-lookup works for you.
-      Also note Windows is <strong>BYOL</strong>: launching it is legal only under
-      your own Microsoft VDA license, on dedicated tenancy.
+      <div class="note-title">Using the public AMIs from your own account</div>
+      AMI tags are private to the owner, so the family auto-lookup only sees AMIs
+      <em>in your account</em>. To use ALE's published AMIs, either pin the id in
+      the snapshot (<code>ami: ami-…</code>, found via
+      <code>aws ec2 describe-images --owners&nbsp;&lt;ale-account&gt;
+      --filters Name=is-public,Values=true</code>), or copy one into your account
+      and tag it so the lookup finds it:
+      <pre><code>NEW=$(aws ec2 copy-image --source-region us-east-1 --source-image-id ami-XXXX \
+  --name ale-ubuntu22 --query ImageId --output text)
+aws ec2 create-tags --resources $NEW --tags Key=ale:image-family,Value=ale-ubuntu22</code></pre>
+      Windows is BYOL — run it only under your own Microsoft VDA license.
     </div>
-    <p>
-      <strong>(b) Import it yourself (any region; also how the public AMIs were
-      built).</strong> ALE exports the disks to
-      <code>gs://ale-data-public/images/</code>. The scripts stream a disk into
-      your S3 import bucket and register a tagged AMI from it:
-    </p>
-    <pre><code># Linux — import-snapshot + register-image (boots on Nitro; ~1.5-4 h to convert)
-./tools/aws/import_ubuntu_ami.sh
 
-# Windows — BYOL import (you must hold a Microsoft VDA license; ~2-5 h)
-./tools/aws/import_win10_ami.sh</code></pre>
+    <h3 id="results">③ Results bucket for output (recommended for full runs)</h3>
     <p>
-      Each script <strong>tags</strong> the resulting AMI with
-      <code>ale:image-family=&lt;name&gt;</code>. That tag is the link the
-      provider uses: <code>AwsProvider</code> resolves the env yaml's
-      <code>image: ale-win10</code> to the newest AMI <em>in your account</em>
-      carrying that family tag — so the config names the family, never a raw
-      <code>ami-…</code>. To swap in a rebuilt image, tag the new one the same way
-      (newest wins) or pin it with <code>ami:</code>.
+      To keep the agents' output, push it to an <strong>S3 results bucket</strong>
+      (the AWS analogue of gcloud's results bucket). Create the bucket and an IAM
+      <strong>instance profile</strong> the sandbox assumes at launch — the in-VM
+      <code>aws</code> CLI then writes to S3 with no key injected:
     </p>
+    <pre><code>aws s3api create-bucket --bucket ale-run-results-$ACCOUNT --region us-east-1
 
-    <h3 id="data-results">③ Task data and results buckets (S3)</h3>
+aws iam create-role --role-name ale-sandbox --assume-role-policy-document '{"Version":"2012-10-17",
+  "Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
+aws iam put-role-policy --role-name ale-sandbox --policy-name s3 --policy-document '{"Version":"2012-10-17",
+  "Statement":[{"Effect":"Allow","Action":["s3:PutObject","s3:ListBucket"],
+    "Resource":["arn:aws:s3:::ale-run-results-'$ACCOUNT'","arn:aws:s3:::ale-run-results-'$ACCOUNT'/*"]}]}'
+aws iam create-instance-profile --instance-profile-name ale-sandbox
+aws iam add-role-to-instance-profile --instance-profile-name ale-sandbox --role-name ale-sandbox</code></pre>
     <p>
-      Task data reaches the sandbox one of two ways. The simplest, and the
-      default for the images above, is <strong>baked into the AMI</strong> — the
-      disk already carries <code>input/</code> and the encrypted
-      <code>reference</code> for every task, so nothing is fetched at run time and
-      you can skip this step (<code>task_data_source: baked_in_sandbox</code>).
-    </p>
-    <p>
-      The alternative mirrors gcloud's <code>gs://ale-data-public</code> bucket:
-      stage data from <strong>S3</strong> at run time
-      (<code>task_data_source: s3://&lt;bucket&gt;</code>). For that you copy the
-      task-data bucket into S3 once — the on-disk layout and the encrypted 7z
-      reference are unchanged, only the scheme differs:
-    </p>
-    <pre><code># one-time, host-side (rclone streams gs:// -&gt; s3://; ~hundreds of GB)
-rclone copy gcs:ale-data-public s3:&lt;your-data-bucket&gt; --transfers 16</code></pre>
-    <p>
-      <strong>Results</strong> work the same as gcloud's results bucket. Point
-      <a href="/pages/configure.html#output-path">output_path</a> at
-      <code>s3://&lt;your-results-bucket&gt;</code> and each sandbox pushes its
-      output there with the in-box <code>aws</code> CLI (the AWS analogue of
-      gcloud's <code>gsutil</code> sync to <code>ale-run-results</code>).
-    </p>
-    <p>
-      Both the <code>s3://</code> data pull and the <code>s3://</code> output push
-      run <em>inside</em> the sandbox, so the instance needs S3 permissions. On
-      AWS that is an <strong>IAM instance profile</strong> attached at launch —
-      no key is copied into the box (unlike gcloud, which injects a service-account
-      key). Create a role with read on the data bucket and write on the results
-      bucket, then set <code>iam_instance_profile:</code> on the snapshot. If you
-      only use baked data and don't push output, you can skip the profile.
+      Then in <code>configs/environments/environment_aws.yaml</code> set
+      <code>output_path: s3://ale-run-results-&lt;account&gt;</code> and add
+      <code>iam_instance_profile: ale-sandbox</code> to each snapshot's
+      <code>aws:</code> block. Output lands at <code>…/&lt;run_id&gt;/output/</code>.
+      (Leave <code>output_path: local</code> to pull output to the host instead.)
     </p>
 
-    <h3 id="windows-extras">④ Windows only: dedicated tenancy and GPU quota</h3>
+    <h3 id="windows">④ Windows only: dedicated tenancy + GPU quota</h3>
     <p>
-      Two account limits gate Windows and GPU, both raised through
-      <strong>AWS Support / Service Quotas</strong> (a new account starts at or
-      near zero on each, and approval can take hours to days):
+      Both are raised through AWS Support / Service Quotas (a new account starts
+      near zero; approval takes hours to days):
     </p>
     <ul>
-      <li>
-        <strong>Dedicated tenancy</strong> — required for Windows 10 BYOL.
-        Open a Support case requesting <em>Dedicated Instances</em> for your
-        region. The environment config already launches Windows snapshots with
-        <code>tenancy: dedicated</code>; nothing else changes once it's granted.
-      </li>
-      <li>
-        <strong>GPU instances</strong> — the <code>gpu-*</code> snapshots use a
-        <code>g6</code> instance (NVIDIA L4, matching the image's driver). The
-        "Running On-Demand G and VT instances" quota defaults to 0; request an
-        increase (it's self-service in Service Quotas). Whether the baked NVIDIA
-        driver binds on AWS GPUs is verified separately.
-      </li>
+      <li><strong>Dedicated tenancy</strong> — required for Windows 10 BYOL. The
+      config already marks Windows snapshots <code>tenancy: dedicated</code>;
+      open a Support case for Dedicated Instances in your region.</li>
+      <li><strong>GPU</strong> — the <code>gpu-*</code> snapshots use a
+      <code>g6</code> instance (NVIDIA L4). Request an increase to the
+      "Running On-Demand G and VT instances" quota (Service Quotas, self-service).</li>
     </ul>
 
-    <h3>⑤ Point the environment config at it</h3>
+    <h3>⑤ Point the experiment at it and run</h3>
     <p>
       <code>configs/environments/environment_aws.yaml</code> is the AWS
-      counterpart of <code>environment.yaml</code>. It reads
-      <code>AWS_REGION</code>, <code>ALE_AWS_VPC</code>, and
-      <code>ALE_AWS_SG</code> from your shell (set by step ①), names each image by
-      family, lists Availability Zones in <code>zones</code>, and marks the
-      Windows snapshots <code>dedicated</code>. Start with one Linux task to
-      confirm the path end to end:
+      counterpart of <code>environment.yaml</code> — names each image by family,
+      its security group <code>ale-sandbox</code>, and the AZs. In your
+      experiment yaml set <code>environment: configs/environments/environment_aws.yaml</code>,
+      then run as usual:
     </p>
-    <pre><code>source tools/aws/.aws-env
-python -m ale_run ... --environment configs/environments/environment_aws.yaml   # task_data_source: baked_in_sandbox</code></pre>
+    <pre><code>uv run python -m ale_run run my_experiment.yaml</code></pre>
 
     <div class="note">
       <div class="note-title">Next</div>

@@ -374,7 +374,7 @@ _ENVIRONMENT_TOP_RESERVED = frozenset({
 # snapshot's block and reconciled here into one provider config.
 _GCLOUD_CRED_KEYS = ("project", "service_account_key", "instance_prefix", "network", "subnet")
 _AWS_CRED_KEYS = (
-    "region", "vpc", "security_group_ids", "security_groups", "instance_prefix",
+    "region", "security_group", "instance_prefix",
     "key_name", "iam_instance_profile", "associate_public_ip",
 )
 # `tenancy` and `ami` are intentionally NOT cred keys: they are per-snapshot

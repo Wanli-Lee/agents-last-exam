@@ -1,138 +1,86 @@
 # ============================================================================
-# environment_aws.yaml — run ALE on AWS (EC2 + S3).
+# environment_aws.yaml — run ALE on AWS (EC2 + S3). AWS counterpart of
+# environment.yaml; same per-snapshot model and the SAME image-family names.
 # ============================================================================
-# AWS counterpart of environment.yaml. Same per-snapshot model and the SAME
-# `image:` values as the gcloud env. A task card's logical `snapshot` (its
-# image_category) resolves here to a provider + image-family + provider knobs.
-#
-# ─────────────────────────────────────────────────────────────────────────
-# KNOB REFERENCE (everything under a snapshot's `aws:` block)
-# ─────────────────────────────────────────────────────────────────────────
-#   region                AWS region, e.g. us-east-1. Provider-wide (the AMI,
-#                         subnets and S3 bucket must all live in it). Analogous
-#                         to gcloud `project`.
-#   vpc                   VPC id the instances attach to. The provider maps each
-#                         AZ in `zones` to a subnet inside THIS vpc. Provider-wide.
-#   security_group_ids    List of EC2 security-group ids (firewall) attached to
-#                         the instance. MUST allow inbound tcp:5000 (cua-server)
-#                         and, for Windows, tcp:3389 (RDP). bootstrap_account.sh
-#                         creates `ale-sandbox` with both. AWS analogue of a
-#                         gcloud firewall rule on the VPC.
-#   zones                 AVAILABILITY-ZONE names (e.g. us-east-1a) tried IN
-#                         ORDER on capacity errors — the EC2 analogue of gcloud
-#                         `zones`. Each AZ is resolved to a subnet in `vpc`.
-#   image  (snapshot-level, sibling of provider/aws)
-#                         The image-FAMILY name = the registry key under
-#                         ale_run/environments/images/ (ale-ubuntu22 / ale-win10)
-#                         — identical to the gcloud env. The provider resolves it
-#                         to a concrete AMI at run time by finding the newest AMI
-#                         tagged `ale:image-family=<name>` (the import scripts set
-#                         that tag). It also drives in-box paths/cua-port via the
-#                         Python registry. To PIN a specific AMI instead of the
-#                         tag lookup, add `ami:` (see cpu-free-ubuntu below).
-#   ami                   OPTIONAL. An explicit `ami-...` id. When set it OVERRIDES
-#                         the family tag lookup (use to pin/rollback to one AMI).
-#                         `image:` is still required (it supplies the in-box paths).
-#   tenancy               `default` (shared, cheap) or `dedicated`. Windows-10
-#                         CLIENT BYOL is NOT licensed for shared tenancy → its
-#                         snapshots MUST be `dedicated` (a Dedicated Instance).
-#                         Linux uses `default`. Per-snapshot so one env mixes both.
-#   gpu                   Truthy (e.g. "1") → the provider launches a GPU instance
-#                         type (default g6.2xlarge = NVIDIA L4, matching the GCE
-#                         image's nvidia-l4-vws driver). Omit/null for CPU. The
-#                         exact type can be overridden per task via the task-card
-#                         `vm.machineType`.
-#   iam_instance_profile  OPTIONAL. Name of an IAM instance profile attached at
-#                         launch. Grants the in-box `aws` CLI permissions WITHOUT
-#                         any key — needed ONLY when task_data_source is `s3://`
-#                         (so the box can `aws s3 sync` task data / push output).
-#                         Not needed when data is baked into the AMI.
-#   key_name              OPTIONAL EC2 key pair. Usually unset: we reach the box
-#                         via cua-server on :5000, not SSH.
-#   associate_public_ip   true/false (default true). Whether to give the instance
-#                         a public IPv4 so the framework (running outside AWS) can
-#                         reach cua-server. Set false only if the framework runs
-#                         inside the same VPC and uses the private IP.
-#
-# Instance-type selection (task-card `vm.machineType` override → default → C→M
-# fallback) and root-volume sizing (AMI default) are framework facts in aws.py.
-# Fill the ${env:...} values from `tools/aws/.aws-env` (bootstrap output), or
-# hard-code them.
-# ============================================================================
-
-# Substrate-coupled run knobs (same place as the gcloud environment.yaml).
-# Full benchmark runs push output to an S3 results bucket (the default below) —
-# run tools/aws/setup_results_bucket.sh first (creates the bucket + the
-# ale-sandbox instance profile, exports ALE_RESULTS_BUCKET/ALE_INSTANCE_PROFILE).
-# For a quick local run instead, set output_path: local and drop iam_instance_profile.
-task_data_source: baked_in_sandbox             # baked into the AMI; or s3://<bucket>
-output_path: s3://${env:ALE_RESULTS_BUCKET}    # results land at <bucket>/<run_id>/output/
+# Like the gcloud env, everything here is a hardcoded convention. There are NO
+# ${env:...} references: AWS credentials come from the ambient chain
+# (`aws configure` / env / instance role), and the VPC, subnets and AMIs are
+# resolved at run time by name/tag (set up once per the AWS setup docs):
+#   • image            image-FAMILY name (registry key under
+#                      ale_run/environments/images/) → resolved to the newest AMI
+#                      tagged `ale:image-family=<name>`. Pin one with `ami:`.
+#   • security_group   the firewall by NAME (gcloud analogue: `network`). The
+#                      provider resolves it to its id + the VPC it lives in; that
+#                      VPC scopes the AZ→subnet lookup.
+#   • zones            Availability-Zone names, tried in order on capacity errors.
+#   • tenancy          default | dedicated (Windows-10 client BYOL → dedicated).
+#   • gpu              truthy → a GPU instance type (g6 / NVIDIA L4).
+# ----------------------------------------------------------------------------
 
 snapshots:
 
-  # ── Linux, no GPU — the bulk of tasks ───────────────────────────────────
-  cpu-free-ubuntu:
+  cpu-free-ubuntu:            # Linux, no GPU — the bulk of tasks
     provider: aws
-    image: ale-ubuntu22          # family name → newest AMI tagged ale:image-family=ale-ubuntu22
+    image: ale-ubuntu22
     aws:
-      region: ${env:AWS_REGION}
-      vpc: ${env:ALE_AWS_VPC}
-      iam_instance_profile: ${env:ALE_INSTANCE_PROFILE}   # in-box S3 write for output push
-      security_group_ids: [ "${env:ALE_AWS_SG}" ]
-      zones: [ us-east-1a, us-east-1b, us-east-1c ]
-      associate_public_ip: true
-      # ami: ami-0123456789abcdef0   # OPTIONAL: pin one AMI, overrides the tag lookup
+      region: us-east-1
+      security_group: ale-sandbox
+      instance_prefix: ale
+      zones: [us-east-1a, us-east-1b, us-east-1c]
 
-  # ── Windows 10, no GPU. BYOL → DEDICATED tenancy ────────────────────────
-  cpu-free:
-    provider: aws
-    image: ale-win10
-    resolution: [1024, 768]      # Windows framebuffer (sibling of image); Linux ignores
-    aws:
-      region: ${env:AWS_REGION}
-      vpc: ${env:ALE_AWS_VPC}
-      iam_instance_profile: ${env:ALE_INSTANCE_PROFILE}   # in-box S3 write for output push
-      security_group_ids: [ "${env:ALE_AWS_SG}" ]
-      zones: [ us-east-1a, us-east-1b, us-east-1c ]
-      tenancy: dedicated
-
-  # ── Windows 10 requiring a licensed image (same family/AMI) ─────────────
-  cpu-license:
+  cpu-free:                   # Windows, no GPU
     provider: aws
     image: ale-win10
     resolution: [1024, 768]
     aws:
-      region: ${env:AWS_REGION}
-      vpc: ${env:ALE_AWS_VPC}
-      iam_instance_profile: ${env:ALE_INSTANCE_PROFILE}   # in-box S3 write for output push
-      security_group_ids: [ "${env:ALE_AWS_SG}" ]
-      zones: [ us-east-1a, us-east-1b, us-east-1c ]
-      tenancy: dedicated
+      region: us-east-1
+      security_group: ale-sandbox
+      instance_prefix: ale
+      tenancy: dedicated      # Win10 client BYOL is not licensed for shared tenancy
+      zones: [us-east-1a, us-east-1b, us-east-1c]
 
-  # ── Windows 10 + GPU. Same family — GPU is just the instance type ───────
-  gpu-free:
+  cpu-license:                # Windows requiring a licensed image (same family)
+    provider: aws
+    image: ale-win10
+    resolution: [1024, 768]
+    aws:
+      region: us-east-1
+      security_group: ale-sandbox
+      instance_prefix: ale
+      tenancy: dedicated
+      zones: [us-east-1a, us-east-1b, us-east-1c]
+
+  gpu-free:                   # Windows + GPU (same family; GPU is the instance type)
     provider: aws
     image: ale-win10
     resolution: [1920, 1080]
     aws:
-      region: ${env:AWS_REGION}
-      vpc: ${env:ALE_AWS_VPC}
-      iam_instance_profile: ${env:ALE_INSTANCE_PROFILE}   # in-box S3 write for output push
-      security_group_ids: [ "${env:ALE_AWS_SG}" ]
-      zones: [ us-east-1a, us-east-1b, us-east-1c ]
-      gpu: "1"                   # → g6.2xlarge (NVIDIA L4)
+      region: us-east-1
+      security_group: ale-sandbox
+      instance_prefix: ale
+      gpu: nvidia-l4          # truthy → g6 (NVIDIA L4)
       tenancy: dedicated
+      zones: [us-east-1a, us-east-1b, us-east-1c]
 
-  # ── Windows 10 + GPU requiring a licensed image ─────────────────────────
-  gpu-license:
+  gpu-license:                # Windows + GPU, licensed
     provider: aws
     image: ale-win10
     resolution: [1920, 1080]
     aws:
-      region: ${env:AWS_REGION}
-      vpc: ${env:ALE_AWS_VPC}
-      iam_instance_profile: ${env:ALE_INSTANCE_PROFILE}   # in-box S3 write for output push
-      security_group_ids: [ "${env:ALE_AWS_SG}" ]
-      zones: [ us-east-1a, us-east-1b, us-east-1c ]
-      gpu: "1"
+      region: us-east-1
+      security_group: ale-sandbox
+      instance_prefix: ale
+      gpu: nvidia-l4
       tenancy: dedicated
+      zones: [us-east-1a, us-east-1b, us-east-1c]
+
+# ---------------------------------------------------------------------------
+# Task data + output (substrate-coupled; mirrors environment.yaml).
+# ---------------------------------------------------------------------------
+# "baked_in_sandbox" (data baked into the AMI) | "s3://<bucket>".
+task_data_source: baked_in_sandbox
+
+# Output after the run: null | "local" | "s3://<bucket>". For full benchmark
+# runs set this to your results bucket and add `iam_instance_profile: ale-sandbox`
+# to each snapshot's aws: block (the in-box aws CLI writes via the instance role).
+output_path: local
