@@ -14,7 +14,6 @@ health_medicine/healthcare_sap_group_sequential_nsclc
 health_medicine/crf_sdtm_mapping_1
 business_finance/llm_ecosystem_privacy_audit_realdata_1
 psychology_neuro/celegans_neuron_tracking
-computing_math/pcap_enterprise_triage_01
 computing_math/data_pipeline_etl_instance_1
 legal/legal_dr_fees_01
 physical_sciences/climate_prediction
@@ -48,3 +47,4 @@ education_info/marc_remediation_folio_overlay
 engineering/sumo_urban_am_peak_calibration
 business_finance/equity_research_summary
 computing_math/go_game_reconstruction_1
+computing_math/tris_crackme

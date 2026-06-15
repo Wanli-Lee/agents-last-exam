@@ -138,3 +138,4 @@ visual_media/chroma_key_from_reference
 engineering/humanoid_wbc_policy_evaluation
 computing_math/mp_checkpoint_consolidation_v2
 visual_media/compress_3dgs_scene_ply
+visual_media/blender_character_reconstruction_from_multiview_01
