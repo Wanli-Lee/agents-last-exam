@@ -3,7 +3,8 @@
 Dispatched by the lifecycle on ``artifacts_path.output_path``:
 
   None         → skip; output stays on the sandbox and is lost on teardown
-  ``"local"``  → :func:`pull_to_host` (cua HTTP, files pulled concurrently)
+  ``"local"``  → :func:`pull_to_host` (cua HTTP, files pulled concurrently; a
+                 local Docker sandbox takes a one-shot ``docker cp`` fast path)
   ``"gs://X"`` → :func:`push_to_gcs` (VM-side gsutil; nothing on host)
 """
 from __future__ import annotations
@@ -35,6 +36,60 @@ def _output_dir(sandbox: SandboxHandle, task_data: TaskDataSpec) -> str:
     ])
 
 
+def _docker_container(sandbox: SandboxHandle) -> str | None:
+    """Container name iff this is a local Docker sandbox, else None.
+
+    The docker provider stamps ``container_name`` into ``metadata``; no other
+    provider does. Presence means output can be pulled with a single host-side
+    ``docker cp`` instead of streaming each file over the cua HTTP API."""
+    return sandbox.metadata.get("container_name")
+
+
+async def _pull_via_docker_cp(
+    container: str, src: str, dest_dir: Path,
+) -> dict[str, Any]:
+    """``output_path == 'local'`` fast path for the docker provider: copy the
+    whole output tree off the container in one host-side ``docker cp`` — no
+    per-file base64 round-trip over cua-server :5000. Symmetric with the
+    ``local:`` task-data source's docker-cp input staging.
+
+    ``docker cp <c>:<src>/. <dest>`` copies the *contents* of ``src`` into
+    ``dest`` (so the run dir holds the files directly, not a nested ``output/``).
+    """
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    proc = await asyncio.create_subprocess_exec(
+        "docker", "cp", f"{container}:{src.rstrip('/')}/.", str(dest_dir),
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    _, err = await proc.communicate()
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"docker cp {container}:{src} -> {dest_dir} failed "
+            f"(rc={proc.returncode}): {err.decode(errors='replace')[:300]}"
+        )
+
+    files = 0
+    total_bytes = 0
+    for p in dest_dir.rglob("*"):
+        if p.is_file():
+            files += 1
+            try:
+                total_bytes += p.stat().st_size
+            except OSError:
+                pass
+    logger.info(
+        "pull_to_host(docker cp): %s → %s (files=%d bytes=%d)",
+        src, dest_dir, files, total_bytes,
+    )
+    return {
+        "transport": "docker-cp",
+        "vm_path": src,
+        "files": files,
+        "bytes": total_bytes,
+        "errors": [],
+    }
+
+
 async def pull_to_host(
     sandbox: SandboxHandle, task_data: TaskDataSpec, *, dest_dir: Path,
 ) -> dict[str, Any]:
@@ -43,6 +98,16 @@ async def pull_to_host(
     entries = await sandbox.list_dir(src)
     if not entries:
         return {"skipped": True, "reason": "empty_or_missing", "vm_path": src}
+
+    # Local Docker sandbox: one host-side `docker cp` for the whole tree instead
+    # of the per-file cua transport below. Best-effort — fall back to cua on any
+    # failure so a docker quirk never loses output.
+    container = _docker_container(sandbox)
+    if container:
+        try:
+            return await _pull_via_docker_cp(container, src, dest_dir)
+        except Exception as e:
+            logger.warning("docker cp output pull failed, falling back to cua: %s", e)
 
     dest_dir.mkdir(parents=True, exist_ok=True)
     sep = "/" if sandbox.is_linux else "\\"
