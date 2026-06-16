@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Local Docker | ALE Docs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+  <article class="article">
+    <h1>Local Docker</h1>
+    <p class="lede">
+      Run the Linux subset in a container on your own machine — no GCP, no VM.
+    </p>
+
+    <h2>How it works</h2>
+    <p>
+      The <code>docker</code> provider boots
+      <code>agentslastexam/ale-ubuntu22-docker</code> (pulled from Docker Hub on
+      first use), a container whose userspace is an export of the
+      <code>ale-ubuntu22</code> GCE VM's root filesystem — the same node, Python
+      venv, cua-server and pre-installed task software, at the same paths. Per run
+      unit it starts one container, brings up <code>cua-server</code> on port 5000
+      behind a virtual X display (<code>Xvfb&nbsp;:0</code>), and drives it over
+      the same cua HTTP API as a cloud VM.
+    </p>
+    <p>
+      The published image is <strong>data-less</strong>: it ships no task data and
+      no answers. The data is supplied from your host by the
+      <code>local:&lt;dir&gt;</code> source — fetched once from Hugging Face,
+      then <code>docker&nbsp;cp</code>'d into each container (input before the
+      agent, reference only at grading; see
+      <a href="/pages/tasks.html#staging">Task spec &amp; data staging</a>).
+    </p>
+
+    <h2>Run it</h2>
+    <p>Two things to fetch, both one-time; then run as usual.</p>
+    <ol>
+      <li><strong>Image</strong> — nothing to do: the provider
+      <code>docker pull</code>s it on first use (~105&nbsp;GB, ~42&nbsp;GB
+      compressed).</li>
+      <li><strong>Task data</strong> — request access to the
+      <a href="https://huggingface.co/datasets/agents-last-exam/agents-last-exam-data-archive">gated
+      Hugging Face dataset</a>, <code>huggingface-cli login</code>, then:
+      <pre><code>scripts/fetch_task_data.sh        # -&gt; ./task-data</code></pre></li>
+    </ol>
+    <p>
+      The shipped <code>configs/environments/docker.yaml</code> already points at
+      that directory, so you only <a href="/pages/configure.html">configure a
+      run</a> against it:
+    </p>
+    <pre><code>snapshots:
+  cpu-free-ubuntu:
+    provider: docker
+    image: ale-ubuntu22-docker     # Hub ref + cua port come from the Image entry
+    docker:
+      shm_size: 2g
+      resolution: [1024, 768]
+task_data_source: local:task-data
+output_path: local</code></pre>
+    <p>
+      Per-task CPU/memory are derived from the task card's GCE machine type;
+      override with <code>cpus</code>/<code>memory</code> under <code>docker:</code>
+      as a host cap.
+    </p>
+    <p>
+      Point the run's task list at <code>selected_tasks/linux_no_dind.txt</code> —
+      the 101 Linux tasks this image supports. The 4 tasks that need
+      Docker-in-Docker are excluded (see below).
+    </p>
+
+    <h2 id="unsupported">Unsupported: tasks that need Docker inside the sandbox</h2>
+    <p>
+      Four tasks have their agent (and grader) run <code>docker</code> <em>inside</em>
+      the sandbox — Docker-in-Docker, which this provider does not enable, so an
+      agent <strong>cannot complete them</strong> here. They are excluded from the
+      Docker task list:
+    </p>
+    <ul>
+      <li><code>engineering/openroad_sky130_ibex_pnr_signoff</code> — runs the
+      pinned <code>openroad/orfs</code> flow via <code>docker run</code>.</li>
+      <li><code>computing_math/k8s_migration_1</code> —
+      <code>minikube start --driver=docker</code> + <code>kubectl</code>.</li>
+      <li><code>business_finance/bpmn_category_governance_restructuring_l3</code> —
+      <code>docker compose</code> brings up the Flowable stack.</li>
+      <li><code>business_finance/bpmn_supply_disruption_l3</code> —
+      <code>docker compose</code> brings up the Flowable stack.</li>
+    </ul>
+  </article>
+
+  <script src="/assets/nav.js"></script>
+  <script src="/assets/app.js"></script>
+</body>
+</html>
