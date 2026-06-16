@@ -56,7 +56,7 @@
       </tbody>
     </table>
 
-    <h2>Staging the data, hiding the reference</h2>
+    <h2 id="staging">Staging the data, hiding the reference</h2>
     <p>
       Before the agent can touch anything, the framework <strong>injects the
       task's input onto the sandbox</strong>, writing its files to a known place
@@ -74,22 +74,27 @@
       <div class="phase"><div class="pk">Grade</div><div class="pd"><code>evaluate()</code> scores output against it.</div></div>
     </div>
     <p>
-      Those files come from one of two sources, set by the environment's
-      <a href="https://github.com/rdi-berkeley/agents-last-exam/blob/51d094e7b3cbe7b7f2f7e615708876e42ad8813e/configs/environments/environment.yaml#L116-L117"><code>task_data_source</code></a>.
-      The general one is to <strong>pull each task's data at runtime</strong> from
-      the public <code>gs://ale-data-public</code> bucket: a sandbox you build
-      yourself uses this, and from a Google Cloud VM the pull is fast. A Hugging
-      Face source for previewing tasks is planned but not yet built.
+      Where those files come from is set by the environment's
+      <a href="https://github.com/rdi-berkeley/agents-last-exam/blob/51d094e7b3cbe7b7f2f7e615708876e42ad8813e/configs/environments/environment.yaml#L116-L117"><code>task_data_source</code></a>,
+      which has three modes:
     </p>
-    <p>
-      As an optimization, ALE's published
+    <ul>
+      <li><strong>Runtime pull</strong> (<code>gs://ale-data-public</code>) — the
+      general case: each task's data is fetched onto the sandbox when its slot
+      runs. A sandbox you build yourself uses this, and from a Google Cloud VM
+      the pull is fast.</li>
+      <li><strong>Baked</strong> — ALE's published
       <a href="/pages/google-cloud.html#copy-images">Google Cloud images</a> arrive
-      with every task's data already baked onto the disk, so a run starts
-      instantly with nothing to fetch. Since the reference then sits on the
-      machine for the whole run, it is baked as an encrypted archive
-      (<code>reference.7z</code>) that is unpacked only at grading, which is what
-      keeps it unreadable while the agent works.
-    </p>
+      with every task's data already on the disk, so a run starts with nothing to
+      fetch. The reference then sits on the machine all run, so it is baked as an
+      encrypted archive (<code>reference.7z</code>) unpacked only at grading.</li>
+      <li><strong>Local mount</strong> (<code>local:&lt;dir&gt;</code>) — for the
+      <a href="/pages/local-docker.html">local Docker</a> provider. The host holds
+      the data (fetched once from Hugging Face); the framework <code>docker&nbsp;cp</code>s
+      each task's input into the container before the agent and the reference in
+      after. No encryption is needed: the reference is simply never inside the
+      container while the agent runs — the same timing that hides it above.</li>
+    </ul>
 
     <h2>Grading</h2>
     <p>

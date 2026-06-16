@@ -6,6 +6,8 @@ Three sources today, dispatched on yaml ``artifacts_path.task_data_source``:
   ``"baked_in_sandbox"``     image already has input/ + reference.7z baked in
   ``"gs://<bucket>"``        rsync from a GCS bucket
   ``"hf://<dataset>"``       HuggingFace Hub (STUB)
+  ``"local:<host_dir>"``     docker cp from a HOST dir — for a data-less Docker
+                             image: input before the agent, reference before eval
 
 Each backend module exposes two coroutines:
 
@@ -44,9 +46,12 @@ def select(task_data_source: str):
     if task_data_source.startswith("hf://"):
         from . import huggingface
         return huggingface
+    if task_data_source.startswith("local:"):
+        from . import local_host
+        return local_host
     raise ValueError(
         f"unknown task_data_source {task_data_source!r}: expected "
-        f"'baked_in_sandbox', 'gs://<bucket>', or 'hf://<dataset>'"
+        f"'baked_in_sandbox', 'gs://<bucket>', 'hf://<dataset>', or 'local:<dir>'"
     )
 
 
