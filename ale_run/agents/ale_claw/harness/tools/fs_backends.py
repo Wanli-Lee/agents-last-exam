@@ -197,18 +197,17 @@ class MCPBackend(FilesystemBackend):
         *,
         append: bool,
     ) -> None:
-        if append:
-            # write_text overwrites; append goes through write_bytes(append=true).
-            b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
-            await self.runtime.call(
-                "vm", "write_bytes",
-                {"path": resolved_path, "content_b64": b64, "append": True},
-            )
-        else:
-            await self.runtime.call(
-                "vm", "write_text",
-                {"path": resolved_path, "content": content},
-            )
+        # Always route through write_bytes with explicit UTF-8 bytes. The MCP
+        # `write_text` primitive lets the VM-side cua-server pick the on-disk
+        # encoding, which on Windows is the ANSI/OEM code page (cp1252), not
+        # UTF-8 — so any non-ASCII char (em dash, smart quotes, emoji) lands as
+        # mojibake and breaks a downstream UTF-8 read (e.g. an evaluator's
+        # json.loads). write_bytes writes exactly the bytes we hand it.
+        b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
+        await self.runtime.call(
+            "vm", "write_bytes",
+            {"path": resolved_path, "content_b64": b64, "append": append},
+        )
 
     async def create_dir(self, resolved_path: str) -> None:
         # The bridge has no mkdir primitive (reducible to run_command, by design),
