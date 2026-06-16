@@ -70,6 +70,12 @@ class Image:
     docker provider (e.g. ``agentslastexam/ale-kasm:latest``). ``None`` for
     families that only exist as GCE images (ale-ubuntu22 / ale-win10)."""
 
+    docker_entrypoint: str = "/dockerstartup/vnc_startup.sh"
+    """Entrypoint the docker provider invokes (a container has no init, so the
+    image must start cua-server itself). Default is the Kasm base image's startup
+    script (ale-kasm); ale-ubuntu22-docker bakes its own at
+    ``/dockerstartup/entrypoint.sh``."""
+
     # ─── cua-server port (image-specific; consumed by Providers + Executors) ───
     cua_server_port: int = 5000
     """Port the cua-server listens on inside this image. ``ale-kasm`` runs the
