@@ -284,6 +284,7 @@ class AleClawDeployer(BaseAgentDeployer):
             context_files.append(ContextFile(path="TASK_MEMORY.md", content=bootstrap))
         instructions = PromptBuilder().build(
             tool_summaries=tool_summaries, context_files=context_files,
+            target_os=sb.os,
         )
         report = build_system_prompt_report(
             system_prompt=instructions, context_files=context_files,

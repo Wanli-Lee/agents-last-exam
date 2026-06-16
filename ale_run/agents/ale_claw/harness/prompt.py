@@ -45,6 +45,26 @@ _BOOTSTRAP_HEAD_RATIO = 0.7
 _BOOTSTRAP_TAIL_RATIO = 0.2
 
 
+def _os_display_label(target_os: str | None) -> str | None:
+    """Map a sandbox OS string to a display label for the identity line.
+
+    Accepts the same loose values as ``MCPComputerHandler`` (``sb.os``):
+    ``"windows"``/``"win..."``, ``"mac"``/``"darwin"``, ``"linux"``/etc.
+    Returns ``None`` when the OS is unknown, so callers fall back to the
+    generic wording rather than asserting a platform.
+    """
+    if not target_os:
+        return None
+    t = target_os.lower()
+    if t.startswith("win"):
+        return "Windows"
+    if t.startswith("mac") or t.startswith("darwin"):
+        return "macOS"
+    if t.startswith("lin") or t.startswith("posix") or "ubuntu" in t:
+        return "Linux"
+    return None
+
+
 def _trim_bootstrap_content(content: str, file_name: str, max_chars: int) -> str:
     """Trim a context file to ``max_chars`` using head/tail split with marker.
 
@@ -122,6 +142,7 @@ class PromptBuilder:
         *,
         tool_summaries: dict[str, str] | None = None,
         context_files: list[ContextFile] | None = None,
+        target_os: str | None = None,
     ) -> str:
         """Assemble all enabled sections into a single prompt string.
 
@@ -131,11 +152,14 @@ class PromptBuilder:
                 Memory Recall / Delegation subsections.
             context_files: Bootstrap files injected into the Project Context
                 section (AGENTS.md, optionally TASK_MEMORY.md).
+            target_os: Sandbox OS (``sb.os``) for the identity line. When
+                recognized, the identity names the concrete platform;
+                otherwise it falls back to the generic wording.
         """
         parts: list[str] = []
 
         if self.config.identity.enabled:
-            parts.extend(self._build_identity())
+            parts.extend(self._build_identity(target_os))
 
         if self.config.tools.enabled and tool_summaries:
             parts.extend(self._build_tools(tool_summaries))
@@ -161,14 +185,24 @@ class PromptBuilder:
 
         return "\n".join(parts)
 
-    def _build_identity(self) -> list[str]:
-        """Build the Identity section."""
+    def _build_identity(self, target_os: str | None = None) -> list[str]:
+        """Build the Identity section.
+
+        When ``target_os`` resolves to a known platform the identity names it
+        (e.g. "remote Windows desktop VM"); otherwise it stays generic.
+        """
+        label = _os_display_label(target_os)
+        desktop = (
+            f"remote {label} desktop VM"
+            if label
+            else "remote desktop VM (Windows or Linux)"
+        )
         return [
             "## Identity",
             "",
             (
                 "You are an AI agent running inside the AgentHLE benchmark framework. "
-                "Your role is to complete computer-use tasks on a remote Windows desktop "
+                f"Your role is to complete computer-use tasks on a {desktop} "
                 "by observing screenshots and performing mouse/keyboard actions."
             ),
             "",
@@ -506,7 +540,7 @@ def build_system_prompt_report(
         for cf in context_files:
             raw_content = getattr(cf, "content", "")
             raw_chars = len(raw_content) if raw_content else 0
-            name = getattr(cf, "name", str(cf))
+            name = getattr(cf, "path", str(cf))
 
             # Measure how many chars actually appear in the prompt
             if raw_content and raw_content in system_prompt:
