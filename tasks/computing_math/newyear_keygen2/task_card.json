@@ -31,7 +31,7 @@
   ],
   "evaluation": "**Hard gate conditions** (auto score=0 if triggered):\n- missing output file\n- more than one non-empty output line\n- candidate does not equal the password for the evaluation-time UTC half-hour slot\n\n**Scoring method:**\n- evaluator recomputes the password from fixed UID `20252025`\n- it uses the current UTC timestamp rounded down to a multiple of `1800`\n- exact match yields `1.0`, otherwise `0.0`\n\n- **Where does the main scoring logic run?** local task Python\n- **If any scoring step runs on the VM, why is that exception necessary?** not needed\n\n**What does a PERFECT output look like?**\n- one exact `flag{...}` line for the current slot\n\n**What does a WRONG/empty output look like?**\n- missing file, multiple lines, or wrong slot-derived password yields `0.0`",
   "vm": {
-    "machineType": "c4-standard-4",
+    "machineType": "c4-highmem-4",
     "snapshot": "cpu-free",
     "timeout": 7200
   },

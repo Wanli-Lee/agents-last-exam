@@ -90,7 +90,7 @@
   ],
   "evaluation": "**Scoring method:** weighted aggregate from the benchmark-owned verifier in `scripts/score_outputs.py`.\n\nScore components:\n- schema compliance: 5%\n- metadata accuracy: 5%\n- financial figure accuracy: 30%\n- ANLS raw-text verification: 10%\n- analytical QA: 25%\n- cross-validation consistency: 10%\n- completeness: 5%\n- deterministic rerun on the fixed validation subset: 10%\n\n**Score behavior:** there is no binary all-or-nothing file gate, but the verifier applies an ANLS threshold of `0.6` per filing. If a filing's raw-text evidence falls below that threshold, schema, metadata, financial, and cross-validation credit for that filing are all zeroed before aggregation. The scorer payload reports `passing_threshold = 0.75`.\n\n**Key checks:**\n- extraction JSON shape and required fields\n- filing metadata and financial values against the benchmark reference set\n- raw extraction text quality via ANLS comparison\n- cross-validation against benchmark-owned per-filing expectations, not a universal accounting-equation rule\n- correctness of the three analytical answers\n- completeness across the full corpus\n- field-by-field agreement between the first pass and the fixed validation-subset rerun\n\nA correct end-to-end output scores `1.0`. The committed negative fixture is a plausible partial/wrong submission and scores `0.0005` in the current verifier.",
   "vm": {
-    "machineType": "c4-standard-4",
+    "machineType": "c4-highmem-4",
     "snapshot": "cpu-free-ubuntu",
     "timeout": 7200
   },

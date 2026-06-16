@@ -38,7 +38,7 @@
   ],
   "evaluation": "- Two 50-point components: remote PDF file verification against `reference/file_manifest.json` and sampled workbook verification against `reference/data_samples.json`\n- File score: `max(0, 50 - 5 * wrong_files)` after size screening plus remote MD5 hashing\n- Data score: `max(0, 50 - 5 * wrong_samples)` with numeric tolerance `< 0.01` and exact string matching after strip\n- Final score: `(file_score + data_score) / 100.0`\n- Current Stage 3 replay results: isolated positive fixture `0.5`, isolated negative fixture `0.0`",
   "vm": {
-    "machineType": "c4-standard-4",
+    "machineType": "c4-highmem-4",
     "snapshot": "cpu-free",
     "timeout": 7200
   },
