@@ -292,10 +292,12 @@ def _build_artifacts(raw: dict[str, Any]) -> ArtifactsSpec:
     tdp = str(task_data_source).strip()
     if (tdp not in _VALID_TASK_DATA_LITERALS
             and not tdp.startswith("gs://")
-            and not tdp.startswith("hf://")):
+            and not tdp.startswith("hf://")
+            and not tdp.startswith("local:")):
         raise ValueError(
             f"artifacts_path.task_data_source must be 'baked_in_sandbox', "
-            f"'gs://<bucket>', or 'hf://<dataset>'; got {task_data_source!r}"
+            f"'gs://<bucket>', 'hf://<dataset>', or 'local:<dir>'; "
+            f"got {task_data_source!r}"
         )
 
     return ArtifactsSpec(
