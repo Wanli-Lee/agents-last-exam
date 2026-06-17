@@ -4,7 +4,9 @@
 # itself). Trailing args are ignored. Reproduces what the VM's systemd units did:
 #   1. nested Docker (DinD) for evals that run `docker` in the sandbox — optional
 #   2. virtual X on :0 (cua-server uses pynput / python-xlib)
-#   3. exec cua-computer-server on port 5000 as PID 1
+#   3. optional XFCE desktop + cua-computer-server on :5000 (PID 1), sharing one
+#      session D-Bus (the VM's gdm/GNOME isn't started in a container;
+#      ALE_DESKTOP=0 skips the desktop)
 set -u
 
 export HOME=/home/user
@@ -85,6 +87,35 @@ for _ in $(seq 1 50); do
   sleep 0.2
 done
 
-# --- 3. cua-computer-server on :5000 (exec as PID 1) -------------------------
+# --- 3. cua-computer-server on :5000 (+ optional XFCE desktop) ---------------
+# A container has no display manager, so the VM's gdm/GNOME desktop isn't
+# started; a bare Xvfb has no window manager (no focus/raise/switch, no panel —
+# a black screen until an app draws). With ALE_DESKTOP on, bring up a lightweight
+# XFCE session (xfwm4 + panel + desktop; needs a session D-Bus but NOT
+# systemd-logind, so it starts cleanly, unlike GNOME).
+#
+# Critically: XFCE and cua-server share ONE session bus. We start it with
+# dbus-launch and export DBUS_SESSION_BUS_ADDRESS *before* exec'ing cua-server,
+# so cua-server, its /cmd child shells, and any apps the agent launches all
+# inherit it — xfconf/dconf/notifications/a11y then work instead of warning.
+# cua-server stays PID 1 (clean signals / health checks). machine-id is baked at
+# build (cleanup.sh) so dbus has a valid id here.
 cd /opt/cua-server 2>/dev/null || cd /
+if [ "${ALE_DESKTOP:-1}" = "1" ] && command -v startxfce4 >/dev/null 2>&1; then
+  export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/xdg-$(id -u)}"
+  mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR" 2>/dev/null || true
+  if command -v dbus-launch >/dev/null 2>&1; then
+    eval "$(dbus-launch --sh-syntax)"
+    export DBUS_SESSION_BUS_ADDRESS
+  fi
+  # bring the desktop up in the background (on this same session bus), then drop
+  # the compositor (no GPU under Xvfb). cua-server is exec'd below regardless.
+  ( startxfce4 >/tmp/xfce.log 2>&1 &
+    for _ in $(seq 1 40); do
+      xdotool search --class xfdesktop >/dev/null 2>&1 && break
+      sleep 0.5
+    done
+    xfconf-query -c xfwm4 -p /general/use_compositing -s false 2>/dev/null || true
+  ) &
+fi
 exec /opt/cua-server/.venv/bin/python -m computer_server --port 5000

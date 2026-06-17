@@ -7,6 +7,25 @@ set -u
 # --- entrypoint (cua-server on :5000 behind Xvfb :0) ---
 chmod +x /dockerstartup/entrypoint.sh
 
+# --- desktop: install XFCE so the container has a real window manager + panel.
+#     The VM brings its desktop up via gdm/GNOME under systemd; a container has
+#     neither, so without a WM the Xvfb display is a bare (black) root window with
+#     no window management. XFCE is X11-only and needs no systemd-logind, so the
+#     entrypoint can start it directly. Baked here (not in the entrypoint) so it
+#     is installed once, not on every per-task container start. ---
+export DEBIAN_FRONTEND=noninteractive
+if ! command -v startxfce4 >/dev/null 2>&1; then
+  # the rootfs export drops /var/cache and /var/log; recreate apt's dirs or it
+  # errors ("archives/partial is missing", "/var/log/apt/ missing").
+  mkdir -p /var/cache/apt/archives/partial /var/lib/apt/lists/partial /var/log/apt
+  apt-get update -qq \
+  && apt-get install -y --no-install-recommends \
+       xfce4-session xfwm4 xfce4-panel xfdesktop4 xfce4-settings xfconf \
+       xfce4-terminal dbus-x11 x11-xserver-utils \
+  && apt-get clean && rm -rf /var/lib/apt/lists/* \
+  || echo "WARN: XFCE install failed (desktop will fall back to bare Xvfb)"
+fi
+
 # --- dirs excluded from the rootfs tar that the runtime needs back, with the
 #     sticky perms docker would otherwise recreate them as root:0755 ---
 mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
@@ -23,8 +42,13 @@ mkdir -p /media/user/data/agenthle && chown -R user:user /media/user/data
 : > /etc/fstab                 2>/dev/null || true   # no VM disks to mount
 rm -f /etc/netplan/*.yaml      2>/dev/null || true   # docker manages networking
 rm -f /etc/ssh/ssh_host_*      2>/dev/null || true   # regen on first sshd start
-: > /etc/machine-id            2>/dev/null || true   # regenerated on boot
-rm -f /var/lib/dbus/machine-id 2>/dev/null || true
+# machine-id: on the VM systemd regenerates this at boot, but a container has no
+# systemd — an empty/missing id makes D-Bus/dconf/desktop apps warn or misbehave.
+# Bake a fresh valid one now (dbus-uuidgen, no systemd needed) + the dbus symlink.
+# rm first: `--ensure` only creates when ABSENT (it won't replace an empty file).
+rm -f /etc/machine-id /var/lib/dbus/machine-id
+dbus-uuidgen --ensure=/etc/machine-id
+mkdir -p /var/lib/dbus && ln -sf /etc/machine-id /var/lib/dbus/machine-id
 rm -rf /var/lib/cloud          2>/dev/null || true   # cloud-init state, if any
 
 # --- drop baked GCS/gcloud credentials. The docker provider re-injects a fresh
@@ -52,6 +76,7 @@ for p in /usr/local/bin/node \
   if [ -e "$p" ]; then echo "OK   $p"; else echo "MISS $p"; fail=1; fi
 done
 command -v Xvfb >/dev/null && echo "OK   Xvfb" || { echo "MISS Xvfb"; fail=1; }
+command -v startxfce4 >/dev/null && echo "OK   startxfce4 (XFCE desktop)" || echo "WARN startxfce4 missing (bare Xvfb, no WM)"
 /opt/cua-server/.venv/bin/python -c "import computer_server" 2>/dev/null \
   && echo "OK   computer_server importable" \
   || echo "WARN computer_server import failed without X (expected; entrypoint starts Xvfb)"
