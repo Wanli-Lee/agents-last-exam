@@ -67,27 +67,24 @@ output_path: local</code></pre>
       as a host cap.
     </p>
     <p>
-      Point the run's task list at <code>selected_tasks/linux_no_dind.txt</code> —
-      the 101 Linux tasks this image supports. The 4 tasks that need
-      Docker-in-Docker are excluded (see below).
+      Point the run's task list at <code>selected_tasks/docker_support.txt</code> —
+      the 99 Linux tasks this image currently supports. Unsupported tasks are
+      excluded (see below).
     </p>
 
-    <h2 id="unsupported">Unsupported: tasks that need Docker inside the sandbox</h2>
+    <h2 id="unsupported">Unsupported tasks</h2>
     <p>
-      Four tasks have their agent (and grader) run <code>docker</code> <em>inside</em>
-      the sandbox — Docker-in-Docker, which this provider does not enable, so an
-      agent <strong>cannot complete them</strong> here. They are excluded from the
-      Docker task list:
+      These tasks are not in <code>selected_tasks/docker_support.txt</code> because
+      they require nested container/runtime behavior that is not supported by the
+      current local Docker provider.
     </p>
     <ul>
-      <li><code>engineering/openroad_sky130_ibex_pnr_signoff</code> — runs the
-      pinned <code>openroad/orfs</code> flow via <code>docker run</code>.</li>
-      <li><code>computing_math/k8s_migration_1</code> —
-      <code>minikube start --driver=docker</code> + <code>kubectl</code>.</li>
-      <li><code>business_finance/bpmn_category_governance_restructuring_l3</code> —
-      <code>docker compose</code> brings up the Flowable stack.</li>
-      <li><code>business_finance/bpmn_supply_disruption_l3</code> —
-      <code>docker compose</code> brings up the Flowable stack.</li>
+      <li><code>business_finance/bpmn_category_governance_restructuring_l3</code></li>
+      <li><code>business_finance/bpmn_supply_disruption_l3</code></li>
+      <li><code>computing_math/k8s_migration_1</code></li>
+      <li><code>engineering/openroad_sky130_ibex_pnr_signoff</code></li>
+      <li><code>health_medicine/scene3_skullstrip_qc</code></li>
+      <li><code>psychology_neuro/scene2_resample</code></li>
     </ul>
   </article>
 
