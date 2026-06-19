@@ -29,7 +29,7 @@ from dataclasses import dataclass
 
 import cua_bench as cb
 
-from tasks.linux_runtime import LinuxTaskConfig
+from tasks.linux_runtime import LinuxTaskConfig, set_desktop_wallpaper
 
 logger = logging.getLogger(__name__)
 
@@ -119,18 +119,10 @@ async def start(task_cfg, session: cb.DesktopSession):
     if r["return_code"] != 0:
         raise RuntimeError(f"[seecheck] render failed: {(r.get('stderr') or '')[:300]}")
 
-    set_wp = (
-        'U=$(id -u user); export DISPLAY=:0 '
-        'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$U/bus; '
-        "gsettings set org.gnome.desktop.background picture-uri ''; "
-        'gsettings set org.gnome.desktop.background picture-options scaled; '
-        f"gsettings set org.gnome.desktop.background picture-uri 'file://{image_path}'; "
-        f"gsettings set org.gnome.desktop.background picture-uri-dark 'file://{image_path}'; "
-        'sleep 1'
-    )
-    r = await session.run_command(set_wp, check=False)
-    if r["return_code"] != 0:
-        raise RuntimeError(f"[seecheck] set wallpaper failed: {(r.get('stderr') or '')[:300]}")
+    # Paint it on whichever desktop is live — GNOME on the VM, XFCE in the
+    # docker container. (The old bare gsettings call only worked on GNOME; the
+    # helper also drives XFCE's xfconf and uses the inherited session bus.)
+    await set_desktop_wallpaper(session, image_path)
 
     logger.info("[seecheck] painted SCREEN CODE %s onto the wallpaper", code)
 
