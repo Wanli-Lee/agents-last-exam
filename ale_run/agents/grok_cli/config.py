@@ -123,6 +123,18 @@ class GrokCliConfig:
         GROK_API_KEY. Requires GROK_API_KEY.
     Missing the required key for the chosen provider is a hard error."""
 
+    base_url: str | None = None
+    """Custom OpenAI-compatible base URL (``GROK_BASE_URL``). ``None`` ⇒
+    OpenRouter default for ``openrouter``, or xAI's native endpoint for
+    ``direct``. Set to point grok-cli at any OpenAI-compatible gateway."""
+
+    api_key: str | None = None
+    """Literal API key, used in place of the provider's env-var key (becomes
+    ``GROK_API_KEY``). ``None`` ⇒ read OPENROUTER_API_KEY (openrouter) or
+    GROK_API_KEY (direct) from the env. When set (``api_key: ${env:...}`` in the
+    agent yaml), it travels with the serialized config — no env passthrough
+    whitelist change and no collision with a real shell key."""
+
     # agenthle grok_cli_openrouter.yaml: max_tool_rounds: -1 (≡ unlimited;
     # the deployer maps -1 → 100_000 because grok-cli's loop has no native
     # "no cap" mode). Direct grok_cli.yaml uses 400.

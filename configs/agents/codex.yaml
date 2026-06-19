@@ -18,6 +18,19 @@ config:
   # "direct": direct OpenAI via OPENAI_API_KEY.
   provider: openrouter
 
+  # Custom OpenAI-compatible gateway base URL for the openrouter routing path
+  # (codex speaks the Responses API wire). null = OpenRouter default
+  # (https://openrouter.ai/api/v1). e.g. Volcengine Ark:
+  # https://ark.cn-beijing.volces.com/api/v3
+  base_url: null
+
+  # Literal API key for base_url, carried via config (use `api_key: ${env:YOUR_KEY}`,
+  # resolved host-side → travels with the serialized config, no env-passthrough
+  # whitelist change, no clash with a real OPENROUTER_API_KEY). null = read
+  # OPENROUTER_API_KEY from the env. When set, written as the provider's
+  # experimental_bearer_token.
+  api_key: null
+
   # Codex sandbox policy. danger-full-access is the only meaningful option for
   # headless eval on an already-isolated VM.
   sandbox_mode: danger-full-access

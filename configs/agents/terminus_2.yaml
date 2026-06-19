@@ -25,8 +25,16 @@ config:
   # Record the tmux/terminal session (asciinema) for replay.
   record_terminal_session: true
 
-  # Custom LiteLLM api_base override. null = use the provider default.
-  api_base: null
+  # Custom OpenAI-compatible base URL (LiteLLM --api-base + OPENROUTER_BASE_URL).
+  # null = use the provider default. (Renamed from api_base for cross-harness
+  # consistency.)
+  base_url: null
+
+  # Literal API key for base_url, carried via config (use `api_key: ${env:YOUR_KEY}`,
+  # resolved host-side → travels with the serialized config, no env-passthrough
+  # whitelist change, no clash with a real shell key). null = read the provider's
+  # env var (OPENROUTER_API_KEY, or the vendor key for direct).
+  api_key: null
 
   # Sampling temperature.
   temperature: 0.7

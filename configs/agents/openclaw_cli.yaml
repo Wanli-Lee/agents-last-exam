@@ -18,6 +18,20 @@ config:
   # Routing: "openrouter" (default) or "direct" (provider picked by model vendor).
   provider: openrouter
 
+  # Custom OpenAI-compatible base URL → written to openclaw.json
+  # models.providers.<provider>.baseUrl (+ a model catalog entry). null = the
+  # provider's built-in default. For an OpenAI-compatible gateway like Volcengine
+  # Ark, use provider=direct + model: openai/<id> + base_url:
+  # https://ark.cn-beijing.volces.com/api/v3 (the openai provider sends the bare
+  # model id; the openrouter provider would keep an openrouter/ prefix Ark rejects).
+  base_url: null
+
+  # Literal API key for base_url, carried via config (use `api_key: ${env:YOUR_KEY}`,
+  # resolved host-side → travels with the serialized config, no env-passthrough
+  # whitelist change, no clash with a real OPENROUTER_API_KEY). null = read the
+  # provider's env var. When set, used directly in auth-profiles.json.
+  api_key: null
+
   # OpenClaw's OWN internal run budget (openclaw.json timeoutSeconds +
   # `agent --local --timeout <s>`). Distinct from the orchestration episode budget.
   agent_timeout_s: 600

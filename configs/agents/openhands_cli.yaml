@@ -20,6 +20,16 @@ config:
   # openrouter, key=OPENROUTER_API_KEY. "direct": model as-is, key=ANTHROPIC_API_KEY.
   provider: openrouter
 
+  # Custom OpenAI-compatible base URL (LLM_BASE_URL). null = OpenRouter default
+  # (https://openrouter.ai/api/v1) for openrouter, none for direct.
+  base_url: null
+
+  # Literal API key for base_url (LLM_API_KEY), carried via config (use
+  # `api_key: ${env:YOUR_KEY}`, resolved host-side → travels with the serialized
+  # config, no env-passthrough whitelist change, no clash with a real shell key).
+  # null = read OPENROUTER_API_KEY (openrouter) or ANTHROPIC_API_KEY (direct).
+  api_key: null
+
   # openhands pip package version to install.
   cli_version: "1.16.0"
 

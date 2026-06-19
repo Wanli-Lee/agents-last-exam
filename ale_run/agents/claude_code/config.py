@@ -81,6 +81,15 @@ class ClaudeCodeConfig:
     """Custom Anthropic-compatible base URL. Overrides the provider's
     default ``ANTHROPIC_BASE_URL``."""
 
+    api_key: str | None = None
+    """Literal API key, used in place of the provider's env-var key. ``None`` ⇒
+    read from the env (OPENROUTER_API_KEY for ``openrouter``, ANTHROPIC_API_KEY
+    for ``direct``). When set (typically ``api_key: ${env:...}`` in the agent
+    yaml, resolved host-side), it travels with the serialized config — no env
+    passthrough whitelist change needed and no collision with a real shell key.
+    For ``openrouter`` it becomes ANTHROPIC_AUTH_TOKEN; for ``direct``,
+    ANTHROPIC_API_KEY."""
+
     # ---- CLI knobs ----
     max_budget_usd: float | None = None
     disabled_tools: tuple[str, ...] = _DISABLED_TOOLS

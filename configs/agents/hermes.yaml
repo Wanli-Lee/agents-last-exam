@@ -16,6 +16,17 @@ config:
   # Provider routing (defaults to openrouter).
   provider: openrouter
 
+  # Custom OpenAI-compatible base URL (written to ~/.hermes/.env OPENROUTER_BASE_URL
+  # + the hermes config yaml model.base_url). null = OpenRouter default
+  # (https://openrouter.ai/api/v1).
+  base_url: null
+
+  # Literal API key for base_url, carried via config (use `api_key: ${env:YOUR_KEY}`,
+  # resolved host-side → travels with the serialized config, no env-passthrough
+  # whitelist change, no clash with a real OPENROUTER_API_KEY). null = read
+  # OPENROUTER_API_KEY from the env.
+  api_key: null
+
   # Turn cap. -1 = unlimited (project-wide convention). Hermes has no native
   # unlimited sentinel, so the deployer translates -1 → 100000 internally.
   max_turns: -1

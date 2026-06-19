@@ -45,6 +45,18 @@ class OpenHandsCliConfig:
         ANTHROPIC_API_KEY.
     Missing the required key for the chosen provider is a hard error."""
 
+    base_url: str | None = None
+    """Custom OpenAI-compatible base URL (``LLM_BASE_URL``). ``None`` ⇒
+    OpenRouter default for ``openrouter``, none for ``direct``. Set to point
+    LiteLLM at any OpenAI-compatible gateway."""
+
+    api_key: str | None = None
+    """Literal API key (``LLM_API_KEY``), used in place of the provider's
+    env-var key. ``None`` ⇒ read OPENROUTER_API_KEY (openrouter) or
+    ANTHROPIC_API_KEY (direct) from the env. When set (``api_key: ${env:...}``
+    in the agent yaml), it travels with the serialized config — no env
+    passthrough whitelist change and no collision with a real shell key."""
+
     cli_version: str = "1.16.0"
     """Version of the ``openhands`` pip package to install."""
 

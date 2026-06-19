@@ -21,6 +21,13 @@ config:
   # Custom Anthropic-compatible base URL; overrides the provider's default. null = use provider default.
   base_url: null
 
+  # Literal API key, carried via config (use `api_key: ${env:YOUR_KEY}`, resolved
+  # host-side → travels with the serialized config, no env-passthrough whitelist
+  # change, no clash with a real shell key). null = read the provider's env var
+  # (OPENROUTER_API_KEY for openrouter, ANTHROPIC_API_KEY for direct). For
+  # openrouter it becomes ANTHROPIC_AUTH_TOKEN; for direct, ANTHROPIC_API_KEY.
+  api_key: null
+
   # Run-loop ceiling. -1 ≡ unlimited (deployer omits --max-turns when < 0).
   max_turns: -1
 

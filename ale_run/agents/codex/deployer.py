@@ -394,12 +394,25 @@ class CodexDeployer(BaseAgentDeployer):
 
         # OpenRouter provider block
         if is_openrouter:
+            # base_url override lets the openrouter routing path point at any
+            # OpenAI-compatible gateway that speaks the Responses API (this
+            # codex build dropped the chat wire), e.g. Volcengine Ark
+            # (https://ark.cn-beijing.volces.com/api/v3). Default = OpenRouter.
+            or_base = cfg.base_url or "https://openrouter.ai/api/v1"
             config_toml += (
                 "\n[model_providers.openrouter]\n"
                 'name = "openrouter"\n'
-                'base_url = "https://openrouter.ai/api/v1"\n'
-                'env_key = "OPENROUTER_API_KEY"\n'
+                f'base_url = "{or_base}"\n'
             )
+            # Key source: a literal cfg.api_key (travels with the serialized
+            # config — typically `api_key: ${env:ARK_API_KEY}` in the agent
+            # yaml, so no extra env passthrough is needed) is written as the
+            # provider's experimental_bearer_token; otherwise fall back to the
+            # OPENROUTER_API_KEY env var.
+            if cfg.api_key:
+                config_toml += f'experimental_bearer_token = "{cfg.api_key}"\n'
+            else:
+                config_toml += 'env_key = "OPENROUTER_API_KEY"\n'
 
         # Feature overrides → codex [features] map (== tool surface). Each entry
         # force-enables (true) or force-disables (false) a codex feature; an
@@ -570,9 +583,11 @@ class CodexDeployer(BaseAgentDeployer):
         # Provider-driven routing (explicit, not model-name heuristic).
         if cfg.provider == "openrouter":
             # OpenRouter: needs OPENROUTER_API_KEY, clear OPENAI_API_KEY
-            # to avoid confusion
+            # to avoid confusion. When a literal cfg.api_key is supplied (e.g.
+            # for an Ark base_url override) the key travels in config.toml as
+            # experimental_bearer_token, so OPENROUTER_API_KEY is not required.
             or_key = env.get("OPENROUTER_API_KEY", "")
-            if not or_key:
+            if not or_key and not cfg.api_key:
                 raise RuntimeError(
                     "codex: provider=openrouter but OPENROUTER_API_KEY is "
                     "not set. Export it or pass it via executor env before "

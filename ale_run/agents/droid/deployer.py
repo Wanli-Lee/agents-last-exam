@@ -169,18 +169,21 @@ class DroidDeployer(BaseAgentDeployer):
         for k, v in (self.executor.env or {}).items():
             if k == "OPENROUTER_API_KEY":
                 or_key = v
-        if not or_key:
+        # A literal cfg.api_key (travels with the serialized config) takes
+        # precedence and avoids env collisions.
+        api_key = cfg.api_key or or_key
+        if not api_key:
             raise RuntimeError(
-                "DroidDeployer: OPENROUTER_API_KEY is not set. "
-                "Export it or pass it via executor env before install()."
+                "DroidDeployer: neither config api_key nor OPENROUTER_API_KEY "
+                "is set. Set one before install()."
             )
         settings = {
             "customModels": [
                 {
                     "model": cfg.model,
                     "displayName": f"{cfg.model} [OpenRouter]",
-                    "baseUrl": "https://openrouter.ai/api/v1",
-                    "apiKey": or_key,
+                    "baseUrl": cfg.base_url or "https://openrouter.ai/api/v1",
+                    "apiKey": api_key,
                     "provider": cfg.byok_provider,
                     "maxOutputTokens": cfg.max_output_tokens,
                 },
