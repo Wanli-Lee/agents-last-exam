@@ -226,25 +226,27 @@ class OpenHandsCliDeployer(BaseAgentDeployer):
 
         # Provider-driven routing (explicit, not a model-name heuristic).
         if cfg.provider == "openrouter":
-            api_key = or_key
+            # A literal cfg.api_key (travels with the serialized config) takes
+            # precedence over OPENROUTER_API_KEY and avoids env collisions.
+            api_key = cfg.api_key or or_key
             if not api_key:
                 raise RuntimeError(
-                    "openhands_cli: provider=openrouter but OPENROUTER_API_KEY "
-                    "is not set"
+                    "openhands_cli: provider=openrouter but neither config "
+                    "api_key nor OPENROUTER_API_KEY is set"
                 )
-            base_url = "https://openrouter.ai/api/v1"
+            base_url = cfg.base_url or "https://openrouter.ai/api/v1"
             # LiteLLM routes via OpenRouter only when the model id carries
             # the ``openrouter/`` prefix; add it if the operator left a bare
             # model name.
             model = cfg.model if cfg.model.startswith("openrouter/") else f"openrouter/{cfg.model}"
         elif cfg.provider == "direct":
-            api_key = anthropic_key
+            api_key = cfg.api_key or anthropic_key
             if not api_key:
                 raise RuntimeError(
-                    "openhands_cli: provider=direct but ANTHROPIC_API_KEY is "
-                    "not set"
+                    "openhands_cli: provider=direct but neither config api_key "
+                    "nor ANTHROPIC_API_KEY is set"
                 )
-            base_url = ""
+            base_url = cfg.base_url or ""
             model = cfg.model
         else:
             raise RuntimeError(

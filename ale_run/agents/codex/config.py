@@ -76,6 +76,24 @@ class CodexConfig:
         Requires OPENAI_API_KEY.
     Missing the required key for the chosen provider is a hard error."""
 
+    base_url: str | None = None
+    """Custom OpenAI-compatible gateway base URL for the ``openrouter`` routing
+    path. ``None`` ⇒ OpenRouter default (``https://openrouter.ai/api/v1``). Set
+    to any Responses-API-capable gateway to route there instead — this codex
+    build speaks the Responses API only, so the gateway must expose
+    ``<base_url>/responses``. For Volcengine Ark use
+    ``https://ark.cn-beijing.volces.com/api/v3`` and an Ark ``ep-...`` endpoint
+    id as ``model``."""
+
+    api_key: str | None = None
+    """Literal API key for the ``base_url`` gateway. ``None`` ⇒ the key is read
+    in-sandbox from ``OPENROUTER_API_KEY``. When set (typically via
+    ``api_key: ${env:ARK_API_KEY}`` in the agent yaml, resolved host-side), it
+    is written into config.toml as the provider's ``experimental_bearer_token``
+    so the secret travels with the serialized config — no env passthrough
+    whitelist change needed, and it does not collide with a real
+    OPENROUTER_API_KEY in the shell env."""
+
     # Codex sandbox policy: "danger-full-access" is the only meaningful
     # option for headless eval on an already-isolated VM.
     sandbox_mode: str = "danger-full-access"

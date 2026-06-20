@@ -80,6 +80,23 @@ class OpenClawCliConfig:
         env so it cannot override the chosen direct provider.
     Missing the required key for the chosen provider is a hard error."""
 
+    base_url: str | None = None
+    """Custom OpenAI-compatible base URL for the resolved provider, written
+    into openclaw.json as ``models.providers.<provider>.baseUrl``. ``None`` ⇒
+    the provider's built-in default endpoint. With ``provider: openrouter`` set
+    to ``https://ark.cn-beijing.volces.com/api/v3`` this routes the (chat-
+    completions) openrouter path at Volcengine Ark — Ark's chat/completions API
+    is fully OpenAI-compatible, unlike its stricter Responses API. The model is
+    the gateway's id (e.g. an Ark ``ep-...`` endpoint)."""
+
+    api_key: str | None = None
+    """Literal API key for the ``base_url`` gateway. ``None`` ⇒ the key is read
+    from the provider's env var (e.g. OPENROUTER_API_KEY). When set (typically
+    via ``api_key: ${env:ARK_API_KEY}`` in the agent yaml, resolved host-side),
+    it is used directly in auth-profiles.json — so the secret travels with the
+    serialized config, needs no env-passthrough whitelist change, and does not
+    collide with a real OPENROUTER_API_KEY in the shell env."""
+
     # OpenClaw's OWN internal run budget, written into openclaw.json
     # (``timeoutSeconds``) and passed as ``agent --local --timeout <s>``.
     # This is an agent-consumed knob (the CLI enforces it itself), distinct

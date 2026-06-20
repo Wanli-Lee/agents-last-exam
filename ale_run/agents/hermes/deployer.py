@@ -215,10 +215,13 @@ class HermesDeployer(BaseAgentDeployer):
         for k, v in (self.executor.env or {}).items():
             if k == "OPENROUTER_API_KEY":
                 or_key = v
+        # A literal cfg.api_key (travels with the serialized config) takes
+        # precedence and avoids env collisions.
+        or_key = cfg.api_key or or_key
         if not or_key and cfg.provider == "openrouter":
             raise RuntimeError(
-                "HermesDeployer: OPENROUTER_API_KEY is not set. "
-                "Export it or pass it via executor env before install()."
+                "HermesDeployer: neither config api_key nor OPENROUTER_API_KEY "
+                "is set. Set one before install()."
             )
 
         env_lines = [
@@ -232,7 +235,9 @@ class HermesDeployer(BaseAgentDeployer):
         ]
         if or_key:
             env_lines.append(f"OPENROUTER_API_KEY={or_key}")
-        env_lines.append("OPENROUTER_BASE_URL=https://openrouter.ai/api/v1")
+        env_lines.append(
+            f"OPENROUTER_BASE_URL={cfg.base_url or 'https://openrouter.ai/api/v1'}"
+        )
         env_content = "\n".join(env_lines) + "\n"
 
         env_path = Path(hermes_home) / ".env"
@@ -384,7 +389,9 @@ class HermesDeployer(BaseAgentDeployer):
             "hooks_auto_accept": True,
         }
 
-        if cfg.provider == "openrouter":
+        if cfg.base_url:
+            config["model"]["base_url"] = cfg.base_url
+        elif cfg.provider == "openrouter":
             config["model"]["base_url"] = "https://openrouter.ai/api/v1"
 
         return yaml.safe_dump(config, sort_keys=False, allow_unicode=True)

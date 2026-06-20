@@ -55,7 +55,20 @@ class Terminus2Config:
 
     # Agent-specific knobs (mapped onto harbor-terminus2 CLI flags).
     record_terminal_session: bool = True
-    api_base: str | None = None
+
+    base_url: str | None = None
+    """Custom OpenAI-compatible base URL (passed as LiteLLM ``--api-base`` and,
+    for ``openrouter``, as OPENROUTER_BASE_URL). ``None`` ⇒ OpenRouter default
+    for ``openrouter``, none for ``direct``. (Renamed from ``api_base`` for
+    cross-harness consistency.)"""
+
+    api_key: str | None = None
+    """Literal API key, used in place of the provider's env-var key. ``None`` ⇒
+    read OPENROUTER_API_KEY (openrouter) or the vendor key (direct) from the env.
+    When set (``api_key: ${env:...}`` in the agent yaml), it travels with the
+    serialized config — no env passthrough whitelist change and no collision
+    with a real shell key."""
+
     temperature: float = 0.7
 
     @property

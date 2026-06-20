@@ -265,11 +265,14 @@ class OpenClawCliDeployer(BaseAgentDeployer):
             return env.get(name) or os.environ.get(name, "")
 
         if cfg.provider == "openrouter":
-            api_key = _key("OPENROUTER_API_KEY")
+            # A literal cfg.api_key (e.g. api_key: ${env:ARK_API_KEY}) travels
+            # with the serialized config and takes precedence, so it does not
+            # require — or collide with — a real OPENROUTER_API_KEY env var.
+            api_key = cfg.api_key or _key("OPENROUTER_API_KEY")
             if not api_key:
                 raise RuntimeError(
-                    "openclaw_cli: provider=openrouter but OPENROUTER_API_KEY "
-                    "is not set. Export it or pass it via executor env before "
+                    "openclaw_cli: provider=openrouter but neither config "
+                    "api_key nor OPENROUTER_API_KEY is set. Set one before "
                     "launch()."
                 )
             return "openrouter", api_key
@@ -277,12 +280,15 @@ class OpenClawCliDeployer(BaseAgentDeployer):
         if cfg.provider == "direct":
             provider = self._direct_provider_for_model(cfg.model)
             key_var = "OPENAI_API_KEY" if provider == "openai" else "ANTHROPIC_API_KEY"
-            api_key = _key(key_var)
+            # A literal cfg.api_key (e.g. api_key: ${env:ARK_API_KEY}) takes
+            # precedence — lets an OpenAI-compatible gateway (model prefixed
+            # ``openai/...`` + base_url) authenticate without the native env var.
+            api_key = cfg.api_key or _key(key_var)
             if not api_key:
                 raise RuntimeError(
                     f"openclaw_cli: provider=direct resolved to {provider!r} "
-                    f"for model {cfg.model!r} but {key_var} is not set. Export "
-                    "it or pass it via executor env before launch()."
+                    f"for model {cfg.model!r} but neither config api_key nor "
+                    f"{key_var} is set. Set one before launch()."
                 )
             return provider, api_key
 
@@ -376,6 +382,30 @@ class OpenClawCliDeployer(BaseAgentDeployer):
                     vision_entry = {"provider": provider, "model": vm}
             oc_config["tools"]["media"] = {
                 "image": {"models": [vision_entry]},
+            }
+        # Custom OpenAI-compatible endpoint for the resolved provider. openclaw
+        # reads ``models.providers.<id>.baseUrl`` to override a provider's
+        # built-in endpoint — used to point the (chat-completions) openrouter
+        # path at Volcengine Ark's /api/v3 gateway. The provider config schema
+        # also requires a non-empty ``models`` array declaring each usable model
+        # id (bare, no provider prefix); openclaw surfaces them as
+        # ``<provider>/<id>``. We register the primary (and vision) model ids.
+        if cfg.base_url:
+            def _bare(m: str) -> str:
+                head, sep, tail = m.partition("/")
+                return tail if sep and head == provider else m
+            catalog_ids: list[str] = [_bare(cfg.model)]
+            if cfg.vision_model:
+                vid = _bare(cfg.vision_model)
+                if vid not in catalog_ids:
+                    catalog_ids.append(vid)
+            oc_config["models"] = {
+                "providers": {
+                    provider: {
+                        "baseUrl": cfg.base_url,
+                        "models": [{"id": mid, "name": mid} for mid in catalog_ids],
+                    },
+                },
             }
         (oc_home / "openclaw.json").write_text(
             json.dumps(oc_config, indent=2), encoding="utf-8",

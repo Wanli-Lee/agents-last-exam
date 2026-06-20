@@ -48,6 +48,18 @@ class DroidConfig:
     ``"openrouter"`` is the only routing the deployer implements today.
     ``byok_provider`` below selects the wire protocol within that route."""
 
+    base_url: str | None = None
+    """Custom OpenAI-compatible endpoint for the BYOK ``customModels`` entry.
+    ``None`` ⇒ OpenRouter default (``https://openrouter.ai/api/v1``). Set to
+    point droid at any OpenAI-compatible gateway (written to
+    ``settings.json`` ``customModels[0].baseUrl``)."""
+
+    api_key: str | None = None
+    """Literal API key for the BYOK endpoint. ``None`` ⇒ read OPENROUTER_API_KEY
+    from the env. When set (typically ``api_key: ${env:...}`` in the agent yaml),
+    it travels with the serialized config — no env passthrough whitelist change
+    and no collision with a real OPENROUTER_API_KEY."""
+
     reasoning_effort: str = "high"
     """``--reasoning-effort``: off | none | low | medium | high. Defaults to
     ``high`` to match agenthle's operational droid YAMLs (the agenthle

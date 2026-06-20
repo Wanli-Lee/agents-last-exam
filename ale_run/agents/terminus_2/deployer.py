@@ -312,8 +312,8 @@ class Terminus2Deployer(BaseAgentDeployer):
             "--logs-dir", logs_dir,
             "--temperature", str(cfg.temperature),
         ]
-        if cfg.api_base:
-            argv += ["--api-base", cfg.api_base]
+        if cfg.base_url:
+            argv += ["--api-base", cfg.base_url]
         if cfg.max_turns is not None:
             # -1 (or any value < 0) = unlimited; terminus_2 has no native
             # unlimited sentinel, so translate to a large finite cap.
@@ -340,15 +340,20 @@ class Terminus2Deployer(BaseAgentDeployer):
         env["NO_COLOR"] = "1"
 
         env_name, key_value = self._selected_api_key(cfg, env)
+        # A literal cfg.api_key (travels with the serialized config) takes
+        # precedence over the env key and avoids env collisions.
+        key_value = cfg.api_key or key_value
         if not key_value:
             raise RuntimeError(
                 f"terminus_2: required API key {env_name} is empty "
-                f"(provider={cfg.provider}, model={cfg.model}). Export it or "
-                "pass it via executor env before launch()."
+                f"(provider={cfg.provider}, model={cfg.model}). Set config "
+                "api_key or export the env key before launch()."
             )
         env[env_name] = key_value
         if cfg.provider == "openrouter":
-            env.setdefault("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+            env.setdefault(
+                "OPENROUTER_BASE_URL", cfg.base_url or "https://openrouter.ai/api/v1"
+            )
         return env
 
     @staticmethod

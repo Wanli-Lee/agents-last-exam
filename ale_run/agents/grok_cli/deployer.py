@@ -450,19 +450,26 @@ class GrokCliDeployer(BaseAgentDeployer):
         env["NO_COLOR"] = "1"
         # Provider-driven routing (explicit, not key-presence heuristic).
         if cfg.provider == "openrouter":
-            or_key = env.get("OPENROUTER_API_KEY")
-            if not or_key:
+            # A literal cfg.api_key (travels with the serialized config) takes
+            # precedence over OPENROUTER_API_KEY and avoids env collisions.
+            key = cfg.api_key or env.get("OPENROUTER_API_KEY")
+            if not key:
                 raise RuntimeError(
-                    "grok_cli: provider=openrouter but OPENROUTER_API_KEY "
-                    "is not set"
+                    "grok_cli: provider=openrouter but neither config api_key "
+                    "nor OPENROUTER_API_KEY is set"
                 )
-            env["GROK_API_KEY"] = or_key
-            env["GROK_BASE_URL"] = "https://openrouter.ai/api/v1"
+            env["GROK_API_KEY"] = key
+            env["GROK_BASE_URL"] = cfg.base_url or "https://openrouter.ai/api/v1"
         elif cfg.provider == "direct":
-            if not env.get("GROK_API_KEY"):
+            key = cfg.api_key or env.get("GROK_API_KEY")
+            if not key:
                 raise RuntimeError(
-                    "grok_cli: provider=direct but GROK_API_KEY is not set"
+                    "grok_cli: provider=direct but neither config api_key nor "
+                    "GROK_API_KEY is set"
                 )
+            env["GROK_API_KEY"] = key
+            if cfg.base_url:
+                env["GROK_BASE_URL"] = cfg.base_url
         else:
             raise RuntimeError(
                 f"grok_cli: unknown provider {cfg.provider!r} "

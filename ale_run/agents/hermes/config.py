@@ -70,6 +70,18 @@ class HermesConfig:
     # Provider routing
     provider: str = "openrouter"
 
+    base_url: str | None = None
+    """Custom OpenAI-compatible base URL. ``None`` ⇒ OpenRouter default
+    (``https://openrouter.ai/api/v1``). Written to both ``~/.hermes/.env``
+    (OPENROUTER_BASE_URL) and the hermes config yaml (``model.base_url``) to
+    point hermes at any OpenAI-compatible gateway."""
+
+    api_key: str | None = None
+    """Literal API key, used in place of OPENROUTER_API_KEY. ``None`` ⇒ read
+    OPENROUTER_API_KEY from the env. When set (``api_key: ${env:...}`` in the
+    agent yaml), it travels with the serialized config — no env passthrough
+    whitelist change and no collision with a real OPENROUTER_API_KEY."""
+
     # Toolset configuration. hermes is enable-only (the harness exposes no deny
     # flag), so this allow list is the sole tool-control knob — by harness
     # constraint, not a departure from the project's deny-only convention.

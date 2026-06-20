@@ -17,6 +17,17 @@ config:
   # customModels → openrouter.ai/api/v1 + OPENROUTER_API_KEY).
   provider: openrouter
 
+  # Custom OpenAI-compatible endpoint for the BYOK customModels entry
+  # (settings.json customModels[0].baseUrl). null = OpenRouter default
+  # (https://openrouter.ai/api/v1).
+  base_url: null
+
+  # Literal API key for base_url, carried via config (use `api_key: ${env:YOUR_KEY}`,
+  # resolved host-side → travels with the serialized config, no env-passthrough
+  # whitelist change, no clash with a real OPENROUTER_API_KEY). null = read
+  # OPENROUTER_API_KEY from the env.
+  api_key: null
+
   # --reasoning-effort: off | none | low | medium | high.
   reasoning_effort: high
 

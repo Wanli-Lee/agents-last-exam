@@ -402,21 +402,25 @@ class ClaudeCodeDeployer(BaseAgentDeployer):
 
         # Provider-driven routing (explicit, not key-presence heuristic).
         if cfg.provider == "openrouter":
-            or_key = env.get("OPENROUTER_API_KEY")
-            if not or_key:
+            # A literal cfg.api_key (travels with the serialized config) takes
+            # precedence over OPENROUTER_API_KEY and avoids env collisions.
+            token = cfg.api_key or env.get("OPENROUTER_API_KEY")
+            if not token:
                 raise RuntimeError(
-                    "claude_code: provider=openrouter but OPENROUTER_API_KEY "
-                    "is not set"
+                    "claude_code: provider=openrouter but neither config "
+                    "api_key nor OPENROUTER_API_KEY is set"
                 )
             env["ANTHROPIC_BASE_URL"] = cfg.base_url or "https://openrouter.ai/api"
-            env["ANTHROPIC_AUTH_TOKEN"] = or_key
+            env["ANTHROPIC_AUTH_TOKEN"] = token
             env["ANTHROPIC_API_KEY"] = ""
         elif cfg.provider == "direct":
-            if not env.get("ANTHROPIC_API_KEY"):
+            key = cfg.api_key or env.get("ANTHROPIC_API_KEY")
+            if not key:
                 raise RuntimeError(
-                    "claude_code: provider=direct but ANTHROPIC_API_KEY is "
-                    "not set"
+                    "claude_code: provider=direct but neither config api_key "
+                    "nor ANTHROPIC_API_KEY is set"
                 )
+            env["ANTHROPIC_API_KEY"] = key
             if cfg.base_url:
                 env["ANTHROPIC_BASE_URL"] = cfg.base_url
         else:

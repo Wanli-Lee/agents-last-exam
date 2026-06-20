@@ -19,6 +19,16 @@ config:
   # "direct": native model name + GROK_API_KEY.
   provider: openrouter
 
+  # Custom OpenAI-compatible base URL (GROK_BASE_URL). null = OpenRouter default
+  # (https://openrouter.ai/api/v1) for openrouter, or xAI's native endpoint for direct.
+  base_url: null
+
+  # Literal API key for base_url, carried via config (use `api_key: ${env:YOUR_KEY}`,
+  # resolved host-side → travels with the serialized config, no env-passthrough
+  # whitelist change, no clash with a real shell key). null = read OPENROUTER_API_KEY
+  # (openrouter) or GROK_API_KEY (direct) from the env. Becomes GROK_API_KEY.
+  api_key: null
+
   # Tool-call loop cap. -1 ≡ unlimited (deployer maps -1 → 100000; grok-cli has no
   # native no-cap mode).
   max_tool_rounds: -1

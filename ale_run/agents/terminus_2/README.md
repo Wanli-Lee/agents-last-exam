@@ -70,7 +70,7 @@ agent:
     max_turns: -1                      # -1 = unlimited (deployer maps to 100000)
     provider: openrouter               # or "direct"
     record_terminal_session: true      # set false to skip asciinema
-    api_base: null                     # optional LiteLLM base url override
+    base_url: null                     # optional LiteLLM base url override (was api_base)
     temperature: 0.7
 ```
 
