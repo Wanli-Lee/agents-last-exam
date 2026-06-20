@@ -82,5 +82,6 @@
       },
       "rationale": "The task involves auditing crop rotation eligibility, which is a key aspect of precision agriculture."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

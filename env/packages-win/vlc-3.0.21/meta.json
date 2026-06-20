@@ -1,0 +1,10 @@
+{
+  "description": "VLC media player 3.0.21 (win32 build) at the x86 path \u2014 matches dev-win10",
+  "os": "windows",
+  "provides": [
+    "vlc"
+  ],
+  "version": "3.0.21",
+  "install_location": "C:\\Program Files (x86)\\VideoLAN\\VLC",
+  "verify": "powershell -NoProfile -Command \"(Get-Item 'C:\\Program Files (x86)\\VideoLAN\\VLC\\vlc.exe').VersionInfo.ProductVersion -replace ',','.' -like '3.0.21*'\""
+}

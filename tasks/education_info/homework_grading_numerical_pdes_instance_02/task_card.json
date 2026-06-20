@@ -78,5 +78,6 @@
       },
       "rationale": "The task involves grading homework submissions in an educational context."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

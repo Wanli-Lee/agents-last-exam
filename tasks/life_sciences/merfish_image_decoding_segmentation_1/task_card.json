@@ -160,5 +160,6 @@
       },
       "rationale": "The task involves image analysis and decoding in a biological context, specifically related to cell imaging."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

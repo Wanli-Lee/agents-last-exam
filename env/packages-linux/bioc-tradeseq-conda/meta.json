@@ -1,0 +1,1 @@
+{"description": "R + Bioconductor tradeSeq/SingleCellExperiment + mgcv via bioconda binaries at /opt/r-bioc", "os": "linux", "verify": "Rscript -e 'library(tradeSeq)'"}

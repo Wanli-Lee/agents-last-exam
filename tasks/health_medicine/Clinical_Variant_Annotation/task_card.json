@@ -73,5 +73,6 @@
         "subdomain_name": "Therapeutic & Oncology Services"
       }
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

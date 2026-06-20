@@ -1,0 +1,1 @@
+{"description": "Docker Engine + Compose plugin (DinD needs privileged sandbox)", "os": "linux", "provides": ["/usr/bin/docker", "docker compose"], "verify": "docker --version"}

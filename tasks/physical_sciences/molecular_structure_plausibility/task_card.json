@@ -71,5 +71,6 @@
       },
       "rationale": "The task involves filtering molecular structures based on chemical plausibility."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

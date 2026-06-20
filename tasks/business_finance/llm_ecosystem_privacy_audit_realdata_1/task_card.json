@@ -81,5 +81,6 @@
       },
       "rationale": "The task involves performing a compliance audit against a usage policy."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

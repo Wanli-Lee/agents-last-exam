@@ -61,5 +61,6 @@
         "subdomain_name": null
       }
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

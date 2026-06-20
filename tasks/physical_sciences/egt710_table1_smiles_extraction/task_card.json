@@ -57,5 +57,8 @@
       },
       "rationale": "The task involves extracting and validating chemical structures, specifically SMILES strings."
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "google-chrome-149.0.7827.54"
+  ]
 }

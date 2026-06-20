@@ -66,5 +66,8 @@
       },
       "rationale": "The task involves 3D modeling, which fits under 3D, Animation & Interactive Media."
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "blender-5.0.1"
+  ]
 }

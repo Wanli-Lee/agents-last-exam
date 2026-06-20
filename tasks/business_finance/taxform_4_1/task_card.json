@@ -81,5 +81,8 @@
       },
       "rationale": "The task involves preparing a U.S. tax return, which falls under accounting and finance."
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "google-chrome-149.0.7827.54"
+  ]
 }

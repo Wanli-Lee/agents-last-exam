@@ -1,0 +1,7 @@
+{
+  "description": "Google Chrome 149.0.7827.54 (choco pin). Only for tasks that name Chrome explicitly; Edge ships with Server 2022.",
+  "os": "windows",
+  "provides": ["chrome", "google-chrome"],
+  "install_location": "C:\\Program Files\\Google\\Chrome\\Application",
+  "verify": "powershell -NoProfile -Command \"(Get-Item 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe').VersionInfo.ProductVersion -like '149.*'\""
+}

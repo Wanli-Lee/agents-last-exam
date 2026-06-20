@@ -79,5 +79,6 @@
         "subdomain_name": "Software Engineering"
       }
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

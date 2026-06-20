@@ -71,5 +71,6 @@
         "subdomain_name": "Compliance & Regulatory"
       }
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

@@ -32,7 +32,7 @@
   ],
   "vm": {
     "machineType": "g2-standard-8",
-    "snapshot": "gpu-license",
+    "snapshot": "cpu-free",
     "timeout": 7200
   },
   "taxonomy": {
@@ -52,5 +52,8 @@
         "subdomain_name": null
       }
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "ruffle-0.2.0"
+  ]
 }

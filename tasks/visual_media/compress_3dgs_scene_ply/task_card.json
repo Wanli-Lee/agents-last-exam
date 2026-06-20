@@ -107,5 +107,6 @@
       },
       "rationale": "The task involves compressing and rendering 3D scenes, which fits within 3D and animation media."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

@@ -1,0 +1,1 @@
+{"description": "C/C++ toolchain (g++, make) for C-extension/native builds", "os": "linux", "apt": "build-essential", "verify": "g++ --version"}

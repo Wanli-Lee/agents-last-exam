@@ -84,5 +84,6 @@
         "subdomain_name": "Chemistry & Materials Computation"
       }
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

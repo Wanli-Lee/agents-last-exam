@@ -1,0 +1,10 @@
+{
+  "description": "Eclipse Temurin JRE 21.0.10+7 at the Adoptium default path \u2014 required by Metabase launcher",
+  "os": "windows",
+  "provides": [
+    "java21"
+  ],
+  "version": "21.0.10+7",
+  "install_location": "C:\\Program Files\\Eclipse Adoptium\\jre-21.0.10.7-hotspot",
+  "verify": "powershell -NoProfile -Command \"Test-Path 'C:\\Program Files\\Eclipse Adoptium\\jre-21.0.10.7-hotspot\\bin\\java.exe'\""
+}

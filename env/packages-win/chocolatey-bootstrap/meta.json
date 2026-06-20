@@ -1,0 +1,6 @@
+{
+  "description": "Chocolatey package manager bootstrap for Windows Server 2022 (no winget). Source: agenthle-private/windows_software_install/chocolatey/",
+  "os": "windows",
+  "provides": ["choco"],
+  "verify": "powershell -NoProfile -Command \"if(-not (Get-Command choco -ErrorAction SilentlyContinue)){ exit 1 }; (choco --version) -match '^2\\.'\""
+}

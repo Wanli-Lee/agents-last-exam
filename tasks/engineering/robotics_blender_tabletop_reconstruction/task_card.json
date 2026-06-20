@@ -89,5 +89,8 @@
         "subdomain_name": "Robotics & Autonomous Systems"
       }
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "blender-5.0.1"
+  ]
 }

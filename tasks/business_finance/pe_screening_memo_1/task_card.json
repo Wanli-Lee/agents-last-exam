@@ -102,5 +102,6 @@
       },
       "rationale": "The task involves writing a private-equity screening memo, which falls under finance."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

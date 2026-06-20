@@ -1,0 +1,6 @@
+{
+  "description": "Mesa3D 26.1.1 llvmpipe software OpenGL for CPU VMs (KiCad, Inkscape, Blender without GPU).",
+  "os": "windows",
+  "provides": ["mesa3d", "opengl-llvmpipe"],
+  "verify": "powershell -NoProfile -Command \"[Environment]::GetEnvironmentVariable('GALLIUM_DRIVER','Machine') -eq 'llvmpipe'\""
+}

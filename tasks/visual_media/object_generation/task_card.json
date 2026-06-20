@@ -95,5 +95,8 @@
       },
       "rationale": "The task involves creating a 3D object in Blender, which fits within the 3D, Animation & Interactive Media subdomain."
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "blender-5.0.1"
+  ]
 }

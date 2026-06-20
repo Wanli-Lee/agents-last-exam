@@ -85,5 +85,6 @@
       },
       "rationale": "The task involves preparing a workflow for protein-complex structure analysis in computational structural biology."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

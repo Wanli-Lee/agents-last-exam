@@ -78,5 +78,6 @@
       },
       "rationale": "The task involves implementing a quantum physics model using exact diagonalization."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

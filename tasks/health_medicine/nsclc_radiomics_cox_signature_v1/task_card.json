@@ -113,5 +113,9 @@
         "subdomain_name": "Therapeutic & Oncology Services"
       }
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "build-essential",
+    "python3.10-dev"
+  ]
 }

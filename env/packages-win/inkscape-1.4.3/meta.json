@@ -1,0 +1,10 @@
+{
+  "description": "Inkscape 1.4.3 (vector editor) \u2014 matches dev-win10",
+  "os": "windows",
+  "provides": [
+    "inkscape"
+  ],
+  "version": "1.4.3",
+  "install_location": "C:\\Program Files\\Inkscape",
+  "verify": "powershell -NoProfile -Command \"(Get-Item 'C:\\Program Files\\Inkscape\\bin\\inkscape.exe').VersionInfo.ProductVersion -eq '1.4.3'\""
+}

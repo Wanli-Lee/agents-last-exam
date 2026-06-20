@@ -78,5 +78,6 @@
       },
       "rationale": "The task involves computing NDVI and zonal statistics for agricultural units."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

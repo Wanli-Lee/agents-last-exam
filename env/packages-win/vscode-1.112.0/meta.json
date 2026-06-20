@@ -1,0 +1,10 @@
+{
+  "description": "Visual Studio Code 1.112.0 per-user install \u2014 matches dev-win10",
+  "os": "windows",
+  "provides": [
+    "code"
+  ],
+  "version": "1.112.0",
+  "install_location": "C:\\Users\\User\\AppData\\Local\\Programs\\Microsoft VS Code",
+  "verify": "powershell -NoProfile -Command \"Test-Path 'C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Programs\\\\Microsoft VS Code\\\\Code.exe'\""
+}
