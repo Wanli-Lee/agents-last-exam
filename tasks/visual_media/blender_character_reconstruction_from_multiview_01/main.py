@@ -373,7 +373,7 @@ async def _wait_for_paths(
 ) -> bool:
     deadline = asyncio.get_event_loop().time() + timeout_sec
     while asyncio.get_event_loop().time() < deadline:
-        if all(await session.file_exists(path) for path in paths):
+        if all([await session.file_exists(path) for path in paths]):
             return True
         await asyncio.sleep(poll_sec)
     return False
@@ -618,8 +618,7 @@ async def start(task_cfg, session: cb.DesktopSession):
     await _setup(task_cfg, session)
 
 
-@cb.evaluate_task(split="train")
-async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
+async def _evaluate_impl(task_cfg, session: cb.DesktopSession) -> list[float]:
     meta = task_cfg.metadata
     scale_guide = await _read_json(session, meta["scale_guide"])
     views_config = await _read_json(session, meta["validation_views"])
@@ -743,3 +742,17 @@ async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
     }
     logger.info("Evaluation payload: %s", json.dumps(payload, ensure_ascii=False))
     return [float(final_score)]
+
+
+@cb.evaluate_task(split="train")
+async def evaluate(task_cfg, session: cb.DesktopSession) -> list[float]:
+    # Defensive wrapper: the cua_bench evaluate_task wrapper masks any exception
+    # raised inside the body as the opaque "'async_generator' object is not
+    # iterable", hiding the real cause. Catch + log the real traceback and
+    # degrade to 0.0 so a scoring bug surfaces in the task log instead of a
+    # generic masked failure.
+    try:
+        return await _evaluate_impl(task_cfg, session)
+    except Exception:
+        logger.exception("[blender_char_recon] evaluate() raised; scoring as 0.0")
+        return [0.0]

@@ -35,7 +35,7 @@ TASK_WORKFLOW = "skeletal_animation_reproduction"
 
 REMOTE_PYTHON = os.environ.get(
     "BLENDER_TASK_REMOTE_PYTHON",
-    r"C:\Users\User\AppData\Local\Programs\Python\Python312\python.exe",
+    r"C:\Python312\python.exe",
 )
 REMOTE_BLENDER = os.environ.get(
     "BLENDER_TASK_REMOTE_BLENDER",
@@ -372,7 +372,9 @@ async def _launch_remote_job(
         "$ErrorActionPreference='Stop'; "
         f"$wd='{_ps_quote(remote_scripts_dir)}'; "
         f"$py='{_ps_quote(REMOTE_PYTHON)}'; "
-        f"$env:BLENDER_BINARY='{_ps_quote(REMOTE_BLENDER)}'; "
+        f"$blpref='{_ps_quote(REMOTE_BLENDER)}'; "
+        "if (Test-Path -LiteralPath $blpref) { $env:BLENDER_BINARY=$blpref } "
+        "else { $env:BLENDER_BINARY=(Get-ChildItem 'C:\\Program Files\\Blender Foundation\\Blender *\\blender.exe','C:\\Softwares\\Blender-*\\blender.exe' -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName) }; "
         f"$stdout='{_ps_quote(stdout_path)}'; "
         f"$stderr='{_ps_quote(stderr_path)}'; "
         "Set-Location -LiteralPath $wd; "

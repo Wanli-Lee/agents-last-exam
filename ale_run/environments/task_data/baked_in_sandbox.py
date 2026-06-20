@@ -24,6 +24,7 @@ answer, not external attackers). Both linux and windows images have
 """
 from __future__ import annotations
 
+import base64
 import logging
 from typing import Any
 
@@ -37,6 +38,73 @@ logger = logging.getLogger(__name__)
 # in the security sense (anyone with image access could read it anyway),
 # but stops the agent from passively reading the answer.
 _REFERENCE_PASSWORD = "rdi-ucberkeley-Gov8EV7wGHYAc7XQBzhd"
+
+
+async def _repoint_evaluator_venv_home(
+    sandbox: SandboxHandle, target: str,
+) -> None:
+    """Windows-only: fix a baked ``reference/evaluator_env/.venv`` whose
+    ``pyvenv.cfg`` ``home =`` points at the *image it was built on* rather than
+    this one.
+
+    Some graders shell out to a vendored evaluator venv
+    (``reference\\evaluator_env\\.venv\\Scripts\\python.exe``). The venv was
+    created on one image (e.g. ale-win10, where base Python sits under the
+    per-user ``...\\AppData\\Local\\Programs\\Python\\Python312``) and baked into
+    ``reference.7z``; on a different image (ale-win-server, base Python at
+    ``C:\\Python312``) that ``home`` path is dangling, so the venv launcher
+    aborts and the grader scores 0 despite correct agent output. A single
+    archive can't carry a home that's valid on both images, so we repair it at
+    stage time: if ``home`` is dangling, repoint it to a real python3.12 on this
+    image. No-op when the baked ``home`` already exists (the image that built
+    the venv is left untouched) and for tasks without an evaluator venv.
+    """
+    if sandbox.is_linux:
+        return
+    cfg = join(sandbox, target, "evaluator_env", ".venv", "pyvenv.cfg")
+    if not await sandbox.exists(cfg):
+        return
+    script = "\n".join([
+        f"$cfg = '{cfg}'",
+        "$lines = Get-Content -LiteralPath $cfg",
+        # current baked home; if it already resolves, leave it (keeps the image
+        # that built the venv — e.g. ale-win10 — untouched).
+        "$vhome = ($lines | Where-Object {$_ -match '^home\\s*='}) -replace '^home\\s*=\\s*',''",
+        "if ($vhome -and (Test-Path (Join-Path $vhome 'python.exe'))) { exit 0 }",
+        # candidate base interpreters: the image's system Python first, then any
+        # python on PATH. Accept the first that exists and is a base install
+        # (a venv dir carries a pyvenv.cfg; pointing home at a venv lacks the
+        # base DLLs/layout). Version match (3.12) is guaranteed on this image
+        # and verified below by actually starting the venv.
+        "$cands = @('C:\\Python312\\python.exe')",
+        "$wp = (Get-Command python -All -EA SilentlyContinue).Source; if ($wp) { $cands += $wp }",
+        "$found = $null",
+        "foreach ($c in $cands) {",
+        "  if ((Test-Path $c) -and -not (Test-Path (Join-Path (Split-Path $c -Parent) 'pyvenv.cfg'))) { $found = $c; break }",
+        "}",
+        "if (-not $found) { Write-Error 'no base python to repoint evaluator venv'; exit 1 }",
+        "$newhome = Split-Path $found -Parent",
+        "($lines -replace '^home\\s*=.*$', \"home = $newhome\") | Set-Content -LiteralPath $cfg",
+        # self-validate by exit code: the venv's own launcher must start now.
+        "$venvpy = Join-Path (Split-Path $cfg -Parent) 'Scripts\\python.exe'",
+        "& $venvpy -c 'import sys' 2>$null | Out-Null",
+        "if ($LASTEXITCODE -ne 0) { Write-Error 'venv still broken after repoint'; exit 2 }",
+        "Write-Output \"repointed:$newhome\"",
+    ]) + "\n"
+    enc = base64.b64encode(script.encode("utf-16-le")).decode()
+    r = await sandbox.run_command(
+        f"powershell -NoProfile -EncodedCommand {enc}", timeout=60,
+    )
+    if r.returncode == 0 and "repointed:" in (r.stdout or ""):
+        logger.info(
+            "baked_in_sandbox: repointed dangling evaluator venv home (%s)",
+            (r.stdout or "").strip().split("repointed:")[-1].strip(),
+        )
+    elif r.returncode != 0:
+        logger.warning(
+            "baked_in_sandbox: evaluator venv repoint failed (rc=%d): %s",
+            r.returncode, (r.stderr or r.stdout or "")[:200],
+        )
 
 
 async def stage_input(
@@ -134,5 +202,8 @@ async def stage_reference(
             f"{(mr.stderr or mr.stdout or '')[:300]}"
         )
     logger.info("baked_in_sandbox: decrypted %s → %s", archive, target)
+    # Repair a vendored evaluator venv whose baked home points at a different
+    # image's base Python (Windows; no-op otherwise / when home is valid).
+    await _repoint_evaluator_venv_home(sandbox, target)
     return {"staged": ["reference"], "source": "baked_in_sandbox",
             "decrypted_from": "reference.7z"}
