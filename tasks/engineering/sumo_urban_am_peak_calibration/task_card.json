@@ -135,5 +135,6 @@
       },
       "rationale": "Manual override: SUMO urban traffic AM-peak calibration is urban planning / traffic engineering."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

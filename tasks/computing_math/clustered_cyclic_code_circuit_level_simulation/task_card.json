@@ -81,5 +81,6 @@
       },
       "rationale": "The task involves quantum computing concepts and simulations."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

@@ -58,5 +58,8 @@
       },
       "rationale": "The task involves reproducing a molecular structure, which is a core aspect of chemistry."
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "microsoft-edge-os"
+  ]
 }

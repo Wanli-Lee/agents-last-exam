@@ -94,5 +94,6 @@
         "subdomain_name": "Aviation & Airspace Operations"
       }
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

@@ -1,0 +1,1 @@
+{"description": "Ensembl VEP (bioconda) at /opt/ensembl-vep (+ /usr/local/bin/vep)", "os": "linux", "verify": "vep --help 2>&1 | grep -qi 'variant effect predictor'"}

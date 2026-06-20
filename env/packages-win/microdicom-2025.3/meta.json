@@ -1,0 +1,11 @@
+{
+  "description": "MicroDicom DICOM Viewer 2025.3.0.4183. Fetches microdicom-2025.3.0.4183.zip from gs://ale-data-public/env-packages-win/ (override MICRODICOM_ARCHIVE_URL).",
+  "os": "windows",
+  "provides": [
+    "microdicom",
+    "mdicom"
+  ],
+  "version": "2025.3.0.4183",
+  "install_location": "C:\\Program Files\\MicroDicom",
+  "verify": "powershell -NoProfile -Command \"(Get-Item 'C:\\Program Files\\MicroDicom\\mDicom.exe').VersionInfo.ProductVersion -like '2025.3*'\""
+}

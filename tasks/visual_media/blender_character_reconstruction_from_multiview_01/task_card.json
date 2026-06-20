@@ -119,5 +119,8 @@
       },
       "rationale": "The task involves 3D character modeling and reconstruction using Blender."
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "blender-5.0.1"
+  ]
 }

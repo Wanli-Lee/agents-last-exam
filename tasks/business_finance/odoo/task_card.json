@@ -65,7 +65,7 @@
   ],
   "vm": {
     "machineType": "c4-standard-4",
-    "snapshot": "cpu-license",
+    "snapshot": "cpu-free",
     "timeout": 7200
   },
   "taxonomy": {

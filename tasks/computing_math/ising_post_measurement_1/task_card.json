@@ -97,5 +97,6 @@
       },
       "rationale": "The task involves quantum computing concepts related to the Ising model."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

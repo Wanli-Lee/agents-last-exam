@@ -70,5 +70,6 @@
         "subdomain_name": "Infrastructure Engineering & Cloud Operations"
       }
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

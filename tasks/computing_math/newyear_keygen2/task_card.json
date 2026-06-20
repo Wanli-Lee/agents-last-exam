@@ -57,5 +57,6 @@
       },
       "rationale": "The task involves reverse engineering and password generation related to cybersecurity."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

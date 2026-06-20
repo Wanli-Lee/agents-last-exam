@@ -131,5 +131,9 @@
         "subdomain_name": "Public Health & Epidemiology"
       }
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "r-base-3.5.1",
+    "r-libs-bias-audit"
+  ]
 }

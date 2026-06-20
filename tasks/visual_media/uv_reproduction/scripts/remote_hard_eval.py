@@ -17,7 +17,24 @@ except Exception:
 
 VIEW_NAMES = ['front', 'back', 'left', 'right', 'top_front', 'bottom_front']
 SCENE_VIEW_NAMES = ['front', 'back', 'left', 'right']
-DEFAULT_BLENDER = os.environ.get('BLENDER_TASK_REMOTE_BLENDER', r'C:\Program Files\Blender Foundation\Blender 5.0\blender.exe')
+def _discover_blender() -> str:
+    """Resolve the Blender executable on the VM. Honor an env override if it exists,
+    else find the newest installed Blender (images ship 5.1, not the old hardcoded 5.0).
+    Falls back to the legacy 5.0 path only if nothing is found."""
+    import glob
+    env = os.environ.get('BLENDER_TASK_REMOTE_BLENDER') or os.environ.get('BLENDER_BINARY')
+    if env and os.path.exists(env):
+        return env
+    cands: list[str] = []
+    for pat in (r'C:\Program Files\Blender Foundation\Blender *\blender.exe',
+                r'C:\Softwares\Blender-*\blender.exe'):
+        cands.extend(glob.glob(pat))
+    if cands:
+        return sorted(cands)[-1]
+    return env or r'C:\Program Files\Blender Foundation\Blender 5.0\blender.exe'
+
+
+DEFAULT_BLENDER = _discover_blender()
 DEFAULT_MULTIPART_SAMPLE_COUNT = 5
 DEFAULT_MULTIPART_SAMPLE_SEED = 'uv_reproduction_multipart_eval_v1'
 

@@ -22,12 +22,13 @@ register in ``_REGISTRY``. SandboxHandle / Providers / deployers never
 hard-code an image-family literal — they consult :func:`get` /
 :func:`registered`.
 
-Currently four families:
+Currently five families:
 
   ``ale-kasm``             — linux (Docker, trycua/cua-ubuntu)
   ``ale-ubuntu22``         — linux (GCE VM)
   ``ale-ubuntu22-docker``  — linux (Docker, exported from the ale-ubuntu22 VM)
   ``ale-win10``            — windows (GCE VM)
+  ``ale-win-server``       — windows + L4 GPU (GCE VM, g2 machine types)
 """
 from __future__ import annotations
 
@@ -102,6 +103,7 @@ from .ale_kasm import IMAGE as _ALE_KASM
 from .ale_ubuntu22 import IMAGE as _ALE_UBUNTU22
 from .ale_ubuntu22_docker import IMAGE as _ALE_UBUNTU22_DOCKER
 from .ale_win10 import IMAGE as _ALE_WIN10
+from .ale_win_server import IMAGE as _ALE_WIN_SERVER
 
 
 _REGISTRY: dict[str, Image] = {
@@ -109,6 +111,7 @@ _REGISTRY: dict[str, Image] = {
     _ALE_UBUNTU22.name: _ALE_UBUNTU22,
     _ALE_UBUNTU22_DOCKER.name: _ALE_UBUNTU22_DOCKER,
     _ALE_WIN10.name: _ALE_WIN10,
+    _ALE_WIN_SERVER.name: _ALE_WIN_SERVER,
 }
 
 

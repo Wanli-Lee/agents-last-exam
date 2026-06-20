@@ -78,5 +78,6 @@
         "subdomain_name": "Genomics & Sequence Analysis"
       }
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

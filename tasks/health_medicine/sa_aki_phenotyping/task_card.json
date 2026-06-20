@@ -77,5 +77,6 @@
       },
       "rationale": "The task involves clinical data analysis and phenotyping related to health conditions."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

@@ -75,5 +75,6 @@
       },
       "rationale": "The task involves designing and simulating an analog circuit using an electronic component."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

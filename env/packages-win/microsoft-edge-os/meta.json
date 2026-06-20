@@ -1,0 +1,6 @@
+{
+  "description": "Microsoft Edge (OS component on Windows Server 2022). Verify-only — no separate download.",
+  "os": "windows",
+  "provides": ["edge", "msedge"],
+  "verify": "powershell -NoProfile -Command \"$p=@('${env:ProgramFiles(x86)}\\Microsoft\\Edge\\Application\\msedge.exe','${env:ProgramFiles}\\Microsoft\\Edge\\Application\\msedge.exe'); if(-not ($p | Where-Object { Test-Path $_ })){ throw 'missing' }; $true\""
+}

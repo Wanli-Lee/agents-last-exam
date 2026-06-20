@@ -92,5 +92,6 @@
       },
       "rationale": "The task involves surveying molecular mechanics and quantum chemistry, which fits within Chemistry & Materials Computation."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

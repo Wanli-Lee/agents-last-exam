@@ -205,6 +205,53 @@ async def _run_cmd(session: cb.DesktopSession, cmd: str, timeout: float = 240.0)
     return await session.run_command(cmd, check=False)
 
 
+# Discover the PostgreSQL CLI tools + Odoo's bundled python on the VM instead of trusting
+# hardcoded absolute paths. The image's PostgreSQL major version and Odoo installer build
+# number drift between dev VMs / re-bakes (e.g. a standalone "PostgreSQL\17" vs Odoo's own
+# bundled PostgreSQL 12, and "Odoo 19.0.<datestamp>"), so a literal path silently breaks the
+# DB reset + every eval query. Globbing the conventional install roots is build-agnostic.
+_RESOLVE_PG_PS = r"""
+$ErrorActionPreference = 'SilentlyContinue'
+$roots = @('C:\Program Files\PostgreSQL\*\bin', 'C:\Program Files\Odoo 19.0.*\PostgreSQL\bin')
+$o = @{}
+foreach ($t in 'psql','dropdb','createdb','pg_dump','pg_restore') {
+  $cands = $roots | ForEach-Object { Join-Path $_ ($t + '.exe') }
+  $f = Get-ChildItem $cands -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($f) { $o[$t] = $f.FullName }
+}
+$py = Get-ChildItem 'C:\Program Files\Odoo 19.0.*\python\python.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($py) { $o['odoo_python'] = $py.FullName }
+$o | ConvertTo-Json -Compress
+"""
+
+
+async def _resolve_pg_paths(session: cb.DesktopSession, metadata: dict, work_dir: str) -> None:
+    """Resolve psql/dropdb/createdb/pg_dump/pg_restore + the Odoo python on the VM and
+    overwrite the metadata defaults in place. Anything not discovered keeps its default."""
+    try:
+        ps_path = win_join(work_dir, "_resolve_pg.ps1")
+        await session.write_file(ps_path, _RESOLVE_PG_PS)
+        res = await session.run_command(
+            f'powershell -NoProfile -ExecutionPolicy Bypass -File "{ps_path}"', check=False
+        )
+        raw = (res.get("stdout") or "").strip()
+        found = json.loads(raw.splitlines()[-1]) if raw else {}
+    except Exception as exc:  # pragma: no cover - discovery is best-effort
+        logger.warning("pg path resolution failed (using metadata defaults): %s", exc)
+        return
+    mapping = {
+        "psql": "psql_path",
+        "dropdb": "dropdb_path",
+        "createdb": "createdb_path",
+        "pg_dump": "pg_dump_path",
+        "pg_restore": "pg_restore_path",
+        "odoo_python": "odoo_python_path",
+    }
+    for key, mkey in mapping.items():
+        if found.get(key):
+            metadata[mkey] = found[key]
+
+
 async def _run_psql_json(
     session: cb.DesktopSession,
     psql_path: str,
@@ -372,6 +419,7 @@ async def start_variant_task(task_cfg, session: cb.DesktopSession) -> None:
 
     await session.interface.create_dir(out_dir)
     await session.interface.create_dir(work_dir)
+    await _resolve_pg_paths(session, task_cfg.metadata, work_dir)
 
     try:
         info = await _reset_db(
@@ -424,6 +472,7 @@ async def evaluate_variant_task(task_cfg, session: cb.DesktopSession) -> list[fl
     run_tag = task_cfg.metadata["run_tag"]
     work_dir = eval_work_dir(task_cfg.metadata["variant_name"])
     await session.interface.create_dir(work_dir)
+    await _resolve_pg_paths(session, task_cfg.metadata, work_dir)
 
     report = {
         "task_tag": task_cfg.metadata["variant_name"],

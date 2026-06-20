@@ -102,5 +102,8 @@
       },
       "rationale": "The task involves adjudicating reader annotations for chest X-ray studies, which falls under clinical diagnostics and imaging."
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "microdicom-2025.3"
+  ]
 }

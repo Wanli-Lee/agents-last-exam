@@ -113,5 +113,8 @@
       },
       "rationale": "The task involves econometric analysis related to vaccination effects, fitting within the economics subdomain."
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "poppler-utils"
+  ]
 }

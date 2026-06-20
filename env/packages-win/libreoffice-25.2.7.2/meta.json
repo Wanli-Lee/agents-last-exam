@@ -1,0 +1,12 @@
+{
+  "description": "LibreOffice 25.2.7.2 (Still/archive build) \u2014 matches dev-win10",
+  "os": "windows",
+  "provides": [
+    "libreoffice",
+    "soffice",
+    "scalc"
+  ],
+  "version": "25.2.7.2",
+  "install_location": "C:\\Program Files\\LibreOffice",
+  "verify": "powershell -NoProfile -Command \"(Get-Item 'C:\\Program Files\\LibreOffice\\program\\soffice.exe').VersionInfo.ProductVersion -like '25.2.7*'\""
+}

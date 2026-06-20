@@ -54,5 +54,8 @@
       },
       "rationale": "The task involves financial data extraction and reporting."
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "google-chrome-149.0.7827.54"
+  ]
 }

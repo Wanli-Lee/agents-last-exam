@@ -71,5 +71,8 @@
       },
       "rationale": "The task involves analyzing network traffic for cybersecurity purposes."
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "wireshark-4.4.14"
+  ]
 }

@@ -1,0 +1,1 @@
+{"description": "CPython 3.10 dev headers (Python.h) for compiling C exts", "os": "linux", "apt": "python3.10-dev", "verify": "python3.10-config --includes | grep -q include"}

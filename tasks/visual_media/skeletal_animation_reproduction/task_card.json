@@ -70,7 +70,7 @@
   ],
   "vm": {
     "machineType": "g2-standard-8",
-    "snapshot": "gpu-license",
+    "snapshot": "gpu-free",
     "timeout": 7200
   },
   "taxonomy": {
@@ -95,5 +95,8 @@
       },
       "rationale": "The task involves rigging and animating a character in a 3D software environment."
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "blender-5.0.1"
+  ]
 }

@@ -70,5 +70,8 @@
       },
       "rationale": "The task involves reconstructing a financial statement, which falls under accounting and finance."
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "poppler-utils"
+  ]
 }

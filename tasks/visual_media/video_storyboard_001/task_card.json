@@ -68,5 +68,9 @@
         "subdomain_name": "3D, Animation & Interactive Media"
       }
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "vlc-3.0.21",
+    "libreoffice-25.2.7.2"
+  ]
 }

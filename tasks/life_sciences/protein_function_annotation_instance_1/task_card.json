@@ -104,5 +104,8 @@
       },
       "rationale": "The task involves protein function annotation, which is a key aspect of genomics and sequence analysis."
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "openjdk-11"
+  ]
 }

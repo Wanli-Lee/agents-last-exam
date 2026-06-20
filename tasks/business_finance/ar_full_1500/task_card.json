@@ -64,5 +64,8 @@
       },
       "rationale": "The task involves financial data extraction and reporting."
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "microsoft-edge-os"
+  ]
 }

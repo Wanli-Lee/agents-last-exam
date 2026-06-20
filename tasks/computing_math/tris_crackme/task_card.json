@@ -49,5 +49,6 @@
       },
       "rationale": "The task involves reverse engineering and manipulation of software for cybersecurity purposes."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

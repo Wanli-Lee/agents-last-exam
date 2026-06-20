@@ -25,7 +25,7 @@ CATALOG_PATH = TASK_DIR / "variant_catalog.json"
 TASK_WORKFLOW = "high_to_low_modeling"
 REMOTE_PYTHON = os.environ.get(
     "BLENDER_TASK_REMOTE_PYTHON",
-    r"C:\Users\User\AppData\Local\Programs\Python\Python312\python.exe",
+    r"C:\Python312\python.exe",
 )
 REMOTE_BLENDER = os.environ.get(
     "BLENDER_TASK_REMOTE_BLENDER", r"C:\Program Files\Blender Foundation\Blender 5.0\blender.exe"

@@ -71,5 +71,6 @@
         "subdomain_name": "Clinical Diagnostics & Imaging"
       }
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

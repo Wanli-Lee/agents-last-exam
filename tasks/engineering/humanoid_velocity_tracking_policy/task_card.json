@@ -89,5 +89,6 @@
       },
       "rationale": "The task involves developing a policy for humanoid robotics."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

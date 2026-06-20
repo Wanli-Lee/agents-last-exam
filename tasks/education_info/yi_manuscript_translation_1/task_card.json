@@ -76,5 +76,6 @@
       },
       "rationale": "The task involves translating and analyzing a manuscript, which fits under translation and localization."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

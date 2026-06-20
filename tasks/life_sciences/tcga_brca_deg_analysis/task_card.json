@@ -135,5 +135,6 @@
       },
       "rationale": "The task involves differential gene expression analysis in a cancer genomics context."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

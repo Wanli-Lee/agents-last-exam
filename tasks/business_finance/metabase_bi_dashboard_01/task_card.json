@@ -71,5 +71,9 @@
       },
       "rationale": "The task involves building a business intelligence dashboard and analyzing business metrics."
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "adoptium-jre-21.0.10.7",
+    "microsoft-edge-os"
+  ]
 }

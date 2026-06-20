@@ -97,5 +97,6 @@
       },
       "rationale": "The task involves computing orbital transfers in aerospace engineering."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

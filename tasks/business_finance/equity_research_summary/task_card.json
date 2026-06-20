@@ -59,5 +59,8 @@
         "subdomain_name": "Accounting & Finance"
       }
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "google-chrome-149.0.7827.54"
+  ]
 }

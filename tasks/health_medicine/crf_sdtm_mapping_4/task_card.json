@@ -80,5 +80,6 @@
         "subdomain_name": "Clinical Informatics & Care Operations"
       }
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

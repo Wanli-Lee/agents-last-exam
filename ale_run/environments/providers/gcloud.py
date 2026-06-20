@@ -449,10 +449,12 @@ def _build_create_args(
         f"--labels={label_str}",
         "--format=json",
     ]
-    if gpu:
-        if not _is_accelerator_machine_type(machine_type):
-            args.append(f"--accelerator=type={gpu},count=1")
-        args.append("--maintenance-policy=TERMINATE")
+    if gpu and not _is_accelerator_machine_type(machine_type):
+        args.append(f"--accelerator=type={gpu},count=1")
+    # onHostMaintenance: some families (c4) REQUIRE TERMINATE and reject MIGRATE;
+    # TERMINATE is valid for every family and ephemeral task VMs don't need live
+    # migration — so always set it (also covers the GPU/accelerator case).
+    args.append("--maintenance-policy=TERMINATE")
     if os_type == "windows":
         args.append("--enable-display-device")
     return args

@@ -1,0 +1,11 @@
+{
+  "description": "KiCad 10.0.0 per-user install. Fetches the 10.0.0 NSIS build (SourceForge or KICAD100_INSTALLER_URL), silent-installs, copies to dev-win10 per-user path.",
+  "os": "windows",
+  "provides": [
+    "kicad",
+    "kicad-cli"
+  ],
+  "version": "10.0.0",
+  "install_location": "C:\\Users\\User\\AppData\\Local\\Programs\\KiCad\\10.0",
+  "verify": "powershell -NoProfile -Command \"(Get-Item 'C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Programs\\\\KiCad\\\\10.0\\\\bin\\\\kicad.exe').VersionInfo.ProductVersion -like '10.0.0*'\""
+}

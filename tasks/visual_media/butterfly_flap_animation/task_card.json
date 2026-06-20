@@ -41,7 +41,7 @@
   "evaluation": "The evaluator downloads `output/output.mp4` and the visible source image, then scores deterministic public-contract metrics. Hard gates return 0 for missing/unreadable video, invalid timing, or insufficient foreground detection. Scored components check 30 fps / 4.0-5.5s timing, periodic butterfly width changes with an estimated 4 flap cycles, smooth curved path motion with Y turning points and adequate Y range, and source-shape preservation on open-wing frames. The hidden reference MP4 is retained only as provenance / fixture seed and is not used as a frame-by-frame answer key.",
   "vm": {
     "machineType": "g2-standard-8",
-    "snapshot": "gpu-license",
+    "snapshot": "gpu-free",
     "timeout": 7200
   },
   "taxonomy": {
@@ -66,5 +66,6 @@
       },
       "rationale": "The task involves creating an animation using Adobe After Effects."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

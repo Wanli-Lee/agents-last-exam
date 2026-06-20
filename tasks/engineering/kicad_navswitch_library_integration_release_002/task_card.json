@@ -78,5 +78,9 @@
       },
       "rationale": "The task involves repairing a KiCad project related to electronics design."
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "kicad-10.0.0",
+    "mesa3d-26.1.1"
+  ]
 }

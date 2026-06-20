@@ -89,5 +89,6 @@
         "subdomain_name": "Litigation Support & Discovery"
       }
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

@@ -1,0 +1,10 @@
+{
+  "description": "Wireshark 4.4.14 x64 \u2014 matches dev-win10 (offline pcap analysis; Npcap optional)",
+  "os": "windows",
+  "provides": [
+    "wireshark"
+  ],
+  "version": "4.4.14",
+  "install_location": "C:\\Program Files\\Wireshark",
+  "verify": "powershell -NoProfile -Command \"(Get-Item 'C:\\Program Files\\Wireshark\\Wireshark.exe').VersionInfo.ProductVersion -like '4.4.14*'\""
+}

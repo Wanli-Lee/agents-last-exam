@@ -69,5 +69,6 @@
         "subdomain_name": "Robotics & Autonomous Systems"
       }
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

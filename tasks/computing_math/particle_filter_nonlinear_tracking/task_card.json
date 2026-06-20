@@ -100,5 +100,6 @@
         "subdomain_name": "AI Engineering, Safety & CS Research"
       }
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

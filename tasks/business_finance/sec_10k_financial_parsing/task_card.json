@@ -116,5 +116,6 @@
       },
       "rationale": "The task involves parsing financial documents and extracting financial data."
     }
-  }
+  },
+  "requiredSystemPackages": []
 }

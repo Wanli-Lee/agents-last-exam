@@ -84,5 +84,8 @@
       },
       "rationale": "The task involves tracking neurons in C. elegans, which falls under computational neuroscience."
     }
-  }
+  },
+  "requiredSystemPackages": [
+    "qt-opencv-libs"
+  ]
 }
