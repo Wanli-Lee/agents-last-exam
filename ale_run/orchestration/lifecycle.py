@@ -196,6 +196,13 @@ async def run_one_unit(
     eval_status = "not_executed"
     eval_duration_s: float | None = None
     eval_error: dict[str, Any] | None = None
+    # Execution window timestamps. ``started`` (above) is the ENQUEUE time, so
+    # it includes the concurrency-semaphore wait. For the reported per-unit
+    # duration we want the actual work window: from when the sem is acquired
+    # (real start) up to when evaluation begins — excluding queue wait and the
+    # eval phase (eval has its own ``eval_duration_s``).
+    exec_started: float | None = None
+    exec_ended: float | None = None
 
     try:
         # Single-knob concurrency: holding sem for the whole unit caps both
@@ -203,6 +210,8 @@ async def run_one_unit(
         if sem is not None:
             writer.emit_event("provision_wait")
             await sem.acquire()
+        # Real execution starts here (after the queue wait for a slot).
+        exec_started = time.monotonic()
         try:
             task_path = Path("tasks") / unit.task_path
             task_meta = TaskLoader(str(task_path)).load(unit.variant_index)
@@ -418,6 +427,8 @@ async def run_one_unit(
             #     `debug/eval/result.json` raw dump has no destination here.
             env.set_phase("evaluation")
             eval_start = time.monotonic()
+            # End of the execution window (everything up to, but excluding, eval).
+            exec_ended = eval_start
             try:
                 eval_out = await asyncio.wait_for(
                     task_driver.evaluate(), timeout=_EVAL_TIMEOUT_S,
@@ -558,7 +569,14 @@ async def run_one_unit(
             except Exception as e:
                 logger.debug("ALEEnv.close_async failed: %s", e)
 
-    total_s = round(time.monotonic() - started, 2)
+    # Reported duration = actual execution window (sem-acquired → eval start),
+    # excluding the concurrency-queue wait and the eval phase. Fall back
+    # gracefully for paths that fail before exec start or before eval.
+    _exec_start = exec_started if exec_started is not None else started
+    _exec_end = exec_ended if exec_ended is not None else time.monotonic()
+    total_s = round(_exec_end - _exec_start, 2)
+    # Diagnostics: how long this unit waited in the concurrency queue.
+    queue_wait_s = round(_exec_start - started, 2)
 
     # ---- Finalize the three terminal files + the run_completed event ----
     writer.write_eval_result(
@@ -589,6 +607,7 @@ async def run_one_unit(
         status=status,
         score=score,
         total_duration_s=total_s,
+        queue_wait_s=queue_wait_s,
     )
     writer.close()
 
