@@ -40,7 +40,7 @@ from ..executors import DockerExecutor, LocalExecutor, SandboxExecutor
 from ..tasks.loader import TaskLoader
 from ..tasks.driver import TaskDriver
 from .factory import EnvironmentRouter, build_config, resolve_agent
-from .run_writer import RunWriter, slug_task
+from .run_writer import RunWriter, slug_agent, slug_model, slug_task
 from .experiment_spec import ArtifactsSpec, RunUnit, UnitResult
 from .termination import classify_error, err_dict, redact_config
 
@@ -55,6 +55,43 @@ _DEFAULT_TIMEOUT_S = 7200
 # treated as a unit ``timeout`` (not ``failed``), so resume won't re-run it
 # (it would just time out again) — same semantics as an agent wall-clock timeout.
 _EVAL_TIMEOUT_S = 7200
+
+
+# Tasks whose verifier cannot be fully reproduced from the agent's SAVED output
+# files alone — re-grading these under --eval-only may give an incomplete or
+# wrong score, so we emit a warning + stamp a caveat on run.json rather than
+# silently presenting the number as authoritative. Maps task_path → reason.
+#
+# These were identified by auditing every Linux-subset verifier (see the
+# rejudge-reproducibility audit): the vast majority read only static output +
+# reference files and re-grade exactly, but a few probe live runtime state that
+# is not captured in the saved output/ tree.
+_EVAL_ONLY_CAVEATS: dict[str, str] = {
+    # Grading RE-RUNS the OpenROAD RTL-to-GDSII flow under Docker at grade time
+    # (verify_submission.py: `docker run ... make run`, ~1-2h) and scores the
+    # FRESHLY regenerated DEF/DRC/LVS/timing artifacts, not the agent's saved
+    # files. The ALE kasm container has no docker daemon, so the in-container
+    # verifier always scores 0 here (it cannot run the flow). To get the REAL
+    # score, run the unmodified verifier ON THE HOST (which has docker) via
+    # `rejudge_openroad_host.py` against this run's saved output/ — that scores
+    # the agent's config.mk by actually executing the EDA flow. (Validated: a
+    # local saved run that scored 0.0 in-container scores ~0.705 host-side.)
+    "engineering/openroad_sky130_ibex_pnr_signoff":
+        "verifier re-runs the OpenROAD EDA flow under Docker at grade time; the "
+        "in-container kasm env has no docker so it scores 0. Use "
+        "rejudge_openroad_host.py to re-grade on the host (has docker) for the "
+        "real score (~1-2h Docker flow).",
+    # Rule 2 (20% of score) shells out `find` over the VM filesystem to confirm
+    # the agent actually downloaded the ImageNet-OOD datasets it claims. Those
+    # multi-GB dataset dirs are not in the saved output/ tree, so a fresh-container
+    # re-grade forces Rule 2 to 0 *iff* the agent claimed downloads. (When
+    # datasets_downloaded is empty, the probe never fires and re-grade is exact.)
+    "computing_math/paper_reproduction_instance_1":
+        "Rule 2 (20%) probes the live VM filesystem for downloaded datasets that "
+        "are not in saved output; re-grade understates Rule 2 only if the agent "
+        "claimed dataset downloads (empty claim → exact re-grade).",
+}
+
 
 
 def _append_prompt_suffix(task_meta: dict[str, Any], prompt_suffix: str) -> None:
@@ -133,9 +170,14 @@ async def run_one_unit(
     cleanup_mode: str = "delete",
     prompt_suffix: str = "",
     wall_time_s: int | None = None,
+    eval_only: bool = False,
 ) -> UnitResult:
     started = time.monotonic()
     effective_cleanup_mode = cleanup_mode
+    # eval-only re-grades a prior run's saved output; record which run we reused
+    # so run.json is self-describing (set when we locate the saved output).
+    eval_only_source_ts: str | None = None
+    eval_only_caveat: str | None = None
     # `provider` is resolved per unit from the task's snapshot (below), once the
     # task card has been loaded.
     provider: Provider | None = None
@@ -190,6 +232,7 @@ async def run_one_unit(
 
     status = "completed"
     score: float | None = None
+    eval_only_no_output = False
     error_str: str | None = None
     error_obj: dict[str, Any] | None = None
     phase: str | None = None
@@ -260,134 +303,201 @@ async def run_one_unit(
             await task_driver.setup()
 
             # ============================================================
-            # Phase 2 — agent
+            # Phase 2 — agent  (skipped entirely under --eval-only)
             # ============================================================
-            env.set_phase("agent_run")
-            agent_name = getattr(config, "name", "agent")
-            host_artifacts_dir = writer.run_dir / "origin_log" / agent_name
-            host_artifacts_dir.mkdir(parents=True, exist_ok=True)
-            executor = _build_executor(
-                executor_type=executor_type,
-                env=env,
-                config=config,
-                agent_name=agent_name,
-                run_id=writer.run_id,
-                host_artifacts_dir=host_artifacts_dir,
-            )
-            writer.emit_event(
-                "agent_run_started",
-                executor=executor_type,
-                work_dir=executor.work_dir,
-            )
-
-            # ─── Hot-artifact incremental tail (sandbox executor only) ───
-            # For sandbox runs, work_dir lives on the remote VM; we tail
-            # the deployer's declared hot files into host_artifacts_dir so
-            # a SIGTERM mid-agent doesn't lose the transcript.
-            # Local / docker executors keep work_dir = host_artifacts_dir,
-            # so the tail is unnecessary.
-            stop_event = asyncio.Event()
-            tail_task: asyncio.Task | None = None
-            tail_targets: list[tuple[str, Path]] = []
-            if isinstance(executor, SandboxExecutor):
-                hot = tuple(getattr(deployer_cls, "hot_artifacts", ()) or ())
-                if hot:
-                    sep = "/" if env.sandbox.is_linux else "\\"
-                    tail_targets = [
-                        (
-                            f"{executor.work_dir.rstrip(sep)}{sep}{name}",
-                            host_artifacts_dir / name,
-                        )
-                        for name in hot
-                    ]
-                    from ..executors.sandbox import tail_hot_artifacts
+            if eval_only:
+                # Re-grade a prior run's saved output instead of running the
+                # agent: locate the newest saved output/, push it back into the
+                # fresh container at the verifier's expected path, then fall
+                # through to Phase 3 evaluate. A placeholder run_result keeps
+                # the downstream trajectory / run.json path happy.
+                env.set_phase("eval_only_restage")
+                agent_name = getattr(config, "name", "agent")
+                eval_only_no_output = False
+                # Warn (and record) if this task's verifier can't fully reproduce
+                # from saved output — the re-graded score may be incomplete/wrong.
+                eval_only_caveat = _EVAL_ONLY_CAVEATS.get(unit.task_path)
+                if eval_only_caveat:
+                    logger.warning(
+                        "eval-only CAVEAT for %s: %s", unit.task_path, eval_only_caveat,
+                    )
                     writer.emit_event(
-                        "incremental_pull_started",
-                        targets=[t[0] for t in tail_targets],
+                        "eval_only_caveat",
+                        task=unit.task_path,
+                        reason=eval_only_caveat,
                     )
-                    tail_task = asyncio.create_task(
-                        tail_hot_artifacts(
-                            executor=executor,
-                            targets=tail_targets,
-                            stop_event=stop_event,
-                        ),
-                        name="tail_hot_artifacts",
+                prior = _find_latest_output_dir(unit, output_root)
+                if prior is None:
+                    writer.emit_event(
+                        "eval_only_skipped", reason="no_saved_output",
                     )
+                    run_result = AgentRunResult(
+                        status="failed",
+                        error="eval-only: no saved output found to re-grade",
+                        duration_s=0.0,
+                    )
+                    host_artifacts_dir = writer.run_dir / "origin_log" / agent_name
+                    host_artifacts_dir.mkdir(parents=True, exist_ok=True)
+                    eval_status = "not_executed"
+                    eval_error = {
+                        "type": "EvalOnlySkip",
+                        "message": "no saved output found to re-grade",
+                    }
+                    eval_only_no_output = True
+                else:
+                    eval_only_source_ts = prior.name
+                    # Reuse the prior run's origin_log so trajectory finalize
+                    # has the agent transcript to parse (best-effort: the dir
+                    # may be absent in older saved runs).
+                    prior_origin = prior / "origin_log" / agent_name
+                    host_artifacts_dir = (
+                        prior_origin if prior_origin.is_dir()
+                        else writer.run_dir / "origin_log" / agent_name
+                    )
+                    host_artifacts_dir.mkdir(parents=True, exist_ok=True)
+                    writer.emit_event(
+                        "eval_only_restage_started", source=str(prior / "output"),
+                    )
+                    from ..environments import output_pull as _op
+                    task_data = task_meta.get("task_data")
+                    report = await _op.push_dir_to_sandbox(
+                        env.sandbox, task_data, src_dir=prior / "output",
+                    )
+                    writer.emit_event(
+                        "eval_only_restage_done",
+                        vm_path=report.get("vm_path"),
+                        files=report.get("files"),
+                        bytes=report.get("bytes"),
+                        errors=len(report.get("errors") or []),
+                    )
+                    run_result = AgentRunResult(status="completed", duration_s=0.0)
+            else:
+                env.set_phase("agent_run")
+                agent_name = getattr(config, "name", "agent")
+                host_artifacts_dir = writer.run_dir / "origin_log" / agent_name
+                host_artifacts_dir.mkdir(parents=True, exist_ok=True)
+                executor = _build_executor(
+                    executor_type=executor_type,
+                    env=env,
+                    config=config,
+                    agent_name=agent_name,
+                    run_id=writer.run_id,
+                    host_artifacts_dir=host_artifacts_dir,
+                )
+                writer.emit_event(
+                    "agent_run_started",
+                    executor=executor_type,
+                    work_dir=executor.work_dir,
+                )
 
-            try:
-                run_result = await asyncio.wait_for(
-                    executor.run_deployer(
-                        deployer_cls=deployer_cls,
-                        prompt=task_meta["description"],
-                        timeout_s=float(timeout_s),
-                    ),
-                    timeout=timeout_s,
-                )
-            except asyncio.TimeoutError:
-                run_result = AgentRunResult(
-                    status="timeout",
-                    error=f"agent wall-budget exceeded after {timeout_s}s",
-                    duration_s=float(timeout_s),
-                )
-            except asyncio.CancelledError:
-                raise
-            except Exception as launch_exc:
-                import traceback as _tb
-                run_result = AgentRunResult(
-                    status="failed",
-                    error=f"{type(launch_exc).__name__}: {launch_exc}\n"
-                          f"{_tb.format_exc()}",
-                    duration_s=None,
-                )
-            finally:
-                if tail_task is not None:
-                    stop_event.set()
-                    try:
-                        reconcile_err = await asyncio.wait_for(tail_task, timeout=120)
-                    except asyncio.TimeoutError:
-                        tail_task.cancel()
-                        reconcile_err = "tail reconcile wait timed out"
-                    if reconcile_err:
+                # ─── Hot-artifact incremental tail (sandbox executor only) ───
+                # For sandbox runs, work_dir lives on the remote VM; we tail
+                # the deployer's declared hot files into host_artifacts_dir so
+                # a SIGTERM mid-agent doesn't lose the transcript.
+                # Local / docker executors keep work_dir = host_artifacts_dir,
+                # so the tail is unnecessary.
+                stop_event = asyncio.Event()
+                tail_task: asyncio.Task | None = None
+                tail_targets: list[tuple[str, Path]] = []
+                if isinstance(executor, SandboxExecutor):
+                    hot = tuple(getattr(deployer_cls, "hot_artifacts", ()) or ())
+                    if hot:
+                        sep = "/" if env.sandbox.is_linux else "\\"
+                        tail_targets = [
+                            (
+                                f"{executor.work_dir.rstrip(sep)}{sep}{name}",
+                                host_artifacts_dir / name,
+                            )
+                            for name in hot
+                        ]
+                        from ..executors.sandbox import tail_hot_artifacts
                         writer.emit_event(
-                            "incremental_pull_final_failed", error=reconcile_err,
+                            "incremental_pull_started",
+                            targets=[t[0] for t in tail_targets],
                         )
-            writer.emit_event(
-                "agent_finished",
-                status=run_result.status,
-                error=run_result.error,
-            )
+                        tail_task = asyncio.create_task(
+                            tail_hot_artifacts(
+                                executor=executor,
+                                targets=tail_targets,
+                                stop_event=stop_event,
+                            ),
+                            name="tail_hot_artifacts",
+                        )
 
-            # ============================================================
-            # Phase 2b — post-launch gather (origin_log) via executor.gather_dir
-            # ============================================================
-            writer.emit_event("post_launch_fanout_started", gcs_bucket="(cua direct)")
-            try:
-                gather_report = await executor.gather_dir(
-                    src=executor.work_dir, dst=host_artifacts_dir,
+                try:
+                    run_result = await asyncio.wait_for(
+                        executor.run_deployer(
+                            deployer_cls=deployer_cls,
+                            prompt=task_meta["description"],
+                            timeout_s=float(timeout_s),
+                        ),
+                        timeout=timeout_s,
+                    )
+                except asyncio.TimeoutError:
+                    run_result = AgentRunResult(
+                        status="timeout",
+                        error=f"agent wall-budget exceeded after {timeout_s}s",
+                        duration_s=float(timeout_s),
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception as launch_exc:
+                    import traceback as _tb
+                    run_result = AgentRunResult(
+                        status="failed",
+                        error=f"{type(launch_exc).__name__}: {launch_exc}\n"
+                              f"{_tb.format_exc()}",
+                        duration_s=None,
+                    )
+                finally:
+                    if tail_task is not None:
+                        stop_event.set()
+                        try:
+                            reconcile_err = await asyncio.wait_for(tail_task, timeout=120)
+                        except asyncio.TimeoutError:
+                            tail_task.cancel()
+                            reconcile_err = "tail reconcile wait timed out"
+                        if reconcile_err:
+                            writer.emit_event(
+                                "incremental_pull_final_failed", error=reconcile_err,
+                            )
+                writer.emit_event(
+                    "agent_finished",
+                    status=run_result.status,
+                    error=run_result.error,
                 )
-                if gather_report.error:
+
+                # ============================================================
+                # Phase 2b — post-launch gather (origin_log) via gather_dir
+                # ============================================================
+                writer.emit_event("post_launch_fanout_started", gcs_bucket="(cua direct)")
+                try:
+                    gather_report = await executor.gather_dir(
+                        src=executor.work_dir, dst=host_artifacts_dir,
+                    )
+                    if gather_report.error:
+                        writer.emit_event(
+                            "origin_log_gather_failed",
+                            report={
+                                "transport": gather_report.transport,
+                                "files": gather_report.files,
+                                "error": gather_report.error,
+                            },
+                        )
+                    else:
+                        writer.emit_event(
+                            "origin_log_gather_done",
+                            report={
+                                "transport": gather_report.transport,
+                                "files": gather_report.files,
+                                "bytes": gather_report.bytes,
+                            },
+                        )
+                except Exception as e:
                     writer.emit_event(
                         "origin_log_gather_failed",
-                        report={
-                            "transport": gather_report.transport,
-                            "files": gather_report.files,
-                            "error": gather_report.error,
-                        },
+                        report={"transport": "?", "files": 0, "error": str(e)},
                     )
-                else:
-                    writer.emit_event(
-                        "origin_log_gather_done",
-                        report={
-                            "transport": gather_report.transport,
-                            "files": gather_report.files,
-                            "bytes": gather_report.bytes,
-                        },
-                    )
-            except Exception as e:
-                writer.emit_event(
-                    "origin_log_gather_failed",
-                    report={"transport": "?", "files": 0, "error": str(e)},
-                )
             # ============================================================
             # Phase 3 — gather env output, stage reference, evaluate
             # ============================================================
@@ -396,59 +506,64 @@ async def run_one_unit(
             #     "local"    → cua-direct pull → <run_dir>/output/
             #     "gs://..." → vm-side gsutil push → user bucket
             #     Best-effort: failure logs + emits event but doesn't abort.
-            await pull_agent_output(
-                env=env, provider=provider, artifacts=artifacts, task_meta=task_meta,
-                run_id=writer.run_id, task_id=unit.task_path, writer=writer,
-                run_dir=writer.run_dir,
-            )
+            #     Under --eval-only the output was just pushed UP from the saved
+            #     run, so re-pulling it would be redundant — skip it.
+            if not eval_only:
+                await pull_agent_output(
+                    env=env, provider=provider, artifacts=artifacts, task_meta=task_meta,
+                    run_id=writer.run_id, task_id=unit.task_path, writer=writer,
+                    run_dir=writer.run_dir,
+                )
 
             # 3b. STAGING_EVAL (simprun runner.py:_phase3_evaluate second half)
             #     Pull reference data from GCS to the env if the task needs
             #     it for scoring. Best-effort: many tasks don't have a
             #     reference/ prefix and we just log + continue.
-            env.set_phase("stage_reference")
-            await stage_reference(
-                env=env, provider=provider, artifacts=artifacts, task_meta=task_meta,
-                run_id=writer.run_id, task_id=unit.task_path, writer=writer,
-            )
-
-            # 3c. RUNNING_EVAL. Raw eval output is funnelled into
-            #     eval_result.json + run.json + trajectory.json — there is
-            #     no debug/ folder in the new spec, so simprun's
-            #     `debug/eval/result.json` raw dump has no destination here.
-            env.set_phase("evaluation")
-            eval_start = time.monotonic()
-            try:
-                eval_out = await asyncio.wait_for(
-                    task_driver.evaluate(), timeout=_EVAL_TIMEOUT_S,
+            #     Skipped when --eval-only found no saved output to re-grade.
+            if not eval_only_no_output:
+                env.set_phase("stage_reference")
+                await stage_reference(
+                    env=env, provider=provider, artifacts=artifacts, task_meta=task_meta,
+                    run_id=writer.run_id, task_id=unit.task_path, writer=writer,
                 )
-                eval_duration_s = round(time.monotonic() - eval_start, 4)
-                if eval_out is None or eval_out.get("error"):
-                    eval_status = "failed"
-                    eval_error = (
-                        {"type": "Exception", "message": str(eval_out.get("error")),
-                         "traceback": str(eval_out.get("error"))}
-                        if eval_out
-                        else None
+
+                # 3c. RUNNING_EVAL. Raw eval output is funnelled into
+                #     eval_result.json + run.json + trajectory.json — there is
+                #     no debug/ folder in the new spec, so simprun's
+                #     `debug/eval/result.json` raw dump has no destination here.
+                env.set_phase("evaluation")
+                eval_start = time.monotonic()
+                try:
+                    eval_out = await asyncio.wait_for(
+                        task_driver.evaluate(), timeout=_EVAL_TIMEOUT_S,
                     )
-                else:
-                    eval_status = "success"
-                    score = _extract_score(eval_out)
-            except asyncio.TimeoutError:
-                eval_duration_s = round(time.monotonic() - eval_start, 4)
-                # Eval ran out of wall-clock — treat as a timeout (not a failure)
-                # so the unit status is "timeout" and resume skips it.
-                eval_status = "timeout"
-                eval_error = {
-                    "type": "TimeoutError",
-                    "message": f"evaluate() exceeded {_EVAL_TIMEOUT_S}s wall-clock",
-                }
-                logger.error("evaluate timed out after %ds for %s", _EVAL_TIMEOUT_S, unit.slug)
-            except Exception as e:
-                eval_duration_s = round(time.monotonic() - eval_start, 4)
-                eval_status = "failed"
-                eval_error = err_dict(e)
-                logger.exception("evaluate raised for %s", unit.slug)
+                    eval_duration_s = round(time.monotonic() - eval_start, 4)
+                    if eval_out is None or eval_out.get("error"):
+                        eval_status = "failed"
+                        eval_error = (
+                            {"type": "Exception", "message": str(eval_out.get("error")),
+                             "traceback": str(eval_out.get("error"))}
+                            if eval_out
+                            else None
+                        )
+                    else:
+                        eval_status = "success"
+                        score = _extract_score(eval_out)
+                except asyncio.TimeoutError:
+                    eval_duration_s = round(time.monotonic() - eval_start, 4)
+                    # Eval ran out of wall-clock — treat as a timeout (not a failure)
+                    # so the unit status is "timeout" and resume skips it.
+                    eval_status = "timeout"
+                    eval_error = {
+                        "type": "TimeoutError",
+                        "message": f"evaluate() exceeded {_EVAL_TIMEOUT_S}s wall-clock",
+                    }
+                    logger.error("evaluate timed out after %ds for %s", _EVAL_TIMEOUT_S, unit.slug)
+                except Exception as e:
+                    eval_duration_s = round(time.monotonic() - eval_start, 4)
+                    eval_status = "failed"
+                    eval_error = err_dict(e)
+                    logger.exception("evaluate raised for %s", unit.slug)
 
             # ============================================================
             # Trajectory finalize via deployer.parse_artifacts (LOG_SPEC §5)
@@ -581,6 +696,9 @@ async def run_one_unit(
         total_s=total_s,
         trajectory=trajectory,
         category=_category_from_error(error_str),
+        eval_only=eval_only,
+        eval_only_source=eval_only_source_ts,
+        eval_only_caveat=eval_only_caveat,
     )
     writer.write_run_json(run_meta)
 
@@ -927,6 +1045,39 @@ def _task_data_source(artifacts: ArtifactsSpec | None) -> str:
     return artifacts.task_data_source
 
 
+def _find_latest_output_dir(unit: RunUnit, output_root: Path) -> Path | None:
+    """Newest prior run dir for ``unit`` whose ``output/`` is non-empty.
+
+    Mirrors :class:`RunWriter`'s on-disk layout
+    ``<output_root>/<agent>/<model>/<task>/v<i>/<ts>/`` (same path
+    construction as ``cli._unit_already_done``). Scans timestamped run dirs
+    newest-first and returns the first whose ``output/`` holds at least one
+    real file (``.unreadable`` pull markers don't count). Returns ``None`` if
+    no usable saved output exists — caller skips the unit rather than grading
+    an empty submission.
+    """
+    model = (unit.agent_spec.config or {}).get("model", "")
+    v_dir = (
+        output_root
+        / slug_agent(unit.agent_id)
+        / slug_model(model)
+        / slug_task(unit.task_path)
+        / f"v{unit.variant_index}"
+    )
+    if not v_dir.is_dir():
+        return None
+    for ts_dir in sorted(v_dir.iterdir(), reverse=True):
+        out_dir = ts_dir / "output"
+        if not out_dir.is_dir():
+            continue
+        has_file = any(
+            p.is_file() and p.suffix != ".unreadable" for p in out_dir.rglob("*")
+        )
+        if has_file:
+            return ts_dir
+    return None
+
+
 def _build_run_meta(
     *,
     run_id: str,
@@ -941,6 +1092,9 @@ def _build_run_meta(
     total_s: float,
     trajectory: Trajectory | None,
     category: str | None,
+    eval_only: bool = False,
+    eval_only_source: str | None = None,
+    eval_only_caveat: str | None = None,
 ) -> dict[str, Any]:
     """Construct the LOG_SPEC §4 run.json payload."""
     usage = (
@@ -949,7 +1103,7 @@ def _build_run_meta(
         else None
     )
     cfg_repr = redact_config(dict(unit.agent_spec.config))
-    return {
+    meta = {
         "schema_version": 2,
         "run_id": run_id,
         "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -978,6 +1132,14 @@ def _build_run_meta(
         "timings": {"duration_s": round(total_s, 2)},
         "usage": usage,
     }
+    # Only stamp eval-only provenance on rejudge runs so normal run.json stays
+    # byte-for-byte unchanged.
+    if eval_only:
+        meta["eval_only"] = True
+        meta["eval_only_source"] = eval_only_source
+        if eval_only_caveat:
+            meta["eval_only_caveat"] = eval_only_caveat
+    return meta
 
 
 def _category_from_error(error_str: str | None) -> str | None:

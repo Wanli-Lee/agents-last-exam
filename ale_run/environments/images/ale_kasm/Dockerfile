@@ -54,6 +54,12 @@ RUN bash ${INST_DIR}/ubuntu/install/firefox/install_firefox.sh
 # ============================================================
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 && \
     update-alternatives --set python3 /usr/bin/python3.12
+# Provide a bare `python` → `python3`. Several task verifiers shell out to
+# `python ...` (not `python3`); without this they crash with
+# `python: command not found` and the task is graded 0 regardless of the
+# agent's actual output. update-alternatives keeps it pointing at python3.
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1 && \
+    update-alternatives --set python /usr/bin/python3.12
 RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12
 
 # ============================================================

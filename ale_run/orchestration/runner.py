@@ -66,6 +66,8 @@ class Runner:
     async def run(
         self,
         units: Iterable[RunUnit] | None = None,
+        *,
+        eval_only: bool = False,
     ) -> list[UnitResult]:
         """Run all units (or a filtered subset). Returns ``list[UnitResult]``.
 
@@ -96,6 +98,7 @@ class Runner:
                 cleanup_mode=self._spec.cleanup_mode,
                 prompt_suffix=self._spec.prompt_suffix,
                 wall_time_s=self._spec.wall_time_s,
+                eval_only=eval_only,
             )
             logger.info("[%s] done: status=%s score=%s duration=%.1fs",
                         u.slug, result.status, result.score, result.duration_s or 0)
