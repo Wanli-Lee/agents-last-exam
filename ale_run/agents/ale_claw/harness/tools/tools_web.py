@@ -64,6 +64,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
+SERPER_SEARCH_URL = "https://google.serper.dev/search"
 
 _DEFAULT_SEARCH_COUNT = 5
 _MAX_SEARCH_COUNT = 20
@@ -154,6 +155,32 @@ _BLOCKED_IP_PREDICATES = (
 )
 
 
+def _host_uses_proxy(host: str) -> bool:
+    """True if an HTTP(S) proxy is configured for ``host``.
+
+    Reads HTTPS_PROXY/HTTP_PROXY and honors NO_PROXY (so localhost and
+    explicitly-excluded hosts still take the direct path). Mirrors the
+    semantics aiohttp uses with ``trust_env=True``."""
+    if not (
+        os.environ.get("HTTPS_PROXY")
+        or os.environ.get("https_proxy")
+        or os.environ.get("HTTP_PROXY")
+        or os.environ.get("http_proxy")
+    ):
+        return False
+    no_proxy = (os.environ.get("NO_PROXY") or os.environ.get("no_proxy") or "")
+    h = host.lower().strip(".")
+    for entry in no_proxy.split(","):
+        e = entry.strip().lower().strip(".")
+        if not e:
+            continue
+        if e == "*":
+            return False
+        if h == e or h.endswith("." + e):
+            return False
+    return True
+
+
 def _assert_url_safe(url: str) -> None:
     """Reject the URL if it is unsafe to fetch.
 
@@ -188,6 +215,17 @@ def _assert_url_safe(url: str) -> None:
         literal = None
     if literal is not None:
         _assert_ip_safe(literal, url, host)
+        return
+
+    # When an outbound proxy is configured, DNS is resolved by the proxy
+    # (remote DNS), not here. Resolving locally is both meaningless (we never
+    # connect to that IP) and actively harmful behind a censored/poisoned
+    # resolver, where a public host can resolve to a bogus reserved address
+    # (e.g. en.wikipedia.org -> 2001::1) and trip the IP allowlist. Skip the
+    # resolve-and-inspect step in that case; the scheme/host and bare-IP
+    # guards above still apply. Honors NO_PROXY for hosts kept on a direct
+    # connection (those are still resolved + checked locally).
+    if _host_uses_proxy(host):
         return
 
     # Hostname → resolve and inspect every returned IP.
@@ -434,14 +472,21 @@ class WebSearchTool(BaseTool):
             "required": ["query"],
         }
 
-    def _resolve_api_key(self) -> str:
-        key = self._api_key_override or os.environ.get("BRAVE_API_KEY") or ""
-        key = key.strip()
-        if not key:
-            raise ValueError(
-                "web_search requires BRAVE_API_KEY (env var) or an api_key kwarg."
-            )
-        return key
+    def _resolve_api_key(self) -> tuple[str, str]:
+        """Return ``(provider, api_key)``. Serper is preferred when its key is
+        present; Brave remains the fallback. An explicit ``api_key`` override
+        is treated as Brave for backward compatibility."""
+        if self._api_key_override:
+            return ("brave", self._api_key_override.strip())
+        serper = (os.environ.get("SERPER_API_KEY") or "").strip()
+        if serper:
+            return ("serper", serper)
+        brave = (os.environ.get("BRAVE_API_KEY") or "").strip()
+        if brave:
+            return ("brave", brave)
+        raise ValueError(
+            "web_search requires SERPER_API_KEY or BRAVE_API_KEY (env var)."
+        )
 
     def call(self, params: Union[str, dict], **kwargs) -> dict:
         try:
@@ -463,7 +508,7 @@ class WebSearchTool(BaseTool):
                 if not isinstance(country_raw, str) or not country_raw.strip():
                     raise ValueError('web_search: "country" must be a non-empty string')
                 country = country_raw.strip().upper()
-            api_key = self._resolve_api_key()
+            provider, api_key = self._resolve_api_key()
         except ValueError as e:
             return {"success": False, "error": f"Error: {e}"}
 
@@ -474,7 +519,7 @@ class WebSearchTool(BaseTool):
 
         try:
             result = _run_async(
-                self._search(api_key, query, count, freshness_param, country)
+                self._search(provider, api_key, query, count, freshness_param, country)
             )
         except Exception as e:  # noqa: BLE001 — surface HTTP errors as tool errors
             logger.error("web_search failure on %r: %s", query, e)
@@ -484,6 +529,19 @@ class WebSearchTool(BaseTool):
         return result
 
     async def _search(
+        self,
+        provider: str,
+        api_key: str,
+        query: str,
+        count: int,
+        freshness: Optional[str],
+        country: Optional[str],
+    ) -> dict:
+        if provider == "serper":
+            return await self._search_serper(api_key, query, count, freshness, country)
+        return await self._search_brave(api_key, query, count, freshness, country)
+
+    async def _search_brave(
         self,
         api_key: str,
         query: str,
@@ -504,7 +562,7 @@ class WebSearchTool(BaseTool):
             "Accept-Encoding": "gzip",
         }
         timeout = aiohttp.ClientTimeout(total=_DEFAULT_SEARCH_TIMEOUT_SECONDS)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as session:
             async with session.get(BRAVE_SEARCH_URL, params=params, headers=headers) as resp:
                 if resp.status == 429:
                     retry_after = resp.headers.get("Retry-After", "unknown")
@@ -534,6 +592,61 @@ class WebSearchTool(BaseTool):
         return {
             "success": True,
             "provider": "brave",
+            "query": query,
+            "count": len(results),
+            "results": results,
+        }
+
+    async def _search_serper(
+        self,
+        api_key: str,
+        query: str,
+        count: int,
+        freshness: Optional[str],
+        country: Optional[str],
+    ) -> dict:
+        import aiohttp
+
+        # Serper Google Search: POST JSON, X-API-KEY header, results under
+        # ``organic`` with title/link/snippet. ``num`` caps results; ``tbs``
+        # carries a recency filter; ``gl`` is the country code.
+        body: dict[str, Any] = {"q": query, "num": count}
+        _SERPER_FRESHNESS = {"pd": "qdr:d", "pw": "qdr:w", "pm": "qdr:m", "py": "qdr:y"}
+        if freshness and freshness in _SERPER_FRESHNESS:
+            body["tbs"] = _SERPER_FRESHNESS[freshness]
+        if country:
+            body["gl"] = country.lower()
+        headers = {"X-API-KEY": api_key, "Content-Type": "application/json"}
+        timeout = aiohttp.ClientTimeout(total=_DEFAULT_SEARCH_TIMEOUT_SECONDS)
+        async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as session:
+            async with session.post(SERPER_SEARCH_URL, json=body, headers=headers) as resp:
+                if resp.status == 429:
+                    retry_after = resp.headers.get("Retry-After", "unknown")
+                    raise RuntimeError(
+                        f"web_search rate-limited by Serper (HTTP 429, Retry-After={retry_after})"
+                    )
+                if resp.status >= 400:
+                    text = (await resp.text())[:1000]
+                    raise RuntimeError(
+                        f"web_search failed (HTTP {resp.status}): {text!r}"
+                    )
+                payload = await resp.json(content_type=None)
+
+        raw_results = payload.get("organic") or []
+        results: list[dict[str, Any]] = []
+        for r in raw_results[:count]:
+            if not isinstance(r, dict):
+                continue
+            results.append(
+                {
+                    "title": r.get("title") or "",
+                    "url": r.get("link") or "",
+                    "description": r.get("snippet") or "",
+                }
+            )
+        return {
+            "success": True,
+            "provider": "serper",
             "query": query,
             "count": len(results),
             "results": results,
@@ -694,7 +807,7 @@ class WebFetchTool(BaseTool):
         body_bytes = bytearray()
         truncated_body = False
         async with aiohttp.ClientSession(
-            timeout=timeout, connector=connector
+            timeout=timeout, connector=connector, trust_env=True
         ) as session:
             async with session.get(
                 url,

@@ -1,0 +1,14 @@
+name: win_smoke
+
+agents:
+  - configs/agents/ale_claw_gpt55_4200.yaml
+
+environment: configs/environments/environment.yaml
+tasks: selected_tasks/win_smoke.txt
+
+output:
+  root: .logs/ale
+
+concurrency: 1
+wall_time_s: 3600
+cleanup_mode: delete

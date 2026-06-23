@@ -1,0 +1,14 @@
+# tasks cut off by max_turns=100 before using 5h budget; rerun with max_turns=1000 (paper: 5h-only)
+business_finance/pe_screening_memo_1
+business_finance/ff5_public_reconstruction
+life_sciences/idp_ensemble_scoring
+engineering/power_10kv_feeder_reliability_001
+education_info/marc_remediation_folio_overlay
+computing_math/synthetic_causal_structure_inference
+other/aerobics_wc2026_portugal_trio_difficulty_scoring
+social_sciences/atwood_2022_measles_vaccine_reproduction
+psychology_neuro/celegans_neuron_tracking
+engineering/humanoid_wbc_policy_evaluation
+business_finance/sec_10k_financial_parsing
+computing_math/clustered_cyclic_code_circuit_level_simulation
+engineering/sumo_urban_am_peak_calibration

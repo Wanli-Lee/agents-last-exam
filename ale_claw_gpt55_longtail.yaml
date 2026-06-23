@@ -1,0 +1,10 @@
+name: ale_claw_gpt55_rejudge
+agents:
+  - configs/agents/ale_claw_gpt55_4200.yaml
+environment: configs/environments/environment_docker_local.yaml
+tasks: selected_tasks/rejudge_longtail7.txt
+output:
+  root: .logs/ale
+concurrency: 7
+wall_time_s: 18000
+cleanup_mode: delete
