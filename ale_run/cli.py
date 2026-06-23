@@ -44,6 +44,14 @@ def main(argv: list[str] | None = None) -> int:
              "whose status is 'completed' or 'timeout' under the output dir; "
              "re-run everything else. Lets a re-invocation fill only the gaps.",
     )
+    p_run.add_argument(
+        "--eval-only", action="store_true", dest="eval_only",
+        help="Re-grade only: skip the agent phase, re-stage each unit's most "
+             "recent saved output/ back into a fresh container, and re-run the "
+             "verifier. Writes a NEW timestamped run dir (the original is kept). "
+             "Units with no saved output are skipped. Mutually exclusive with "
+             "--resume.",
+    )
     p_run.add_argument("--verbose", "-v", action="store_true")
 
     p_list = subparsers.add_parser("list", help="List discoverable tasks.")
@@ -67,6 +75,10 @@ def main(argv: list[str] | None = None) -> int:
 # =============================================================================
 
 async def _cmd_run(args: argparse.Namespace) -> int:
+    if args.eval_only and args.resume:
+        logger.error("--eval-only and --resume are mutually exclusive")
+        return 2
+
     spec = load_experiment(args.spec_path)
     runner = Runner(spec)
     units = _filter_units(runner.enumerate_units(), args)
@@ -91,7 +103,7 @@ async def _cmd_run(args: argparse.Namespace) -> int:
             print(f"  {u.agent_id:20s}  {u.task_path:40s}  v{u.variant_index}")
         return 0
 
-    results = await runner.run(units)
+    results = await runner.run(units, eval_only=args.eval_only)
     _print_results_table(results)
     bad = sum(1 for r in results if r.status not in ("completed",))
     return 0 if bad == 0 else 1
