@@ -901,13 +901,10 @@ class TestBuildSystemPromptReport:
         assert report["source"] == "test"
 
     def test_context_files(self):
-        class FakeFile:
-            def __init__(self, name, content):
-                self.name = name
-                self.content = content
+        from ale_run.agents.ale_claw.harness.prompt import ContextFile
 
         prompt = "Instructions\nContent of AGENTS.md\nMore stuff"
-        files = [FakeFile("AGENTS.md", "Content of AGENTS.md")]
+        files = [ContextFile(path="AGENTS.md", content="Content of AGENTS.md")]
         report = build_system_prompt_report(system_prompt=prompt, context_files=files)
 
         assert len(report["injected_files"]) == 1
