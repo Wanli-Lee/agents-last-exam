@@ -7,8 +7,7 @@ config:
   max_turns: 1000
   substrate_transport: mcp
   gui_transport: null
-  disabled_tools:
-    - web_search
+  disabled_tools: []
   thinking_level: high
   flush_thinking_level: null
   compaction_thinking_level: null
