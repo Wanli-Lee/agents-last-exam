@@ -1,0 +1,20 @@
+# =============================================================================
+# environment_docker_local.yaml — NON-PAPER local Docker substrate.
+# Runs the cpu-free-ubuntu (Linux) task subset in local Docker containers
+# (ale-kasm image), with task data staged from a host directory via docker cp.
+# Windows / GPU snapshots are intentionally absent: this env only serves the
+# Linux subset.
+# =============================================================================
+
+snapshots:
+  cpu-free-ubuntu:
+    provider: docker
+    image: ale-cua-local
+    docker:
+      cpus: 6
+      memory: 32g
+      shm_size: 4g
+
+# Stage input/reference from the local mirror of the published ALE data.
+task_data_source: local:///mnt/nas_nfs/home/wanli/Code/Agent_HLE/hf_data
+output_path: local

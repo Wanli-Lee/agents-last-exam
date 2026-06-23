@@ -93,6 +93,7 @@ class Image:
 # Registry — late imports avoid circular if a family module wants to
 # reference Image (which it does via from-import).
 from .ale_kasm import IMAGE as _ALE_KASM
+from .ale_cua_local import IMAGE as _ALE_CUA_LOCAL
 from .ale_ubuntu22 import IMAGE as _ALE_UBUNTU22
 from .ale_ubuntu22_docker import IMAGE as _ALE_UBUNTU22_DOCKER
 from .ale_win10 import IMAGE as _ALE_WIN10
@@ -100,6 +101,7 @@ from .ale_win10 import IMAGE as _ALE_WIN10
 
 _REGISTRY: dict[str, Image] = {
     _ALE_KASM.name: _ALE_KASM,
+    _ALE_CUA_LOCAL.name: _ALE_CUA_LOCAL,
     _ALE_UBUNTU22.name: _ALE_UBUNTU22,
     _ALE_UBUNTU22_DOCKER.name: _ALE_UBUNTU22_DOCKER,
     _ALE_WIN10.name: _ALE_WIN10,

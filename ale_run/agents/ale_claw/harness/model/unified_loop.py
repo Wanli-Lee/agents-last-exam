@@ -526,13 +526,18 @@ def _convert_response_to_output(response: Any) -> Dict[str, Any]:
 # Unified agent loop
 # ---------------------------------------------------------------------------
 
-@register_agent(models=r"openrouter/.*", priority=10)
+@register_agent(models=r"(openrouter/.*|openai/gpt-5\.[45].*)", priority=10)
 class UnifiedAgentConfig(AsyncAgentConfig):
     """Unified agent loop for OpenRouter — all providers via acompletion().
 
     Uses function-calling computer tools and OpenRouter's unified reasoning
     parameter.  Registered at priority 10 to take precedence over the
     per-provider loops for any ``openrouter/`` model string.
+
+    Also claims ``openai/gpt-5.4`` / ``openai/gpt-5.5`` so a local
+    OpenAI-compatible proxy (e.g. LiteLLM on :4200 via ``OPENAI_API_BASE``)
+    is driven through the same Chat Completions path instead of falling back
+    to the generic VLM (qwen) loop.
     """
 
     async def predict_step(

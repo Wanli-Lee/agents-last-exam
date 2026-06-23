@@ -1,0 +1,14 @@
+name: ale_claw_gpt55_docker_smoke
+
+agents:
+  - configs/agents/ale_claw_gpt55_4200.yaml
+
+environment: configs/environments/environment_docker_local.yaml
+tasks: selected_tasks/smoke_docker.txt
+
+output:
+  root: .logs/ale
+
+concurrency: 1
+wall_time_s: 5400
+cleanup_mode: keep

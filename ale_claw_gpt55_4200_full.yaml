@@ -1,0 +1,14 @@
+name: ale_claw_gpt55_4200_full
+
+agents:
+  - configs/agents/ale_claw_gpt55_4200.yaml
+
+environment: configs/environments/environment.yaml
+tasks: selected_tasks/full.txt
+
+output:
+  root: .logs/ale
+
+concurrency: 4
+wall_time_s: 18000
+cleanup_mode: delete

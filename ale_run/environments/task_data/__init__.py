@@ -44,9 +44,13 @@ def select(task_data_source: str):
     if task_data_source.startswith("hf://"):
         from . import huggingface
         return huggingface
+    if task_data_source.startswith("local://"):
+        from . import local_host
+        return local_host
     raise ValueError(
         f"unknown task_data_source {task_data_source!r}: expected "
-        f"'baked_in_sandbox', 'gs://<bucket>', or 'hf://<dataset>'"
+        f"'baked_in_sandbox', 'gs://<bucket>', 'hf://<dataset>', "
+        f"or 'local://<host_root>'"
     )
 
 

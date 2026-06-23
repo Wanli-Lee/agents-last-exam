@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 _CUA_INTERNAL_PORT = 8000
 _VNC_INTERNAL_PORT = 6901
-_CUA_READY_TIMEOUT = 120
+_CUA_READY_TIMEOUT = 300
 _CUA_READY_POLL_INTERVAL = 3
 _CUA_READY_STABLE_SUCCESSES = 2
 
@@ -189,24 +189,35 @@ class DockerProvider(Provider):
         container_ref = image.docker_image or _DEFAULT_CONTAINER_REF
         cua_internal_port = image.cua_server_port
 
+        # Image-aware boot. The published kasm image self-starts X/VNC + cua via
+        # its kasm entrypoint and exposes a VNC port; our locally-built
+        # ``ale-cua-local`` image instead ships ``ale-cua-start.sh`` (Xvfb +
+        # cua-server) and has no VNC server.
+        is_local_cua = self._cfg.image == "ale-cua-local"
+
         run_args = [
             "run", "-d",
             "--name", name,
             "-p", f"0:{cua_internal_port}",
-            "-p", f"0:{_VNC_INTERNAL_PORT}",
-            f"--shm-size={self._cfg.shm_size}",
+        ]
+        if not is_local_cua:
+            run_args += ["-p", f"0:{_VNC_INTERNAL_PORT}"]
+        run_args += [f"--shm-size={self._cfg.shm_size}"]
+        if is_local_cua:
+            run_args += ["--entrypoint", "/usr/local/bin/ale-cua-start.sh"]
+        else:
             # The kasm desktop entrypoint boots the X/VNC display *and* the
             # cua-server via custom_startup.sh. Some images ship a no-op CMD
             # ("sleep infinity") that never starts it, so we always invoke the
             # kasm startup script explicitly.
-            "--entrypoint", _KASM_ENTRYPOINT,
-        ]
+            run_args += ["--entrypoint", _KASM_ENTRYPOINT]
         if self._cfg.cpus > 0:
             run_args.extend(["--cpus", str(self._cfg.cpus)])
         if self._cfg.memory:
             run_args.extend(["--memory", self._cfg.memory])
         run_args.append(container_ref)
-        run_args.append("--wait")
+        if not is_local_cua:
+            run_args.append("--wait")
 
         logger.info("Creating Docker container %s from %s", name, container_ref)
         rc, stdout, stderr = await _run_docker(*run_args)
@@ -217,7 +228,7 @@ class DockerProvider(Provider):
         logger.info("Container %s started (id=%s)", name, stdout[:12])
 
         cua_port = await _get_host_port(name, cua_internal_port)
-        vnc_port = await _get_host_port(name, _VNC_INTERNAL_PORT)
+        vnc_port = await _get_host_port(name, _VNC_INTERNAL_PORT) if not is_local_cua else 0
         cua_url = f"http://localhost:{cua_port}"
 
         logger.info(

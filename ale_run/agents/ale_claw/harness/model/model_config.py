@@ -90,7 +90,7 @@ class ResolvedModel:
 
 _MODEL_CONFIGS: List[Tuple[re.Pattern, ModelConfig]] = [
     (
-        re.compile(r"gpt-5\.4", re.IGNORECASE),
+        re.compile(r"gpt-5\.[45]", re.IGNORECASE),
         ModelConfig(
             tool_schema_type="computer",
             screenshot_output_type="computer_screenshot",
