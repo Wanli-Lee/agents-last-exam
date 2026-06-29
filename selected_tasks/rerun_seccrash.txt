@@ -1,0 +1,11 @@
+# seccrash tasks never run on full-fixed image, or VM-transport failed
+business_finance/basel_operational_risk_bia_cn
+computing_math/dit_pipeline_cfg_alignment_fid_256_001
+health_medicine/crf_sdtm_mapping_1
+health_medicine/healthcare_bias_audit_27a_public_replication_v1
+health_medicine/wsi_tumor_localization_1
+life_sciences/amber_minimization_script_prep_instance_1
+life_sciences/cell_translocation_analysis
+life_sciences/yeast_colony_detection
+physical_sciences/hst_acs_wfc_visit_reduction
+health_medicine/prostate_imrt_matrad_reproduction

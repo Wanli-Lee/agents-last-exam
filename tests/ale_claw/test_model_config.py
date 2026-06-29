@@ -49,6 +49,14 @@ class TestGetModelConfig:
         config = get_model_config("openai/GPT-5.4")
         assert config.tool_schema_type == "computer"
 
+    def test_gpt55(self):
+        config = get_model_config("openai/gpt-5.5")
+        assert config.tool_schema_type == "computer"
+        assert config.screenshot_output_type == "computer_screenshot"
+        assert config.supports_safety_checks is False
+        assert config.action_format == "batched"
+        assert config.adapter_target == "openai-responses"
+
     def test_computer_use_preview(self):
         config = get_model_config("openai/computer-use-preview")
         assert config.tool_schema_type == "computer_use_preview"

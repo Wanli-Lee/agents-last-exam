@@ -1,0 +1,8 @@
+# 7 long-tail tasks truncated at 2h, rerun with full 5h wall-time
+computing_math/go_game_reconstruction_1
+computing_math/ranking_node_feature_parity_recovery_instance_1
+engineering/sumo_urban_am_peak_calibration
+health_medicine/nsclc_radiomics_cox_signature_v1
+life_sciences/hg002_chr22_germline_variant_pipeline
+physical_sciences/gillespie_gene_regulatory_network
+transport_safety/capacitated_vehicle_routing_problems
